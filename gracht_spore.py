@@ -65,7 +65,7 @@ gracht = Spore(seeds=seeds, address=(config['host'], config['port']))
 #@gracht.on_connect
 @gracht.handler
 def intro(node, payload):
-	payload = RLP_DESERIALIZE(payload)
+	payload = ALLBANT(payload)
 	if node in intros:
 		return None
 	intros[node] = payload
@@ -73,7 +73,7 @@ def intro(node, payload):
 
 @gracht.handler
 def blocks(node, payload):
-	payload = RLP_DESERIALIZE(payload)
+	payload = ALLBANT(payload)
 	debug('blocks : %s' % repr(payload))
 	for block in payload:
 		# [[hashtree],[header],[uncleslist]]
