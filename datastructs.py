@@ -2,12 +2,13 @@ import time, math
 
 from hashlib import sha256
 from utilities import *
+from gpdht import *
 
 from bitcoin.base58 import encode as b58encode, decode as b58decode
 
 
 def hashfunc(msg):
-	return BANT(sha256(str(msg)).digest())
+	return ghash(msg)
 
 eba = bytearray('')
 def ADDBYTEARRAYS(a,b,carry=0):
@@ -100,7 +101,7 @@ class BANT:
 		return int(self)
 	
 	def getHash(self):
-		return hashfunc(self)
+		return ghash(self)
 	
 	def encode(self, f='bant'):
 		if f == 'bant': return ENCODEBANT(self)
@@ -209,6 +210,8 @@ def RLP_SERIALIZE(blistIn):
 		
 		ret = RLP_ENCODE_LEN(rt, True)
 		ret.extend(rt)
+	else:
+		raise ValueError('input is not a BANT or a list')
 	
 	return BANT(ret)
 			
@@ -301,8 +304,8 @@ class HashNode:
 		if self.myhash == None or force:
 			# p0.hash ++ ttl ++ p1.hash
 			tripconcat = lambda x: self.children[x[0]].getHash().concat(BANT(self.ttl-1).concat(self.children[x[1]].getHash()))
-			if len(self.children) == 1: self.myhash = hashfunc(tripconcat([0,0]))
-			else: self.myhash = hashfunc(tripconcat([0,1]))
+			if len(self.children) == 1: self.myhash = ghash(tripconcat([0,0]))
+			else: self.myhash = ghash(tripconcat([0,1]))
 			if self.parent != None: self.parent.getHash(True)
 		return self.myhash
 		
@@ -342,7 +345,7 @@ class HashTree:
 		
 		
 	def doHash(self, msg):
-		return hashfunc(msg)
+		return ghash(msg)
 		
 		
 	def rightmost(self, ttl):
@@ -439,8 +442,8 @@ class Forest(object):
 		
 class GPDHTChain(Forest):
 	''' Holds a PoW chain and can answer queries '''
-	headerMap = dict([(title,n) for n,title in enumerate(["version", "height", "prevblock", "uncles", "target", "timestamp", "votes"])])
-	_blockInfoTemplate = [
+	# initial conditions must be updated when chaindata structure updated
+	_initialConditions = [
 			BANT(1,padTo=4), # version
 			BANT(0,padTo=4), # height
 			BANT(bytearray(32)), # prevblock
@@ -451,16 +454,14 @@ class GPDHTChain(Forest):
 		]
 	_target1 = BANT(2**256-1)
 	
-	def __init__(self, genesisheader=None, db=None):
+	def __init__(self, genesisBlock=None, db=None):
 		super(GPDHTChain, self).__init__()
 		self.initComplete = False
 		self.head = BANT(chr(0))
 		self.db = db
 		
-		self.decs = {}
-		self.hashfunc = hashfunc
-		if genesisheader != None: self.setGenesis(genesisheader)
-		else: self.setGenesis(self.mine(self.blockInfoTemplate()))
+		if genesisBlock != None: self.setGenesis(genesisBlock)
+		else: self.setGenesis(self.mine(self.blockTemplate()))
 		
 		
 		
@@ -492,7 +493,7 @@ class GPDHTChain(Forest):
 	
 	
 	def hash(self, message):
-		return hashfunc(message)
+		return ghash(message)
 		
 	def hashBlockInfo(self, blockInfo):
 		return self.hash(RLP_SERIALIZE(blockInfo))
@@ -520,30 +521,32 @@ class GPDHTChain(Forest):
 		self.addBlock(tree, blockInfo)
 		
 		
-	# added cumulative difficulty stuff, need to test
-	def addBlock(self, block, blockInfo):
+	# added sigmadiff stuff, need to test
+	def addBlock(self, block, chaindata):
 		if self.db.exists(block.getHash()): 
 			print 'addBlock: %s already acquired' % block.getHash().hex()
-			return 'Exists'
+			return 'exists'
+			
 		print 'addBlock: Potential block', block.getHash().hex()
 		print 'addBlock: block.leaves:', block.leaves()
+		
 		if self.initComplete == False:
-			assert blockInfo[self.headerMap['prevblock']] == BANT(bytearray(32))
-			hcdiff = BANT(0)
+			assert chaindata[CDM['prevblock']] == BANT(0, padTo=32)
+			maxsigmadiff = BANT(0)
 		else:
-			print 'addBlock: repr(prevblock):', repr(blockInfo[self.headerMap['prevblock']])
-			assert blockInfo[self.headerMap['prevblock']] in self.trees
-			hcdiff = self.cumulativeDifficulty(self.headInfo)
-		cdiff = self.cumulativeDifficulty(blockInfo)
-		if hcdiff < cdiff:
+			print 'addBlock: repr(prevblock):', repr(chaindata[CDM['prevblock']])
+			if chaindata[CDM['prevblock']] not in self.trees:
+				raise ValueError('Prevblock does not exist')
+			maxsigmadiff = self.headChaindata.sigmadiff
+			
+		sigmadiff = self.calcSigmadiff(chaindata)
+		if maxsigmadiff < sigmadiff:
 			self.head = block.getHash()
-			self.headInfo = blockInfo
-		h = self.hashBlockInfo(blockInfo)
-		print block.leaves()
-		print repr(block.pos(0))
-		print repr(self.genesisHash)
-		assert self.appid == block.pos(0)
-		assert h == block.pos(1)
+			self.headChaindata = chaindata
+			
+		# TODO : these should not be asserts
+		assert block.pos(0) == self.appid
+		assert block.pos(1) == chaindata.getHash()
 		
 		print 'addBlock: NEW BLOCK', block.getHash().hex()
 		self.add(block)
@@ -552,8 +555,8 @@ class GPDHTChain(Forest):
 			self.initComplete = True
 		
 		self.db.dumpTree(block)
-		self.db.dumpList(blockInfo)
-		self.db.setAncestors(block, blockInfo[self.headerMap['prevblock']])
+		self.db.dumpList(chaindata)
+		self.db.setAncestors(block, chaindata[CDM['prevblock']])
 		self.db.setEntry(block.getHash() + blockInfo[self.headerMap['target']], [cdiff]) # note, because of this target cannot equal 0 or be a power of 2.
 		
 		return True
@@ -563,28 +566,33 @@ class GPDHTChain(Forest):
 		return self.db.getEntry(self.db.getEntry(self.head)[1])
 		
 	# need to test
-	def cumulativeDifficulty(self, blockInfo):
-		prevblock = blockInfo[self.headerMap['prevblock']]
-		if prevblock == 0:
-			return BANT(0)
-		prevBlockList = self.db.getEntry(prevblock)
-		prevBlockInfo = self.db.getEntry(prevBlockList[1])
-		prevCumulativeDifficulty = self.db.getEntry(prevBlockInfo[self.headerMap['target']] + prevblock)[0]
-		target = blockInfo[self.headerMap['target']]
-		diff = self._target1 / unpackTarget(target)
-		cdiff = prevCumulativeDifficulty + diff
-		print repr(cdiff)
-		return cdiff
+	def calcSigmadiff(self, cd):
+		''' given chaindata, calculate the sigmadiff '''
+		prevblockhash = cd.prevblocks[0]
+		if prevblockhash == 0:
+			return prevsigmadiff = BANT(0)
+		else:
+			prevblocklist = self.db.getEntry(prevblockhash)
+			prevchaindata = ChainData(self.db.getEntry(prevblocklist[1])) # each GPDHT block has 2nd entry as chaindata hash
+			prevsigmadiff = prevchaindata.sigmadiff
+		target = cd.unpackedTarget
+		diff = self._target1 / target
+		sigmadiff = prevsigmadiff + diff
+		return sigmadiff
 	
 	
 	def validAlert(self, alert):
+		# TODO : not in PoC, probably not in GPDHTChain either
 		# TODO : return True if valid alert
 		pass
 		
 	
 	def getSuccessors(self, blocks, stop):
+		# TODO : not in PoC
+		# TODO : Probably won't be used with new blockchain struct
 		# TODO : find HCB and then some successors until stop or max num
-		return [self.db.getSuccessors(b) for b in blocks]
+		#return [self.db.getSuccessors(b) for b in blocks]
+		pass
 		
 		
 	def getTopBlock(self):
@@ -592,7 +600,9 @@ class GPDHTChain(Forest):
 		
 		
 	def loadChain(self):
-		self.db.getSuccessors(self.genesisHash)
+		# TODO : load chainstate from database
+		pass
+		#self.db.getSuccessors(self.genesisHash)
 		
 	
 	def learnOfDB(self, db):
@@ -600,43 +610,45 @@ class GPDHTChain(Forest):
 		self.loadChain()
 		
 		
-		
-
-#==============================================================================
-# Node
-#==============================================================================
-		
-		
-class Node:
-	''' Simple class to hold node info '''
-	def __init__(self, ip, port):
-		self.ip = ip
-		self.port = port
-		self.versionInfo = None
-		self.alive = False
-		self.score = 0
-		self.testAlive()
-		
-		self.about = None
-		
-	def sendMessage(self, path, msgdict, method="POST"):
-		fireHTTP(self, path, msgdict, method)
-		
-	def testAlive(self):
-		# TODO : request /about from node, true if recieved
-		self.alive = True
-		
-
-
 
 #==============================================================================
 # Network Specific - Value Laden Data Structures
 #==============================================================================
 		
 
-class Block:
-	def __init__(hashtree):
-		pass
+class ChainData:
+	def __init__(self, cd):
+		# ["version", "height", "target", "sigmadiff", "timestamp", "votes", "uncles"] # prev1, 2, 4, 8, ... appended here
+		self.version = cd[CDM['version']]
+		self.height = cd[CDM['height']]
+		self.target = cd[CDM['target']]
+		self.sigmadiff = cd[CDM['sigmadiff']]
+		self.timestamp = cd[CDM['timestamp']]
+		self.votes = cd[CDM['votes']]
+		self.uncles = cd[CDM['uncles']]
+		# there is an ancestry summary here
+		self.prevblocks = cd[CDM['prevblock']:]
+		
+		self.unpackedTarget = unpackTarget(self.target)
+		
+		self.hash = ghash(''.join(cd))
+		
+	def getHash(self):
+		return self.hash
+		
+class Uncles:
+	def __init__(self, ul):
+		self._uncles = []
+		for uncle in ul:
+			self._uncles.append( (HashTree(uncle[UM['hashtree']]), ChainData(uncle[UM['chaindata']])) )
+			
+	def __getitem__(self, key):
+		return self._uncles.__getitem__(key)
+		
+	def __setitem__(self, key, value):
+		return self._uncles.__setitem__(key, value)
+		
+	
 		
 
 	

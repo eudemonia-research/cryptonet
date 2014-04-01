@@ -65,28 +65,42 @@ def sha256Hash(plaintext):
 	return sha256(plaintext).digest()
 	
 
-
 #==============================================================================
 # NETWORK
 #==============================================================================
 
 def packTarget(upt):
+	# TODO : test
 	pad = 0
-	zero = chr(0)
-	while upt[0] == chr(0):
+	while upt[0] == ZERO:
 		pad += 1
 		upt = upt[1:]
 	return upt[:3]+chr(pad)
 	
 def unpackTarget(pt):
+	# TODO : test
 	pt = str(pt)
 	pad = ord(pt[3])
-	zero = chr(0)
 	sigfigs = pt[:3]
-	rt = zero*pad + sigfigs + zero*(32-3-pad)
+	rt = ZERO*pad + sigfigs + ZERO*(32-3-pad)
 	return long(rt.encode('hex'),16)
 	
 	
+def packSigmadiff(upsd):
+	# TODO : test
+	pad = 0
+	while upsd[0] == ZERO:
+		pad += 1
+		upsd = upsd[1:]
+	return upsd[:5] + chr(pad)
+	
+def unpackSigmadiff(psd):
+	# TODO : test
+	psd = str(psd)
+	pad = ord(psd[5])
+	sigfigs = psd[:5]
+	rt = ZERO*pad + sigfigs + ZERO*(32-5-pad)
+	return long(rt.encode('hex'), 16)
 	
 
 #==============================================================================
@@ -103,49 +117,4 @@ class ThreadWithArgs(threading.Thread):
 		
 	def run(self):
 		self.target(*self.args)
-
-
-
-#==============================================================================
-# HTTP
-#==============================================================================
-	
-import requests
-
-
-def goGetHTTP(node, path, payload={}, method="POST"):
-	url = "http://%s:%d%s" % (node.ip, node.port, path)
-	if method == "POST":
-		r = requests.post(url, data=payload, proxies={"http":""})
-	else:
-		r = requests.get(url, proxies={"http":""})
-	print 'goGetHTTP:', repr(r.text)
-	return r.text
-
-def fireHTTP(node, path, payload={}, method="POST"):
-	t = ThreadWithArgs(goGetHTTP, node, path, payload, method)
-	t.start()
-	
-
-
-#==============================================================================
-# JSON HELPER
-#==============================================================================
-
-"""Module that monkey-patches json module when it's imported so
-JSONEncoder.default() automatically checks for a special "to_json()"
-method and uses it to encode the object if found.
--- Found on stack exchange
-User: martineau
-URL: http://stackoverflow.com/questions/18478287/making-object-json-serializable-with-regular-encoder
-"""
-import json
-
-def _default(self, obj):
-    return getattr(obj.__class__, "to_json", _default.default)(obj)
-
-_default.default = json.JSONEncoder().default # save unmodified default
-json.JSONEncoder.default = _default # replacement
-
-
 

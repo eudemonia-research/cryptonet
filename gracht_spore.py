@@ -5,48 +5,21 @@ Haskell client coming later. '''
 
 from spore import Spore
 from datastructs import *
-
-# sketch of Gracht using Spore
+from constants import *
 
 
 intros = {}
-introMap = {
-	'version':0,
-	'services':1,
-	'timestamp':2,
-	'addr_recv':3,
-	'addr_from':4,
-	'nonce':5,
-	'user_agent':6,
-	'topblock':7,
-	'relay':8,
-	'leaflets':9
-}
-IM = introMap
-blockMap = {
-	'hashtree': 0,
-	'chaindata': 1,
-	'uncles': 2
-}
-BM = blockMap
-uncleMap = {
-	'hashtree': 0,
-	'chaindata': 1
-	# uncles of uncles not considered
-}
-UM = uncleMap
 
 
-def unrlp(t):pass
-def rlp(t):pass
+gpdht = GPDHTChain()
 
 
 gracht = Spore()
 
-gracht.set_recvieve_decode(RLP_DESERIALIZE)
-gracht.set_send_encode(RLP_SERIALIZE)
+#gracht.set_recvieve_decode(RLP_DESERIALIZE)
+#gracht.set_send_encode(RLP_SERIALIZE)
 
-@gracht.on_connect
+#@gracht.on_connect
 @gracht.handler
 def intro(node, payload):
 	if node in intros:
@@ -63,12 +36,13 @@ def blocks(node, payload):
 		cd = ChainData(block[BM['chaindata']])
 		uncles = Uncles(block[BM['uncles']])
 		
-		# if validBlock(ht, cd, uncles):
-			# add block to whereever
-			# validated on add
-	hashtree = HashTree(json_loads(request.form['hashtree']))
-	blockinfo = json_loads(request.form['blockinfo'])
-	print '/newblock - hashtree: %s, blockinfo: %s' % (repr(hashtree.leaves), repr(blockinfo))
+		if not validPoW(ht, cd): 
+			#node.misbehaving()
+			continue
+		
+		# add to pre-validated blocks
+		added =
+	
 	added = chains[chain].addBlock(hashtree, blockinfo)
 	if added == True:
 		for n in knownNodes[chain]:
@@ -119,7 +93,7 @@ def unknown(node, payload):
 	pass
 	
 
-@gracht.on_disconnect
+#@gracht.on_disconnect
 @gracht.handler
 def outro(node, payload):
 	# TODO: after PoC
