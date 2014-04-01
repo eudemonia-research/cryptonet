@@ -31,6 +31,15 @@ uncleMap = {
 }
 UM = uncleMap
 
-chaindataList = ["version", "height", "target", "sigmadiff", "timestamp", "votes", "uncles", "prevblock"] # prev2, 4, 8, ... appended here
+chaindataList = [
+	"version", 
+	"height", 
+	"target", 
+	"sigmadiff", 
+	"timestamp", 
+	"votes", 
+	"uncles", 
+	"prevblock",
+	] # prev2, 4, 8, ... appended here
 chaindataMap = dict([(title,n) for n,title in enumerate(chaindataList)])
 CDM = chaindataMap

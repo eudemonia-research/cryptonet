@@ -220,16 +220,16 @@ class GPDHTChain(Forest):
 		self.db = db
 		
 		if genesisBlock != None: self.setGenesis(genesisBlock)
-		else: self.setGenesis(self.mine(self.ChaindataTemplate()))
+		else: self.setGenesis(self.mine(self.chaindataTemplate()))
 		
 		
 		
-	def mine(self, Chaindata):
+	def mine(self, chaindata):
 		# TODO : redo for new structure
-		target = Chaindata.unpackedTarget
+		target = chaindata.unpackedTarget
 		message = BANT("It was a bright cold day in April, and the clocks were striking thirteen.")
 		nonce = message.getHash()+1
-		potentialTree = [i.getHash() for i in [Chaindata, Chaindata, message, message]]
+		potentialTree = [i.getHash() for i in [chaindata, chaindata, message, message]]
 		h = HashTree(potentialTree)
 		count = 0
 		while True:
@@ -242,10 +242,10 @@ class GPDHTChain(Forest):
 			if count % 10000 == 0:
 				debug("Mining Genesis : %d : %s" % (count, PoW.hex()))
 		debug('Chain.mine: Found Soln : %s' % PoW.hex())
-		return (h, Chaindata)
+		return (h, chaindata)
 		
 	
-	def ChaindataTemplate(self):
+	def chaindataTemplate(self):
 		# TODO : do a real block template here
 		ret = self._initialConditions[:]
 		# replace target with correct target
@@ -264,31 +264,31 @@ class GPDHTChain(Forest):
 		return self.hash(RLP_SERIALIZE(cd))
 		
 	def setGenesis(self, block):
-		tree, Chaindata = block
+		tree, chaindata = block
 		print 'Setting Genesis Block'
-		assert int(Chaindata.uncles) == 0
-		assert int(Chaindata.prevblocks[0]) == 0
-		assert len(Chaindata.prevblocks) == 1
-		assert int(Chaindata.version) == 1
+		assert int(chaindata.uncles) == 0
+		assert int(chaindata.prevblocks[0]) == 0
+		assert len(chaindata.prevblocks) == 1
+		assert int(chaindata.version) == 1
 		
-		target = Chaindata.unpackedTarget
+		target = chaindata.unpackedTarget
 		print "Chain.setGenesis: target : %064x" % target
 		assert int(tree.getHash()) < target
 		
 		self.genesisTree = tree
 		self.genesisHash = tree.getHash()
-		self.genesisChaindata = Chaindata
-		self.appid = Chaindata.getHash()
+		self.genesisChaindata = chaindata
+		self.appid = chaindata.getHash()
 		
 		self.headTree = self.genesisTree
 		self.headChaindata = self.genesisChaindata
 		
-		self.addBlock(tree, Chaindata)
+		self.addBlock(tree, chaindata)
 		
 		
 	# added sigmadiff stuff, need to test
-	def addBlock(self, tree, Chaindata):
-		if not validPoW(tree, Chaindata): return 'PoW failed'
+	def addBlock(self, tree, chaindata):
+		if not validPoW(tree, chaindata): return 'PoW failed'
 		if self.db.exists(tree.getHash()): 
 			print 'addBlock: %s already acquired' % tree.getHash().hex()
 			return 'exists'
@@ -297,24 +297,24 @@ class GPDHTChain(Forest):
 		print 'addBlock: block.leaves:', tree.leaves()
 		
 		if self.initComplete == False:
-			assert Chaindata.prevblocks[0] == BANT(0, padTo=32)
-			assert len(Chaindata.prevblocks) == 1
+			assert chaindata.prevblocks[0] == BANT(0, padTo=32)
+			assert len(chaindata.prevblocks) == 1
 			maxsigmadiff = BANT(0)
 		else:
-			print 'addBlock: repr(prevblock):', repr(Chaindata.prevblocks[0])
-			if Chaindata.prevblocks[0] not in self.trees:
+			print 'addBlock: repr(prevblock):', repr(chaindata.prevblocks[0])
+			if chaindata.prevblocks[0] not in self.trees:
 				raise ValueError('Prevblock[0] does not exist')
 			maxsigmadiff = self.headChaindata.sigmadiff
 			
-		sigmadiff = self.calcSigmadiff(Chaindata)
+		sigmadiff = self.calcSigmadiff(chaindata)
 		if maxsigmadiff < sigmadiff:
 			debug('New head of chain : %s' % tree.getHash())
 			self.head = tree
-			self.headChaindata = Chaindata
+			self.headChaindata = chaindata
 			
 		# TODO : these should not be asserts
-		assert block.pos(0) == self.appid
-		assert block.pos(1) == Chaindata.getHash()
+		assert tree.pos(0) == self.appid
+		assert tree.pos(1) == chaindata.getHash()
 		
 		print 'addBlock: NEW BLOCK', tree.getHash().hex()
 		self.add(tree)
@@ -323,15 +323,15 @@ class GPDHTChain(Forest):
 			self.initComplete = True
 		
 		self.db.dumpTree(tree)
-		self.db.dumpChaindata(Chaindata)
-		self.db.setAncestors(tree, Chaindata.prevblocks[0])
+		self.db.dumpChaindata(chaindata)
+		self.db.setAncestors(tree, chaindata.prevblocks[0])
 		
 		return True
 		
 		
 	# need to test
 	def calcSigmadiff(self, cd):
-		''' given Chaindata, calculate the sigmadiff '''
+		''' given chaindata, calculate the sigmadiff '''
 		# TODO : test
 		prevblockhash = cd.prevblocks[0]
 		if prevblockhash == 0:
