@@ -9,3 +9,15 @@ class Database:
 
 	def exists(self, key):
 		return key in self.d
+	
+	def dumpTree(self, tree):
+		self.d[tree.getHash()] = tree.leaves()
+		
+	def dumpChaindata(self, cd):
+		self.d[cd.getHash()] = cd.rawlist
+		
+	def getEntry(self, key):
+		return self.d[key]
+		
+	def setAncestors(self, tree, prevblock):
+		pass

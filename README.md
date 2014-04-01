@@ -4,6 +4,12 @@ Gracht
 Pre-reference implementation for GPDHT
 
 
+## Dependancies
+
+* python3
+* Spore
+* pysha3 (maybe)
+
 
 ## Standards
 

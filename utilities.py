@@ -1,15 +1,17 @@
+from binascii import hexlify, unhexlify
+
 #==============================================================================
 # DEBUG
 #==============================================================================
 
 def debug(msg):
-	print msg
+	print(msg)
 
 #==============================================================================
 # CONST
 #==============================================================================
 
-ZERO = chr(0)
+ZERO = b'\x00'
 
 #==============================================================================
 # LOGIC
@@ -25,15 +27,15 @@ def xor_strings(xs, ys):
 
 
 def s2i(s):
-    return long(s.encode('hex'), 16)
+    return long(hexlify(s), 16)
     
 def i2s(i):
-	return i2h(i).decode('hex')
+	return unhexlify(i2h(i))
 	
 def i2h(i):
 	assert i >= 0
-	h = i.__format__('x')
-	return '0'*(len(h)%2)+h
+	h = i.__format__('x').encode()
+	return b'0'*(len(h)%2)+h
 	
 	
 def sumSI(s,i): return i2s(s2i(s)+i)
@@ -48,7 +50,7 @@ def num2bits(n, minlen=0):
 	r = []
 	while n > 0:
 		r.append(n%2)
-		n /= 2
+		n //= 2
 	pad = minlen - len(r)
 	while pad > 0:
 		r.append(0)
@@ -59,16 +61,7 @@ def num2bits(n, minlen=0):
 def strlist(l):
 	return [str(i) for i in l]
 	
-	
-#==============================================================================
-# CRYPTO
-#==============================================================================
 
-from hashlib import sha256
-
-def sha256Hash(plaintext):
-	return sha256(plaintext).digest()
-	
 
 #==============================================================================
 # NETWORK
@@ -84,11 +77,11 @@ def packTarget(upt):
 	
 def unpackTarget(pt):
 	# TODO : test
-	pt = str(pt)
-	pad = ord(pt[3])
+	pt = bytes(pt)
+	pad = pt[3]
 	sigfigs = pt[:3]
 	rt = ZERO*pad + sigfigs + ZERO*(32-3-pad)
-	return long(rt.encode('hex'),16)
+	return int(hexlify(rt),16)
 	
 	
 def packSigmadiff(upsd):
@@ -101,11 +94,11 @@ def packSigmadiff(upsd):
 	
 def unpackSigmadiff(psd):
 	# TODO : test
-	psd = str(psd)
-	pad = ord(psd[5])
+	psd = bytes(psd)
+	pad = psd[5]
 	sigfigs = psd[:5]
 	rt = ZERO*pad + sigfigs + ZERO*(32-5-pad)
-	return long(rt.encode('hex'), 16)
+	return int(hexlify(rt), 16)
 	
 
 #==============================================================================

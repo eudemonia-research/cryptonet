@@ -52,6 +52,7 @@ class HashNode:
 		
 	
 	def __eq__(self, other):
+		if other == None: return False
 		if len(self.children) == len(other.children) and self.ttl == other.ttl and self.children[0] == other.children[0]:
 			if len(self.children) == 2 and self.children[1] == other.children[1]:
 				return True
@@ -95,7 +96,7 @@ class HashTree:
 		
 		while len(chunks) > 1:
 			newChunks = []
-			for i in xrange(0,len(chunks),2):
+			for i in range(0,len(chunks),2):
 				newChunks.append(HashNode(chunks[i:i+2]))
 			chunks = newChunks
 		self.root = chunks[0]
@@ -149,7 +150,7 @@ class HashTree:
 					break
 				else:
 					a = HashNode([a])
-					n /= 2
+					n //= 2
 					ttl += 1
 		self.n += 1
 		
@@ -265,14 +266,15 @@ class GPDHTChain(Forest):
 		
 	def setGenesis(self, block):
 		tree, chaindata = block
-		print 'Setting Genesis Block'
+		debug('Setting Genesis Block')
 		assert int(chaindata.uncles) == 0
 		assert int(chaindata.prevblocks[0]) == 0
 		assert len(chaindata.prevblocks) == 1
+		debug('Chain.setGenesis : chaindata.version : %s' % repr(chaindata.version))
 		assert int(chaindata.version) == 1
 		
 		target = chaindata.unpackedTarget
-		print "Chain.setGenesis: target : %064x" % target
+		debug("Chain.setGenesis: target : %064x" % target)
 		assert int(tree.getHash()) < target
 		
 		self.genesisTree = tree
@@ -290,25 +292,25 @@ class GPDHTChain(Forest):
 	def addBlock(self, tree, chaindata):
 		if not validPoW(tree, chaindata): return 'PoW failed'
 		if self.db.exists(tree.getHash()): 
-			print 'addBlock: %s already acquired' % tree.getHash().hex()
+			debug('addBlock: %s already acquired' % tree.getHash().hex())
 			return 'exists'
 			
-		print 'addBlock: Potential block', tree.getHash().hex()
-		print 'addBlock: block.leaves:', tree.leaves()
+		debug('addBlock: Potential block : %s' % repr(tree.getHash().hex()))
+		debug('addBlock: block.leaves : %s' % repr(tree.leaves()))
 		
 		if self.initComplete == False:
 			assert chaindata.prevblocks[0] == BANT(0, padTo=32)
 			assert len(chaindata.prevblocks) == 1
 			maxsigmadiff = BANT(0)
 		else:
-			print 'addBlock: repr(prevblock):', repr(chaindata.prevblocks[0])
+			debug('addBlock: repr(prevblock):', repr(chaindata.prevblocks[0]))
 			if chaindata.prevblocks[0] not in self.trees:
 				raise ValueError('Prevblock[0] does not exist')
 			maxsigmadiff = self.headChaindata.sigmadiff
 			
 		sigmadiff = self.calcSigmadiff(chaindata)
 		if maxsigmadiff < sigmadiff:
-			debug('New head of chain : %s' % tree.getHash())
+			debug('New head of chain : %s' % tree.getHash().hex())
 			self.head = tree
 			self.headChaindata = chaindata
 			
@@ -316,7 +318,7 @@ class GPDHTChain(Forest):
 		assert tree.pos(0) == self.appid
 		assert tree.pos(1) == chaindata.getHash()
 		
-		print 'addBlock: NEW BLOCK', tree.getHash().hex()
+		debug( 'addBlock: NEW BLOCK : %s' % repr(tree.getHash().hex()) )
 		self.add(tree)
 		
 		if self.initComplete == False:
@@ -341,7 +343,7 @@ class GPDHTChain(Forest):
 			prevChaindata = Chaindata(self.db.getEntry(prevblocklist[1])) # each GPDHT block has 2nd entry as Chaindata hash
 			prevsigmadiff = prevChaindata.sigmadiff
 		target = cd.unpackedTarget
-		diff = self._target1 / target
+		diff = self._target1 // target
 		sigmadiff = prevsigmadiff + diff
 		return sigmadiff
 	
@@ -383,8 +385,10 @@ class GPDHTChain(Forest):
 
 class Chaindata:
 	def __init__(self, cd):
+		self.rawlist = cd[:]
 		# ["version", "height", "target", "sigmadiff", "timestamp", "votes", "uncles"] # prev1, 2, 4, 8, ... appended here
 		self.version = cd[CDM['version']]
+		debug('Chaindata.version : %s' % repr(self.version))
 		self.height = cd[CDM['height']]
 		self.target = cd[CDM['target']]
 		self.sigmadiff = cd[CDM['sigmadiff']]

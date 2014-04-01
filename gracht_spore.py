@@ -3,15 +3,18 @@
 ''' What will eventually become the pre-reference Gracht client.
 Haskell client coming later. '''
 
+import time
+
 from spore import Spore
 from datastructs import *
 from constants import *
+from database import *
 
 
 intros = {}
 
-
-gpdht = GPDHTChain()
+db = Database()
+gpdht = GPDHTChain(db=db)
 
 
 gracht = Spore()
@@ -41,12 +44,11 @@ def blocks(node, payload):
 			continue
 		
 		# add to pre-validated blocks
-		added =
+		#added =
 	
 	added = chains[chain].addBlock(hashtree, blockinfo)
 	if added == True:
 		for n in knownNodes[chain]:
-			print repr(n)
 			n.sendMessage('/newblock', {'hashtree':hashtree.leaves(), 'blockinfo':blockinfo})
 		return json.dumps({'error':''})
 	return json.dumps({'error':added})
@@ -98,3 +100,10 @@ def unknown(node, payload):
 def outro(node, payload):
 	# TODO: after PoC
 	pass
+
+
+gracht.start()
+
+while True:
+	
+	time.sleep(0.1)

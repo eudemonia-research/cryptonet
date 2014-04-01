@@ -2,7 +2,7 @@
 
 '''gpdht.py contains functions to validate the protocol'''
 
-import hashlib
+import hashlib, sys
 import sha3
 
 from utilities import *
@@ -17,12 +17,13 @@ from utilities import *
 def validPoW(ht, cd):
 	return ht.getHash() < cd.unpackedTarget
 
-
 def ghash(msg):
 	''' This is the hash function that should be used EVERYWHERE in GPDHT.
 	Currently defined to be SHA3.
 	As always, should return a BANT '''
-	return BANT(hashlib.sha3_256(bytes(msg)).digest())
+	s = hashlib.sha3_256()
+	s.update(bytes(msg))
+	return BANT(s.digest())
 
 
 #==============================================================================
@@ -30,15 +31,16 @@ def ghash(msg):
 #==============================================================================
 	
 	
-eba = bytearray('')
+eba = bytearray(b'')
 def ADDBYTEARRAYS(a,b,carry=0):
 	if (a == eba or b == eba) and carry == 0: return a + b
 	if a == eba and b == eba and carry == 1: return bytearray([carry])
 	for x,y in [(a,b),(b,a)]:
-		if x == eba: return ADDBYTEARRAYS(y[:-1]+bytearray([0]), ADDBYTEARRAYS(bytearray([y[-1]]), bytearray([carry])))
+		if x == eba: 
+			return ADDBYTEARRAYS(y[:-1]+bytearray([0]), ADDBYTEARRAYS(bytearray([y[-1]]), bytearray([carry])))
 	s = a[-1] + b[-1] + carry
 	d = s % 256
-	c = s/256
+	c = s//256
 	return ADDBYTEARRAYS(a[:-1],b[:-1],c) + bytearray([d])
 
 
@@ -55,10 +57,14 @@ class BANT:
 			self.this = bytearray(initString.decode('hex'))
 		elif isinstance(initString, bytearray):
 			self.this = initString[:]
+		elif isinstance(initString, bytes):
+			self.this = bytearray(initString)
 		elif isinstance(initString, int):
-			self.this = BANT(i2s(initString)).this
+			self.this = bytearray(i2s(initString))
 		elif isinstance(initString, BANT):
 			self.this = initString.this[:]
+		elif isinstance(initString, str):
+			self.this = bytearray(bytes(initString.encode()))
 		else:
 			self.this = bytearray(bytes(initString))
 			
@@ -100,26 +106,30 @@ class BANT:
 		if isinstance(other, str): return BANT(self.this + bytearray(other))
 		return BANT(ADDBYTEARRAYS(self.this, BANT(other).this))
 	def __sub__(self, other):
-		return BANT(i2h(int(self) - int(other)))
+		return BANT(int(self) - int(other))
 	def __mul__(self, other):
-		return BANT(i2h(int(self) * int(other)))
-	def __div__(self, other):
-		return BANT(i2h(int(self) / int(other)))
+		return BANT(int(self) * int(other))
+	def __truediv__(self, other):
+		return BANT(int(self) / int(other))
+	def __floordiv__(self, other):
+		return BANT(int(self) // int(other))
 	def __mod__(self, other):
-		return BANT(i2h(int(self) % int(other)))
+		return BANT(int(self) % int(other))
 	def __pow__(self, other):
-		return BANT(i2h(int(self) ** int(other)))
+		return BANT(int(self) ** int(other))
 	def __xor__(self, other):
 		return BANT(xor_strings(self.this.str(), other.this.str()))
 		
 	def __str__(self):
 		return ''.join([chr(i) for i in self.this])
 	def __repr__(self):
-		return "BANT(\"" + self.hex() + "\", True)"
+		return str(b"BANT(\"" + self.hex() + b"\", True)")
 	def __int__(self):
 		return sum( [self.this[::-1][i] * (2 ** (i * 8)) for i in range(len(self.this))] )
 	def __float__(self):
 		return float(self.__int__())
+	def __bytes__(self):
+		return bytes(self.this)
 		
 	def __hash__(self):
 		return int(self)
@@ -134,7 +144,7 @@ class BANT:
 		return self.encode()
 	
 	def hex(self):
-		return self.str().encode('hex')
+		return hexlify(bytes(self.this))
 	def concat(self, other):
 		return BANT(self.this + other.this)
 	def raw(self):
@@ -220,7 +230,7 @@ def RLP_ENCODE_LEN(b, islist = False):
 			return bytearray([0xf7+len(i2s(len(b)))]) + bytearray(i2s(len(b)))
 	
 def RLP_SERIALIZE(blistIn):
-	rt = bytearray('')
+	rt = bytearray(b'')
 	
 	if isinstance(blistIn, BANT):
 		rt.extend(RLP_ENCODE_LEN(blistIn) + blistIn.raw())
