@@ -165,7 +165,7 @@ class HashTree:
 		return self.root.getHash(force)
 		
 	def __str__(self):
-		return str(self.myhash)
+		return str(self.getHash().hex())
 	
 	def __hash__(self):
 		return int(self.getHash())
@@ -270,7 +270,6 @@ class GPDHTChain(Forest):
 		assert int(chaindata.uncles) == 0
 		assert int(chaindata.prevblocks[0]) == 0
 		assert len(chaindata.prevblocks) == 1
-		debug('Chain.setGenesis : chaindata.version : %s' % repr(chaindata.version))
 		assert int(chaindata.version) == 1
 		
 		target = chaindata.unpackedTarget
@@ -285,6 +284,9 @@ class GPDHTChain(Forest):
 		self.headTree = self.genesisTree
 		self.headChaindata = self.genesisChaindata
 		
+		debug('Adding Genesis; details:')
+		debug('\ttree: %s' % tree.leaves())
+		debug('\tchaindata: %s' % chaindata.rawlist)
 		self.addBlock(tree, chaindata)
 		
 		
@@ -388,7 +390,6 @@ class Chaindata:
 		self.rawlist = cd[:]
 		# ["version", "height", "target", "sigmadiff", "timestamp", "votes", "uncles"] # prev1, 2, 4, 8, ... appended here
 		self.version = cd[CDM['version']]
-		debug('Chaindata.version : %s' % repr(self.version))
 		self.height = cd[CDM['height']]
 		self.target = cd[CDM['target']]
 		self.sigmadiff = cd[CDM['sigmadiff']]

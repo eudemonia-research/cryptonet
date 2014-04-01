@@ -54,7 +54,7 @@ class BANT:
 	def __init__(self, initString=b'\x00', fromHex=False, padTo=0):
 		if fromHex == True:
 			'''input should be a string in hex encoding'''
-			self.this = bytearray(initString.decode('hex'))
+			self.this = bytearray(unhexlify(initString))
 		elif isinstance(initString, bytearray):
 			self.this = initString[:]
 		elif isinstance(initString, bytes):
