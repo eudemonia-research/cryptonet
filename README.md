@@ -9,21 +9,26 @@ Pre-reference implementation for GPDHT
 
 ### Block
 
-```[
+```
+[
 	hashtree,
 	chaindata,
 	uncleslist
-]```
+]
+```
 
 ### Hash Tree
 
-```[
+```
+[
 	item1, item2, ...
-]```
+]
+```
 
 ### Chain Data
 
-```[
+```
+[
 	version,
 	height,
 	target,
@@ -36,12 +41,15 @@ Pre-reference implementation for GPDHT
 	prevblock4,
 	prevblock8,
 	...
-]```
+]
+```
 
 ### Uncles List
 
-```[
+```
+[
 	[hashtree, chaindata],
 	[hashtree, chaindata],
 	...
-]```
+]
+```
