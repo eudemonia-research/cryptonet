@@ -1,14 +1,16 @@
 import time, math
 
-from hashlib import sha256
 from utilities import *
 from gpdht import *
+from constants import *
 
-from bitcoin.base58 import encode as b58encode, decode as b58decode
 
+def ghash(msg):
+	''' This is the hash function that should be used EVERYWHERE in GPDHT.
+	Currently defined to be SHA3.
+	As always, should return a BANT '''
+	return BANT(hashlib.sha3_256(bytes(msg)).digest())
 
-def hashfunc(msg):
-	return ghash(msg)
 
 eba = bytearray('')
 def ADDBYTEARRAYS(a,b,carry=0):
@@ -33,6 +35,8 @@ class BANT:
 		if fromHex == True:
 			'''input should be a string in hex encoding'''
 			self.this = bytearray(initString.decode('hex'))
+		elif isinstance(initString, bytearray):
+			self.this = initString[:]
 		elif isinstance(initString, int):
 			self.this = BANT(i2s(initString)).this
 		elif isinstance(initString, BANT):
@@ -74,6 +78,8 @@ class BANT:
 		
 	# do I need to do the r___ corresponding functions? (__radd__ for example)
 	def __add__(self, other):
+		# TODO : should adding a STRING to a BANT append or addition?
+		if isinstance(other, str): return BANT(self.this + bytearray(other))
 		return BANT(ADDBYTEARRAYS(self.this, BANT(other).this))
 	def __sub__(self, other):
 		return BANT(i2h(int(self) - int(other)))
@@ -127,10 +133,8 @@ class BANT:
 
 def DECODEBANT(s):
 	return BANT(s.decode('hex'))
-	#return BANT(b58decode(b58s))
 def ENCODEBANT(b):
 	return b.hex()
-	#return b58encode(b.str())
 	
 def ALL_BANT(l):
 	if isinstance(l, str):
@@ -214,37 +218,6 @@ def RLP_SERIALIZE(blistIn):
 		raise ValueError('input is not a BANT or a list')
 	
 	return BANT(ret)
-			
-
-
-#==============================================================================
-# JSON OPERATIONS
-#==============================================================================	
-	
-	
-def json_str_to_bant(obj):
-	print 'json_str_to_bant - %s' % str(obj)
-	if isinstance(obj, str):
-		return BANT(obj.decode('hex'))
-	if isinstance(obj, unicode):
-		return BANT(str(obj).decode('hex'))
-	if isinstance(obj, list):
-		rt = []
-		for a in obj: rt.append(json_str_to_bant(a))
-		return rt
-	if isinstance(obj, dict):
-		rt = {}
-		for k,v in obj.iteritems():
-			rt[k] = json_str_to_bant(v)
-		return rt
-	return obj
-	
-def json_loads(obj):
-	print 'json_loads:',obj
-	a = json.loads(obj)
-	print 'json_loads:', a
-	return json_str_to_bant(a)
-	
 
 
 
@@ -442,15 +415,16 @@ class Forest(object):
 		
 class GPDHTChain(Forest):
 	''' Holds a PoW chain and can answer queries '''
-	# initial conditions must be updated when chaindata structure updated
+	# initial conditions must be updated when Chaindata structure updated
 	_initialConditions = [
 			BANT(1,padTo=4), # version
 			BANT(0,padTo=4), # height
-			BANT(bytearray(32)), # prevblock
-			BANT(bytearray(32)), # uncles
-			BANT(b'\x0f\xff\xff\x01'), # target
+			BANT(b'\xff\xff\xff\x02'), # target
+			BANT(0,padTo=6), # sigmadiff
 			BANT(int(time.time()), padTo=6), # timestamp
 			BANT(0, padTo=4), # votes
+			BANT(bytearray(32)), # uncles
+			BANT(bytearray(32)), # prevblock
 		]
 	_target1 = BANT(2**256-1)
 	
@@ -461,17 +435,16 @@ class GPDHTChain(Forest):
 		self.db = db
 		
 		if genesisBlock != None: self.setGenesis(genesisBlock)
-		else: self.setGenesis(self.mine(self.blockTemplate()))
+		else: self.setGenesis(self.mine(self.ChaindataTemplate()))
 		
 		
 		
-	def mine(self, blockInfoTemplate):
-		blockInfoHash = self.hashBlockInfo(blockInfoTemplate)
-		blockInfoRLP = RLP_SERIALIZE(blockInfoTemplate)
-		target = unpackTarget(blockInfoTemplate[self.headerMap['target']])
+	def mine(self, Chaindata):
+		# TODO : redo for new structure
+		target = Chaindata.unpackedTarget
 		message = BANT("It was a bright cold day in April, and the clocks were striking thirteen.")
-		nonce = message.getHash()
-		potentialTree = [i.getHash() for i in [blockInfoRLP, blockInfoRLP, message, nonce]]
+		nonce = message.getHash()+1
+		potentialTree = [i.getHash() for i in [Chaindata, Chaindata, message, message]]
 		h = HashTree(potentialTree)
 		count = 0
 		while True:
@@ -482,99 +455,106 @@ class GPDHTChain(Forest):
 				break
 			nonce += 1
 			if count % 10000 == 0:
-				print count, PoW.hex()
-		print 'Chain.mine: Found Soln : %s', PoW.hex()
-		return (h, blockInfoTemplate)
+				debug("Mining Genesis : %d : %s" % (count, PoW.hex()))
+		debug('Chain.mine: Found Soln : %s' % PoW.hex())
+		return (h, Chaindata)
 		
 	
-	def blockInfoTemplate(self):
-		return self._blockInfoTemplate
-			
-	
+	def ChaindataTemplate(self):
+		# TODO : do a real block template here
+		ret = self._initialConditions[:]
+		# replace target with correct target
+		# replace sigmadiff
+		# set timestamp
+		# set votes
+		# set uncles
+		# set prevblocks
+		return Chaindata(ret)
 	
 	def hash(self, message):
 		return ghash(message)
 		
-	def hashBlockInfo(self, blockInfo):
-		return self.hash(RLP_SERIALIZE(blockInfo))
+	def hashChaindata(self, cd):
+		if isinstance(cd, Chaindata): return cd.getHash()
+		return self.hash(RLP_SERIALIZE(cd))
 		
-		
-	def setGenesis(self, bPair):
-		tree, blockInfo = bPair
+	def setGenesis(self, block):
+		tree, Chaindata = block
 		print 'Setting Genesis Block'
-		assert int(blockInfo[self.headerMap["uncles"]]) == 0
-		assert int(blockInfo[self.headerMap["prevblock"]]) == 0
-		assert int(blockInfo[self.headerMap["version"]]) == 1
+		assert int(Chaindata.uncles) == 0
+		assert int(Chaindata.prevblocks[0]) == 0
+		assert len(Chaindata.prevblocks) == 1
+		assert int(Chaindata.version) == 1
 		
-		self.target = unpackTarget(blockInfo[self.headerMap["target"]])
-		print "Chain.setGenesis: target : %064x" % self.target
-		assert int(tree.getHash()) < self.target
+		target = Chaindata.unpackedTarget
+		print "Chain.setGenesis: target : %064x" % target
+		assert int(tree.getHash()) < target
 		
-		self.genesisInfo = blockInfo
 		self.genesisTree = tree
 		self.genesisHash = tree.getHash()
-		self.appid = RLP_SERIALIZE(blockInfo).getHash()
+		self.genesisChaindata = Chaindata
+		self.appid = Chaindata.getHash()
 		
-		self.head = self.genesisTree.getHash()
-		self.headInfo = self.genesisInfo
+		self.headTree = self.genesisTree
+		self.headChaindata = self.genesisChaindata
 		
-		self.addBlock(tree, blockInfo)
+		self.addBlock(tree, Chaindata)
 		
 		
 	# added sigmadiff stuff, need to test
-	def addBlock(self, block, chaindata):
-		if self.db.exists(block.getHash()): 
-			print 'addBlock: %s already acquired' % block.getHash().hex()
+	def addBlock(self, tree, Chaindata):
+		if not validPoW(tree, Chaindata): return 'PoW failed'
+		if self.db.exists(tree.getHash()): 
+			print 'addBlock: %s already acquired' % tree.getHash().hex()
 			return 'exists'
 			
-		print 'addBlock: Potential block', block.getHash().hex()
-		print 'addBlock: block.leaves:', block.leaves()
+		print 'addBlock: Potential block', tree.getHash().hex()
+		print 'addBlock: block.leaves:', tree.leaves()
 		
 		if self.initComplete == False:
-			assert chaindata[CDM['prevblock']] == BANT(0, padTo=32)
+			assert Chaindata.prevblocks[0] == BANT(0, padTo=32)
+			assert len(Chaindata.prevblocks) == 1
 			maxsigmadiff = BANT(0)
 		else:
-			print 'addBlock: repr(prevblock):', repr(chaindata[CDM['prevblock']])
-			if chaindata[CDM['prevblock']] not in self.trees:
-				raise ValueError('Prevblock does not exist')
+			print 'addBlock: repr(prevblock):', repr(Chaindata.prevblocks[0])
+			if Chaindata.prevblocks[0] not in self.trees:
+				raise ValueError('Prevblock[0] does not exist')
 			maxsigmadiff = self.headChaindata.sigmadiff
 			
-		sigmadiff = self.calcSigmadiff(chaindata)
+		sigmadiff = self.calcSigmadiff(Chaindata)
 		if maxsigmadiff < sigmadiff:
-			self.head = block.getHash()
-			self.headChaindata = chaindata
+			debug('New head of chain : %s' % tree.getHash())
+			self.head = tree
+			self.headChaindata = Chaindata
 			
 		# TODO : these should not be asserts
 		assert block.pos(0) == self.appid
-		assert block.pos(1) == chaindata.getHash()
+		assert block.pos(1) == Chaindata.getHash()
 		
-		print 'addBlock: NEW BLOCK', block.getHash().hex()
-		self.add(block)
+		print 'addBlock: NEW BLOCK', tree.getHash().hex()
+		self.add(tree)
 		
 		if self.initComplete == False:
 			self.initComplete = True
 		
-		self.db.dumpTree(block)
-		self.db.dumpList(chaindata)
-		self.db.setAncestors(block, chaindata[CDM['prevblock']])
-		self.db.setEntry(block.getHash() + blockInfo[self.headerMap['target']], [cdiff]) # note, because of this target cannot equal 0 or be a power of 2.
+		self.db.dumpTree(tree)
+		self.db.dumpChaindata(Chaindata)
+		self.db.setAncestors(tree, Chaindata.prevblocks[0])
 		
 		return True
 		
-	def headInfo(self):
-		print self.db.getEntry(self.head)
-		return self.db.getEntry(self.db.getEntry(self.head)[1])
 		
 	# need to test
 	def calcSigmadiff(self, cd):
-		''' given chaindata, calculate the sigmadiff '''
+		''' given Chaindata, calculate the sigmadiff '''
+		# TODO : test
 		prevblockhash = cd.prevblocks[0]
 		if prevblockhash == 0:
-			return prevsigmadiff = BANT(0)
+			prevsigmadiff = BANT(0)
 		else:
 			prevblocklist = self.db.getEntry(prevblockhash)
-			prevchaindata = ChainData(self.db.getEntry(prevblocklist[1])) # each GPDHT block has 2nd entry as chaindata hash
-			prevsigmadiff = prevchaindata.sigmadiff
+			prevChaindata = Chaindata(self.db.getEntry(prevblocklist[1])) # each GPDHT block has 2nd entry as Chaindata hash
+			prevsigmadiff = prevChaindata.sigmadiff
 		target = cd.unpackedTarget
 		diff = self._target1 / target
 		sigmadiff = prevsigmadiff + diff
@@ -616,7 +596,7 @@ class GPDHTChain(Forest):
 #==============================================================================
 		
 
-class ChainData:
+class Chaindata:
 	def __init__(self, cd):
 		# ["version", "height", "target", "sigmadiff", "timestamp", "votes", "uncles"] # prev1, 2, 4, 8, ... appended here
 		self.version = cd[CDM['version']]
@@ -631,7 +611,7 @@ class ChainData:
 		
 		self.unpackedTarget = unpackTarget(self.target)
 		
-		self.hash = ghash(''.join(cd))
+		self.hash = ghash(RLP_SERIALIZE(cd))
 		
 	def getHash(self):
 		return self.hash
@@ -640,14 +620,20 @@ class Uncles:
 	def __init__(self, ul):
 		self._uncles = []
 		for uncle in ul:
-			self._uncles.append( (HashTree(uncle[UM['hashtree']]), ChainData(uncle[UM['chaindata']])) )
+			# TODO : validate Chaindata in hashtree
+			self._uncles.append( HashTree(uncle[UM['hashtree']]) )
+		self._tree = HashTree(self._uncles)
 			
+	''' unsure if this is needed...
 	def __getitem__(self, key):
 		return self._uncles.__getitem__(key)
 		
 	def __setitem__(self, key, value):
 		return self._uncles.__setitem__(key, value)
-		
+	'''
+	
+	def getHash():
+		return self._tree.getHash()		
 	
 		
 

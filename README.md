@@ -23,6 +23,8 @@ Pre-reference implementation for GPDHT
 [
 	item1, item2, ...
 ]
+
+H: MerkleRoot( [i1, i2, i3, ...] )
 ```
 
 ### Chain Data
@@ -42,6 +44,8 @@ Pre-reference implementation for GPDHT
 	prevblock8,
 	...
 ]
+
+H: h(RLP_SERIALIZE( chaindata ))
 ```
 
 ### Uncles List
@@ -52,4 +56,8 @@ Pre-reference implementation for GPDHT
 	[hashtree, chaindata],
 	...
 ]
+
+Remember each hashtree in the list above is a valid PoW in and of itself.
+
+H: MerkleRoot( [ht1, ht2, ht3, ...] )
 ```
