@@ -28,6 +28,11 @@ class SeekNBuild:
 		self.all_lock = threading.Lock()
 		
 		# start blockSeeker and chainBuilder threads
+		self.threads = [threading.Thread(target=self.blockSeeker), threading.Thread(target=self.chainBuilder)]
+		for t in self.threads: t.start()
+		
+	def stop(self):
+		self.shutdown = True
 		
 	def blockSeeker(self):
 		while not self.shutdown:
