@@ -6,54 +6,60 @@ import threading
 MAX_BLOCKS_AT_ONCE = 1000
 
 class SeekNBuild:
-	def __init__(self, gracht):
+	def __init__(self, gracht, chain):
 		self.gracht = gracht
+		self.chain = chain
 		
 		self.future = set()
 		self.present = set()
 		self.past = set()
-		self.chain = set()
+		self.done = set()
 		self.all = set()
 		self.shutdown = False
 		
 		self.presentLastRequest = {} # should be {hash:timestamp}
-		self.pastByHeight = {} 
+		self.pastByHeight = {} # {height:[hash]} - maybe use DB
+		self.pastFullBlocks = {} # {hash:block}
 		
-		self.future_semaphore = threading.BoundedSemaphore()
-		self.present_semaphore = threading.BoundedSemaphore()
-		self.past_semaphore = threading.BoundedSemaphore()
-		self.chain_semaphore = threading.BoundedSemaphore()
-		self.all_semaphore = threading.BoundedSemaphore()
+		self.future_lock = threading.Lock()
+		self.present_lock = threading.Lock()
+		self.past_lock = threading.Lock()
+		self.done_lock = threading.Lock()
+		self.all_lock = threading.Lock()
+		
+		# start blockSeeker and chainBuilder threads
 		
 	def blockSeeker(self):
 		while not self.shutdown:
-			self.future_semaphore.acquire()
-			self.present_semaphore.acquire()
-			
-			allFuture = len(self.future)
-			toGet = min(allFuture, MAX_BLOCKS_AT_ONCE)
 			requesting = []
-			for i in range(toGet):
-				h = self.future.pop()
-				requesting.append(h)
-				self.present.add(h)
-				self.presentLastRequest[h] = int(time.time())
+			with self.future_lock, self.present_lock:
+				allFuture = len(self.future)
+				toGet = min(allFuture, MAX_BLOCKS_AT_ONCE)
 				
-			if toGet == 0:
-				# TODO : re-request from self.present if time > a few seconds
-				pass
-				
-			self.future_semaphore.release()
-			self.present_semaphore.release()
+				for i in range(toGet):
+					h = self.future.pop()
+					requesting.append(h)
+					self.present.add(h)
+					self.presentLastRequest[h] = int(time.time())
+					
+				if toGet == 0:
+					# TODO : re-request from self.present if time > a few seconds
+					pass
 			
-			# TODO : don't broadcast to all nodes, just one
-			self.gracht.broadcast(b'requestblocks', requesting)
+			if len(requesting) > 0:
+				# TODO : don't broadcast to all nodes, just one
+				self.gracht.broadcast(b'requestblocks', requesting)
 			
 			time.sleep(0.1)
 			
 	def chainBuilder(self):
+		''' This should find all blocks in s.past with a height <= chain_height + 1 and
+		add them to the main chain '''
 		while not self.shutdown:
+			heights = self.pastByHeight.keys()
+			heights.sort()
 			
-			
+			i = 0
+			while heights[i] < self.chain.head.height
 			
 			time.sleep(0.1)

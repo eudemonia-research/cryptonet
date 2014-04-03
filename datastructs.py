@@ -217,12 +217,11 @@ class GPDHTChain(Forest):
 	def __init__(self, genesisBlock=None, db=None):
 		super(GPDHTChain, self).__init__()
 		self.initComplete = False
-		self.head = BANT(chr(0))
+		self.head = None
 		self.db = db
 		
 		if genesisBlock != None: self.setGenesis(genesisBlock)
 		else: self.setGenesis(self.mine(self.chaindataTemplate()))
-		
 		
 		
 	def mine(self, chaindata):
