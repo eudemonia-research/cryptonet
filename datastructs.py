@@ -61,10 +61,10 @@ class HashNode:
 		
 	def getHash(self, force=False):
 		if self.myhash == None or force:
-			# p0.hash ++ ttl ++ p1.hash
-			tripconcat = lambda x: self.children[x[0]].getHash().concat(BANT(self.ttl-1).concat(self.children[x[1]].getHash()))
-			if len(self.children) == 1: self.myhash = ghash(tripconcat([0,0]))
-			else: self.myhash = ghash(tripconcat([0,1]))
+			# p0.hash ++ p1.hash
+			concat = lambda x: self.children[x[0]].getHash().concat(self.children[x[1]].getHash())
+			if len(self.children) == 1: self.myhash = ghash(concat([0,0]))
+			else: self.myhash = ghash(concat([0,1]))
 			if self.parent != None: self.parent.getHash(True)
 		return self.myhash
 		
