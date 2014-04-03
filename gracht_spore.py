@@ -49,9 +49,10 @@ parser.add_argument('-mine', action='store_true')
 args = parser.parse_args()
 
 config['port'] = args.port
+if isinstance(args.port, list): config['port'] = args.port[0]
 seeds = []
-if args.addnode != '':
-	h,p = args.addnode.split(':')
+if isinstance(args.addnode, list) and args.addnode[0] != '':
+	h,p = args.addnode[0].split(':')
 	seeds.append((h,p))
 
 
@@ -69,43 +70,36 @@ if args.mine:
 #gracht.set_send_encode(RLP_SERIALIZE)
 
 #@gracht.on_connect
-@gracht.handler
-def intro(node, payload):
-	payload = ALLBANT(payload)
-	if node in intros:
-		return None
-	intros[node] = payload
+#@gracht.handler
+#def intro(node, payload):
+#	payload = ALLBANT(payload)
+#	if node in intros:
+#		return None
+#	intros[node] = payload
 	
 
 @gracht.handler
 def blocks(node, payload):
-	payload = ALLBANT(payload)
-	debug('blocks : %s' % repr(payload))
+	payload = ALL_BANT(payload)
+	debug('MSG blocks : %s' % repr(payload))
 	for block in payload:
 		# [[hashtree],[header],[uncleslist]]
 		ht = HashTree(block[BM['hashtree']])
-		cd = ChainData(block[BM['chaindata']])
+		cd = Chaindata(block[BM['chaindata']])
 		uncles = Uncles(block[BM['uncles']])
 		
 		if not validPoW(ht, cd): 
 			#node.misbehaving()
+			debug('MSG blocks handler : PoW failed for %s' % repr(ht.getHash()))
 			continue
-		
-		# add to pre-validated blocks
-		h = ht.getHash()
-		if h not in seeknbuild.all:
-			with seeknbuild.past_lock:
-				seeknbuild.all.add(h)
-				seeknbuild.past.add(h)
-				seeknbuild.addToPastByHeight(h, cd.height)
-				seeknbuild.pastFullBlocks[h] = [ht, cd, uncles] # should use blockmap for this, maybe block obj
-				# TODO : add prevblocks to future,all
+		seeknbuild.addBlock(ht, cd)
+			# TODO : add prevblocks to future,all
 				
-	
 	
 @gracht.handler
 def requestblocks(node, payload):
 	payload = ALLBANT(payload)
+	
 	
 	
 @gracht.handler

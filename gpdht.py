@@ -71,7 +71,7 @@ class BANT:
 		self.isBANT = True
 		self.ttl = 0
 		self.parent = None
-	
+		
 		
 	def __lt__(self, other):
 		return int(self) < int(other)
@@ -162,7 +162,7 @@ def ENCODEBANT(b):
 	return b.hex()
 	
 def ALL_BANT(l):
-	if isinstance(l, str):
+	if isinstance(l, str) or isinstance(l, int) or isinstance(l, bytes):
 		return BANT(l)
 	elif isinstance(l, list):
 		return [ALL_BANT(i) for i in l]
@@ -211,8 +211,7 @@ def RLP_WRAP_DESERIALIZE(rlpIn):
 		
 def RLP_DESERIALIZE(rlpIn):
 	if not isinstance(rlpIn, BANT): raise ValueError("RLP_DESERIALIZE requires a BANT as input")
-	if rlpIn == BANT(''): raise ValueError("RLP_DESERIALIZE: Requires nonempty BANT")
-	
+	if len(rlpIn) == 0: return rlpIn
 	ret, rem = RLP_WRAP_DESERIALIZE(rlpIn)
 	if rem != BANT(''): raise ValueError("RLP_DESERIALIZE: Fail, remainder present")
 	return ret

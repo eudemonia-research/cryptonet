@@ -431,7 +431,8 @@ class Uncles:
 		for uncle in ul:
 			# TODO : validate Chaindata in hashtree
 			self._uncles.append( HashTree(uncle[UM['hashtree']]) )
-		self._tree = HashTree(self._uncles)
+		# commented for now
+		#self._tree = HashTree(self._uncles)
 			
 	''' unsure if this is needed...
 	def __getitem__(self, key):

@@ -2,6 +2,7 @@ import time
 import threading
 
 from constants import *
+from utilities import debug
 
 MAX_BLOCKS_AT_ONCE = 1000
 
@@ -36,6 +37,8 @@ class SeekNBuild:
 		
 	def addBlock(self, tree, chaindata, uncles=[]):
 		h = tree.getHash()
+		if h in self.done: return
+		if h in self.past: return
 		if h not in self.all:
 			self.all.add(h)
 		with self.past_lock:
@@ -46,6 +49,7 @@ class SeekNBuild:
 			if h in self.pastFullBlocks: self.pastFullBlocks[h].append(block)
 			self.pastFullBlocks[h] = [block]
 			self.past.add(h)
+			
 		
 	def blockSeeker(self):
 		while not self.shutdown:
@@ -75,11 +79,10 @@ class SeekNBuild:
 		add them to the main chain '''
 		while not self.shutdown:
 			if len(self.past) > 0:
+				success = False
 				with self.past_lock, self.done_lock:
-					print(self.past)
 					heights = list(self.pastByHeight.keys())
 					assert len(heights) != 0
-					print(heights, self.pastByHeight[heights[0]])
 					heights.sort()
 					
 					i = 0
@@ -89,15 +92,17 @@ class SeekNBuild:
 							blocksToAdd = self.pastByHeight[height]
 							for bh in blocksToAdd:
 								for block in self.pastFullBlocks[bh]:
-									print(block)
 									if not self.chain.hasBlock(bh):
-										self.chain.addBlock(block[BM['hashtree']], block[BM['chaindata']])
+										success = self.chain.addBlock(block[BM['hashtree']], block[BM['chaindata']])
 										height = block[BM['chaindata']].height
 										self.pastByHeight[height].remove(bh)
 										if self.pastByHeight[height] == []: del(self.pastByHeight[height])
 										self.pastFullBlocks[bh].remove(block)
 										self.past.remove(bh)
 										self.done.add(bh)
+										if success:
+											debug('chainBuilder: broadcasting\n\n')
+											self.gracht.broadcast(b'blocks', [[block[0].leaves(), block[1].rawlist, []]])
 						i += 1
 						if i >= len(heights): break
 									
