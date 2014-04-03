@@ -207,7 +207,7 @@ class GPDHTChain(Forest):
 			BANT(1,padTo=4), # version
 			BANT(0,padTo=4), # height
 			BANT(b'\xff\xff\xff\x02'), # target
-			BANT(0,padTo=6), # sigmadiff
+			BANT(b'\x01\x00\x00'), # sigmadiff
 			BANT(int(time.time()), padTo=6), # timestamp
 			BANT(0, padTo=4), # votes
 			BANT(bytearray(32)), # uncles
@@ -249,12 +249,19 @@ class GPDHTChain(Forest):
 	def chaindataTemplate(self):
 		# TODO : do a real block template here
 		ret = self._initialConditions[:]
-		# replace target with correct target
-		# replace sigmadiff
-		# set timestamp
-		# set votes
-		# set uncles
-		# set prevblocks
+		if self.initComplete:
+			# replace target with correct target
+			# set height
+			ret[CDM['height']] = self.headChaindata.height + 1
+			# set prevblocks
+			ret[CDM['prevblock']] = self.head.getHash()
+			# set timestamp
+			ret[CDM['timestamp']] = BANT(int(time.time()))
+			# set votes
+			# set uncles
+			# set sigmadiff
+			ret[CDM['sigmadiff']] = self.headChaindata.sigmadiff + self.targetToDiff(ret[CDM['target']])
+		print(repr(ret))
 		return Chaindata(ret)
 	
 	def hash(self, message):
@@ -303,14 +310,22 @@ class GPDHTChain(Forest):
 		if self.initComplete == False:
 			assert chaindata.prevblocks[0] == BANT(0, padTo=32)
 			assert len(chaindata.prevblocks) == 1
+			assert chaindata.height == 0
 			maxsigmadiff = BANT(0)
 		else:
-			debug('Chain.addBlock: repr(prevblock):', repr(chaindata.prevblocks[0]))
+			debug('Chain.addBlock: repr(prevblock): %s' % repr(chaindata.prevblocks[0]))
 			if not self.hasBlock(chaindata.prevblocks[0]):
+				# should  not be an exception
+				# node misbehaving
 				raise ValueError('Chain.addBlock: Prevblock[0] does not exist')
+				# later check the rest of the prevblocks 1..n
+			prevblock = self.db.getEntry(chaindata.prevblocks[0])
+			prevChaindata = Chaindata(self.db.getEntry(prevblock[1]))
+			assert chaindata.height == prevChaindata.height + 1
 			maxsigmadiff = self.headChaindata.sigmadiff
 			
 		sigmadiff = self.calcSigmadiff(chaindata)
+		assert chaindata.sigmadiff == sigmadiff
 		if maxsigmadiff < sigmadiff:
 			debug('Chain.addBlock: New head of chain : %s' % tree.getHash().hex())
 			self.head = tree
@@ -343,14 +358,16 @@ class GPDHTChain(Forest):
 		if prevblockhash == 0:
 			prevsigmadiff = BANT(0)
 		else:
-			prevblocklist = self.db.getEntry(prevblockhash)
-			prevChaindata = Chaindata(self.db.getEntry(prevblocklist[1])) # each GPDHT block has 2nd entry as Chaindata hash
+			prevblocktree = self.db.getEntry(prevblockhash)
+			prevChaindata = Chaindata(self.db.getEntry(prevblocktree[1])) # each GPDHT block has 2nd entry as Chaindata hash
 			prevsigmadiff = prevChaindata.sigmadiff
-		target = cd.unpackedTarget
-		diff = self._target1 // target
+		diff = self.targetToDiff(cd.target)
 		sigmadiff = prevsigmadiff + diff
 		return sigmadiff
 	
+	def targetToDiff(self, target):
+		if isinstance(target, BANT): return self._target1 // unpackTarget(target)
+		return self._target1 // target
 	
 	def validAlert(self, alert):
 		# TODO : not in PoC, probably not in GPDHTChain either
@@ -395,11 +412,11 @@ class Chaindata:
 		self.height = cd[CDM['height']]
 		self.target = cd[CDM['target']]
 		self.sigmadiff = cd[CDM['sigmadiff']]
-		self.timestamp = cd[CDM['timestamp']]
-		self.votes = cd[CDM['votes']]
-		self.uncles = cd[CDM['uncles']]
+		self.timestamp = BANT(cd[CDM['timestamp']], padTo=6)
+		self.votes = BANT(cd[CDM['votes']], padTo=4)
+		self.uncles = BANT(cd[CDM['uncles']], padTo=32)
 		# there is an ancestry summary here
-		self.prevblocks = cd[CDM['prevblock']:]
+		self.prevblocks = ALL_BANT(cd[CDM['prevblock']:])
 		
 		self.unpackedTarget = unpackTarget(self.target)
 		

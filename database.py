@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 class Database:
 	''' in-memory database for testing gracht '''
 	def __init__(self):

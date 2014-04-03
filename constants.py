@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 '''Constants used in GDPHT'''
 
 # incomming message maps

@@ -67,36 +67,36 @@ def strlist(l):
 # NETWORK
 #==============================================================================
 
-def packTarget(upt):
+def packTarget(unpackedTarget):
 	# TODO : test
 	pad = 0
-	while upt[0] == ZERO:
+	while unpackedTarget[0] == ZERO:
 		pad += 1
-		upt = upt[1:]
-	return upt[:3]+chr(pad)
+		unpackedTarget = unpackedTarget[1:]
+	return unpackedTarget[:3]+chr(pad)
 	
-def unpackTarget(pt):
+def unpackTarget(packedTarget):
 	# TODO : test
-	pt = bytes(pt)
-	pad = pt[3]
-	sigfigs = pt[:3]
+	packedTarget = bytes(packedTarget)
+	pad = packedTarget[3]
+	sigfigs = packedTarget[:3]
 	rt = ZERO*pad + sigfigs + ZERO*(32-3-pad)
 	return int(hexlify(rt),16)
 	
 	
-def packSigmadiff(upsd):
+def packSigmadiff(unpackedSigmaDiff):
 	# TODO : test
 	pad = 0
-	while upsd[0] == ZERO:
+	while unpackedSigmaDiff[0] == ZERO:
 		pad += 1
-		upsd = upsd[1:]
-	return upsd[:5] + chr(pad)
+		unpackedSigmaDiff = unpackedSigmaDiff[1:]
+	return unpackedSigmaDiff[:5] + chr(pad)
 	
-def unpackSigmadiff(psd):
+def unpackSigmadiff(packedSigmaDiff):
 	# TODO : test
-	psd = bytes(psd)
-	pad = psd[5]
-	sigfigs = psd[:5]
+	packedSigmaDiff = bytes(packedSigmaDiff)
+	pad = packedSigmaDiff[5]
+	sigfigs = packedSigmaDiff[:5]
 	rt = ZERO*pad + sigfigs + ZERO*(32-5-pad)
 	return int(hexlify(rt), 16)
 	

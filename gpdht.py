@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 '''gpdht.py contains functions to validate the protocol'''
 
 import hashlib, sys
