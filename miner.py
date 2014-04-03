@@ -1,13 +1,15 @@
 import threading
+import time
 
 from gpdht import *
 from datastructs import *
 
 class Miner:
-	def __init__(self, chain):
+	def __init__(self, chain, seeknbuild):
 		self.shutdown = False
 		self.threads = [threading.Thread(target=self.mine)]
 		self.chain = chain
+		self.seeknbuild = seeknbuild
 		
 	def start(self):
 		for t in self.threads:
@@ -36,4 +38,7 @@ class Miner:
 					debug("Mining block %d : %d : %s" % (int(chaindata.height), count, PoW.hex()))
 			if self.shutdown: break
 			debug('Miner: Found Soln : %s' % PoW.hex())
-			self.chain.addBlock(h, chaindata)
+			#self.chain.addBlock(h, chaindata)
+			self.seeknbuild.addBlock(h, chaindata)
+			while not self.chain.hasBlock(PoW):
+				time.sleep(0.03)

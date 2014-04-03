@@ -63,7 +63,7 @@ gracht = Spore(seeds=seeds, address=(config['host'], config['port']))
 seeknbuild = SeekNBuild(gracht, gpdht)
 
 if args.mine:
-	miner = Miner(gpdht)
+	miner = Miner(gpdht, seeknbuild)
 
 #gracht.set_recvieve_decode(RLP_DESERIALIZE)
 #gracht.set_send_encode(RLP_SERIALIZE)

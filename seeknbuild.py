@@ -1,6 +1,8 @@
 import time
 import threading
 
+from constants import *
+
 MAX_BLOCKS_AT_ONCE = 1000
 
 class SeekNBuild:
@@ -32,6 +34,19 @@ class SeekNBuild:
 	def stop(self):
 		self.shutdown = True
 		
+	def addBlock(self, tree, chaindata, uncles=[]):
+		h = tree.getHash()
+		if h not in self.all:
+			self.all.add(h)
+		with self.past_lock:
+			if chaindata.height not in self.pastByHeight: self.pastByHeight[chaindata.height] = [h]
+			else: self.pastByHeight[chaindata.height].append(h)
+			
+			block = [tree, chaindata, uncles]
+			if h in self.pastFullBlocks: self.pastFullBlocks[h].append(block)
+			self.pastFullBlocks[h] = [block]
+			self.past.add(h)
+		
 	def blockSeeker(self):
 		while not self.shutdown:
 			requesting = []
@@ -61,20 +76,30 @@ class SeekNBuild:
 		while not self.shutdown:
 			if len(self.past) > 0:
 				with self.past_lock, self.done_lock:
-					heights = self.pastByHeight.keys()
+					print(self.past)
+					heights = list(self.pastByHeight.keys())
+					assert len(heights) != 0
+					print(heights, self.pastByHeight[heights[0]])
 					heights.sort()
 					
 					i = 0
-					while heights[i] <= self.chain.head.height + 1:
+					while heights[i] <= self.chain.headChaindata.height + 1:
 						height = heights[i]
 						if height in self.pastByHeight:
 							blocksToAdd = self.pastByHeight[height]
 							for bh in blocksToAdd:
-								if self.chain.hasBlock(bh):
-									b = self.pastFullBlocks[bh]
-									self.chain.addBlock(*b)
-									self.past.remove(bh)
-									self.done.add(bh)
+								for block in self.pastFullBlocks[bh]:
+									print(block)
+									if not self.chain.hasBlock(bh):
+										self.chain.addBlock(block[BM['hashtree']], block[BM['chaindata']])
+										height = block[BM['chaindata']].height
+										self.pastByHeight[height].remove(bh)
+										if self.pastByHeight[height] == []: del(self.pastByHeight[height])
+										self.pastFullBlocks[bh].remove(block)
+										self.past.remove(bh)
+										self.done.add(bh)
+						i += 1
+						if i >= len(heights): break
 									
 			else:
 				time.sleep(0.1)
