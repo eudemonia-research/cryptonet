@@ -56,10 +56,22 @@ class SeekNBuild:
 		''' This should find all blocks in s.past with a height <= chain_height + 1 and
 		add them to the main chain '''
 		while not self.shutdown:
-			heights = self.pastByHeight.keys()
-			heights.sort()
-			
-			i = 0
-			while heights[i] < self.chain.head.height
-			
-			time.sleep(0.1)
+			if len(self.past) > 0:
+				with self.past_lock, self.done_lock:
+					heights = self.pastByHeight.keys()
+					heights.sort()
+					
+					i = 0
+					while heights[i] <= self.chain.head.height + 1:
+						height = heights[i]
+						if height in self.pastByHeight:
+							blocksToAdd = self.pastByHeight[height]
+							for bh in blocksToAdd:
+								if self.chain.hasBlock(bh):
+									b = self.pastFullBlocks[bh]
+									self.chain.addBlock(*b)
+									self.past.remove(bh)
+									self.done.add(bh)
+									
+			else:
+				time.sleep(0.1)

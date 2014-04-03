@@ -88,6 +88,7 @@ class HashNode:
 		
 		
 class HashTree:
+	# TODO : take out TTL stuff, and rename to something that makes sense.
 	def __init__(self, init):		
 		assert len(init) > 0
 		self.n = len(init)
@@ -290,7 +291,7 @@ class GPDHTChain(Forest):
 		
 		
 	# added sigmadiff stuff, need to test
-	def addBlock(self, tree, chaindata):
+	def addBlock(self, tree, chaindata, uncles=None):
 		if not validPoW(tree, chaindata): return 'PoW failed'
 		if self.db.exists(tree.getHash()): 
 			debug('addBlock: %s already acquired' % tree.getHash().hex())
@@ -304,14 +305,14 @@ class GPDHTChain(Forest):
 			assert len(chaindata.prevblocks) == 1
 			maxsigmadiff = BANT(0)
 		else:
-			debug('addBlock: repr(prevblock):', repr(chaindata.prevblocks[0]))
-			if chaindata.prevblocks[0] not in self.trees:
-				raise ValueError('Prevblock[0] does not exist')
+			debug('Chain.addBlock: repr(prevblock):', repr(chaindata.prevblocks[0]))
+			if not self.hasBlock(chaindata.prevblocks[0]):
+				raise ValueError('Chain.addBlock: Prevblock[0] does not exist')
 			maxsigmadiff = self.headChaindata.sigmadiff
 			
 		sigmadiff = self.calcSigmadiff(chaindata)
 		if maxsigmadiff < sigmadiff:
-			debug('New head of chain : %s' % tree.getHash().hex())
+			debug('Chain.addBlock: New head of chain : %s' % tree.getHash().hex())
 			self.head = tree
 			self.headChaindata = chaindata
 			
@@ -319,7 +320,7 @@ class GPDHTChain(Forest):
 		assert tree.pos(0) == self.appid
 		assert tree.pos(1) == chaindata.getHash()
 		
-		debug( 'addBlock: NEW BLOCK : %s' % repr(tree.getHash().hex()) )
+		debug( 'Chain.addBlock: NEW BLOCK : %s' % repr(tree.getHash().hex()) )
 		self.add(tree)
 		
 		if self.initComplete == False:
@@ -331,6 +332,8 @@ class GPDHTChain(Forest):
 		
 		return True
 		
+	def hasBlock(self, bh):
+		return bh in self.trees
 		
 	# need to test
 	def calcSigmadiff(self, cd):
