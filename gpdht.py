@@ -168,6 +168,17 @@ def ALL_BANT(l):
         return [ALL_BANT(i) for i in l]
     else:
         return l
+        
+        
+def ALL_BYTES(l):
+    if isinstance(l, str) or isinstance(l, int) or isinstance(l, bytes) or isinstance(l, BANT):
+        return bytes(l)
+    elif isinstance(l, list):
+        return [ALL_BYTES(i) for i in l]
+    else:
+        return l
+        
+        
 
 
 #==============================================================================

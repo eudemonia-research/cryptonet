@@ -3,6 +3,7 @@ import threading
 
 from constants import *
 from utilities import debug
+from gpdht import *
 
 MAX_BLOCKS_AT_ONCE = 1000
 
@@ -66,7 +67,7 @@ class SeekNBuild:
                 
                 for i in range(toGet):
                     h = self.future.pop()
-                    requesting.append(h)
+                    requesting.append(bytes(h))
                     self.present.add(h)
                     self.presentLastRequest[h] = int(time.time())
                     
@@ -76,7 +77,7 @@ class SeekNBuild:
             
             if len(requesting) > 0:
                 # TODO : don't broadcast to all nodes, just one
-                self.gracht.broadcast(b'requestblocks', requesting)
+                self.gracht.broadcast('requestblocks', requesting)
             
             time.sleep(0.1)
             
@@ -107,8 +108,8 @@ class SeekNBuild:
                                         self.past.remove(bh)
                                         self.done.add(bh)
                                         if success:
-                                            debug('chainBuilder: broadcasting\n\n')
-                                            self.gracht.broadcast(b'blocks', [[block[0].leaves(), block[1].rawlist, []]])
+                                            #debug('chainBuilder: broadcasting')
+                                            self.gracht.broadcast('blocks', ALL_BYTES([[block[0].leaves(), block[1].rawlist, []]]))
                         i += 1
                         if i >= len(heights): break
                                     

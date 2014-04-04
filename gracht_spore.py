@@ -72,17 +72,19 @@ if args.mine:
 @gracht.on_connect
 def onConnect(node):
     myIntro = [b'' for _ in range(len(IM))]
-    myIntro[IM['topblock']] = gpdht.head.getHash()
-    node.send('intro', )
+    myIntro[IM['topblock']] = bytes(gpdht.head.getHash())
+    node.send('intro', ALL_BYTES(myIntro))
     
     
 @gracht.handler('intro')
 def intro(node, payload):
-    payload = ALLBANT(payload)
+    payload = ALL_BANT(payload)
     if node in intros:
         return None
     intros[node] = payload
-    seeknbuild.addBlocksToSeek([payload[IM['topblock']]])
+    topblock = payload[IM['topblock']]
+    if not gpdht.hasBlock(topblock):
+        seeknbuild.addBlocksToSeek([payload[IM['topblock']]])
     
 
 @gracht.handler('blocks')
@@ -106,7 +108,7 @@ def blocks(node, payload):
     
 @gracht.handler('requestblocks')
 def requestblocks(node, payload):
-    payload = ALLBANT(payload)
+    payload = ALL_BANT(payload)
     # construct response
     ret = []
     for bh in payload:
@@ -115,7 +117,7 @@ def requestblocks(node, payload):
             cdraw = db.getEntry(leaves[1])
             uncles = []
             ret.append([leaves, cdraw, uncles])
-    node.send('blocks', ret)
+    node.send('blocks', ALL_BYTES(ret))
     
     
 @gracht.handler
