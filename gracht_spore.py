@@ -69,16 +69,23 @@ if args.mine:
 #gracht.set_recvieve_decode(RLP_DESERIALIZE)
 #gracht.set_send_encode(RLP_SERIALIZE)
 
-#@gracht.on_connect
-#@gracht.handler
-#def intro(node, payload):
-#	payload = ALLBANT(payload)
-#	if node in intros:
-#		return None
-#	intros[node] = payload
+@gracht.on_connect
+def onConnect(node):
+	myIntro = [b'' for _ in range(len(IM))]
+	myIntro[IM['topblock']] = gpdht.head.getHash()
+	node.send('intro', )
+	
+	
+@gracht.handler('intro')
+def intro(node, payload):
+	payload = ALLBANT(payload)
+	if node in intros:
+		return None
+	intros[node] = payload
+	seeknbuild.addBlocksToSeek([payload[IM['topblock']]])
 	
 
-@gracht.handler
+@gracht.handler('blocks')
 def blocks(node, payload):
 	payload = ALL_BANT(payload)
 	debug('MSG blocks : %s' % repr(payload))
@@ -93,13 +100,22 @@ def blocks(node, payload):
 			debug('MSG blocks handler : PoW failed for %s' % repr(ht.getHash()))
 			continue
 		seeknbuild.addBlock(ht, cd)
-			# TODO : add prevblocks to future,all
+		# TODO : add prevblocks to future,all
+		seeknbuild.addBlocksToSeek(cd.prevblocks)
 				
 	
-@gracht.handler
+@gracht.handler('requestblocks')
 def requestblocks(node, payload):
 	payload = ALLBANT(payload)
-	
+	# construct response
+	ret = []
+	for bh in payload:
+		if gpdht.hasBlock(bh):
+			leaves = db.getEntry(bh)
+			cdraw = db.getEntry(leaves[1])
+			uncles = []
+			ret.append([leaves, cdraw, uncles])
+	node.send('blocks', ret)
 	
 	
 @gracht.handler
@@ -145,16 +161,11 @@ def outro(node, payload):
 	pass
 
 
-gracht.start()
-
 if args.mine:
 	miner.start()
 
-try:
-	while True:
-		time.sleep(0.1)
-except KeyboardInterrupt:
-	gracht.stop()
-	seeknbuild.stop()
-	if args.mine:
-		miner.stop()
+gracht.run()
+
+seeknbuild.stop()
+if args.mine:
+	miner.stop()

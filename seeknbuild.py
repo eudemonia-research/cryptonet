@@ -50,6 +50,12 @@ class SeekNBuild:
 			self.pastFullBlocks[h] = [block]
 			self.past.add(h)
 			
+	def addBlocksToSeek(self, blockhashes):
+		with self.future_lock:
+			for bh in blockhashes:
+				if bh not in self.all:
+					self.future.add(bh)
+					self.all.add(bh)
 		
 	def blockSeeker(self):
 		while not self.shutdown:

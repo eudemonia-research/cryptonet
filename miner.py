@@ -38,7 +38,7 @@ class Miner:
 					debug("Mining block %d : %d : %s" % (int(chaindata.height), count, PoW.hex()))
 			if self.shutdown: break
 			debug('Miner: Found Soln : %s' % PoW.hex())
-			#self.chain.addBlock(h, chaindata)
+			#self.chain.addBlock(h, chaindata) - no no no
 			self.seeknbuild.addBlock(h, chaindata)
 			while not self.chain.hasBlock(PoW):
 				time.sleep(0.03)

@@ -254,7 +254,10 @@ class GPDHTChain(Forest):
 			# set height
 			ret[CDM['height']] = self.headChaindata.height + 1
 			# set prevblocks
-			ret[CDM['prevblock']] = self.head.getHash()
+			ancs = self.db.getAncestors(self.head.getHash())
+			debug('chaindataTemplate : ancs : %s' % repr(ancs))
+			ret[CDM['prevblock']] = ancs[0]
+			ret.extend(ancs[1:])
 			# set timestamp
 			ret[CDM['timestamp']] = BANT(int(time.time()))
 			# set votes
@@ -313,12 +316,12 @@ class GPDHTChain(Forest):
 			assert chaindata.height == 0
 			maxsigmadiff = BANT(0)
 		else:
-			debug('Chain.addBlock: repr(prevblock): %s' % repr(chaindata.prevblocks[0]))
-			if not self.hasBlock(chaindata.prevblocks[0]):
-				# should  not be an exception
-				# node misbehaving
-				raise ValueError('Chain.addBlock: Prevblock[0] does not exist')
-				# later check the rest of the prevblocks 1..n
+			debug('Chain.addBlock: repr(prevblocks): %s' % repr(chaindata.prevblocks))
+			for pb in chaindata.prevblocks:
+				if not self.hasBlock(pb):
+					# should  not be an exception
+					# node misbehaving
+					raise ValueError('Chain.addBlock: a prevblock does not exist')
 			prevblock = self.db.getEntry(chaindata.prevblocks[0])
 			prevChaindata = Chaindata(self.db.getEntry(prevblock[1]))
 			assert chaindata.height == prevChaindata.height + 1
