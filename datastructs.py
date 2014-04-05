@@ -247,8 +247,6 @@ class GPDHTChain(Forest):
         return (h, chaindata)
         
     def restartMiner(self):
-        debug('chain: attempting to restart miner')
-        debug(self.miner)
         if self.miner != None:
             self.miner.restart()
         

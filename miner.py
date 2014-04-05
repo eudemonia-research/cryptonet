@@ -21,7 +21,6 @@ class Miner:
         self.shutdown = True
         
     def restart(self):
-        debug('miner: recieved restart')
         self._restart = True
         
     def mine(self):
