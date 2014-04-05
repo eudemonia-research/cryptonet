@@ -90,7 +90,7 @@ def intro(node, payload):
 @gracht.handler('blocks')
 def blocks(node, payload):
     payload = ALL_BANT(payload)
-    debug('MSG blocks : %s' % repr(payload))
+    debug('MSG blocks : %s' % repr(ghash(RLP_SERIALIZE(payload))[:8]))
     for block in payload:
         # [[hashtree],[header],[uncleslist]]
         ht = HashTree(block[BM['hashtree']])

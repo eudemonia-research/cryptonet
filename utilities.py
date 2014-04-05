@@ -4,8 +4,9 @@ from binascii import hexlify, unhexlify
 # DEBUG
 #==============================================================================
 
-def debug(msg):
-    print(msg)
+def debug(msg, newline=True):
+    if newline: print(msg)
+    else: print(msg, end="", flush=True)
 
 #==============================================================================
 # CONST

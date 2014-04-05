@@ -3,7 +3,7 @@ import time, math
 from utilities import *
 from gpdht import *
 from constants import *
-
+from errors import *
 
 
 #==============================================================================
@@ -220,6 +220,7 @@ class GPDHTChain(Forest):
         self.initComplete = False
         self.head = None
         self.db = db
+        self.miner = None
         
         if genesisBlock != None: self.setGenesis(genesisBlock)
         else: self.setGenesis(self.mine(self.chaindataTemplate()))
@@ -245,6 +246,12 @@ class GPDHTChain(Forest):
         debug('Chain.mine: Found Soln : %s' % PoW.hex())
         return (h, chaindata)
         
+    def restartMiner(self):
+        if self.miner != None:
+            self.miner.restart()
+        
+    def setMiner(self, miner):
+        self.miner = miner
     
     def chaindataTemplate(self):
         # TODO : do a real block template here
@@ -255,7 +262,6 @@ class GPDHTChain(Forest):
             ret[CDM['height']] = self.headChaindata.height + 1
             # set prevblocks
             ancs = self.db.getAncestors(self.head.getHash())
-            debug('chaindataTemplate : ancs : %s' % repr(ancs))
             ret[CDM['prevblock']] = ancs[0]
             ret.extend(ancs[1:])
             # set timestamp
@@ -264,7 +270,6 @@ class GPDHTChain(Forest):
             # set uncles
             # set sigmadiff
             ret[CDM['sigmadiff']] = self.headChaindata.sigmadiff + self.targetToDiff(ret[CDM['target']])
-        print(repr(ret))
         return Chaindata(ret)
     
     def hash(self, message):
@@ -302,44 +307,37 @@ class GPDHTChain(Forest):
         
     # added sigmadiff stuff, need to test
     def addBlock(self, tree, chaindata, uncles=None):
-        if not validPoW(tree, chaindata): return 'PoW failed'
-        if self.db.exists(tree.getHash()): 
-            debug('addBlock: %s already acquired' % tree.getHash().hex())
-            return 'exists'
-            
-        debug('addBlock: Potential block : %s' % repr(tree.getHash().hex()))
-        debug('addBlock: block.leaves : %s' % repr(tree.leaves()))
+        if self.hasBlock(tree.getHash()): return
+        
+        self.blockAssertEqual(validPoW(tree, chaindata), True, 'internal PoW validation')
+        self.blockAssertEqual(chaindata.uncles, BANT(0, padTo=32), 'uncles MR validation')
         
         if self.initComplete == False:
-            assert chaindata.prevblocks[0] == BANT(0, padTo=32)
-            assert len(chaindata.prevblocks) == 1
-            assert chaindata.height == 0
+            self.blockAssertEqual(chaindata.prevblocks[0], BANT(0, padTo=32), 'genesis prevblock requirement')
+            self.blockAssertEqual(len(chaindata.prevblocks), 1, 'genesis prevblock length requirement')
+            self.blockAssertEqual(chaindata.height, 0, 'genesis height requirement')
             maxsigmadiff = BANT(0)
         else:
-            debug('Chain.addBlock: repr(prevblocks): %s' % repr(chaindata.prevblocks))
-            for pb in chaindata.prevblocks:
-                if not self.hasBlock(pb):
-                    # should  not be an exception
-                    # node misbehaving
-                    raise ValueError('Chain.addBlock: a prevblock does not exist')
             prevblock = self.db.getEntry(chaindata.prevblocks[0])
             prevChaindata = Chaindata(self.db.getEntry(prevblock[1]))
-            assert chaindata.height == prevChaindata.height + 1
+            
+            self.blockAssertEqual(self.db.getAncestors(chaindata.prevblocks[0]), chaindata.prevblocks, 'prevblocks consistency')
+            self.blockAssertEqual(chaindata.height, prevChaindata.height + 1, 'height validation')
             maxsigmadiff = self.headChaindata.sigmadiff
             
-        sigmadiff = self.calcSigmadiff(chaindata)
-        assert chaindata.sigmadiff == sigmadiff
-        if maxsigmadiff < sigmadiff:
-            debug('Chain.addBlock: New head of chain : %s' % tree.getHash().hex())
-            self.head = tree
-            self.headChaindata = chaindata
-            
-        # TODO : these should not be asserts
-        assert tree.pos(0) == self.appid
-        assert tree.pos(1) == chaindata.getHash()
+        self.blockAssertEqual(tree.pos(0), self.appid, 'appid requirement')
+        self.blockAssertEqual(tree.pos(1), chaindata.getHash(), 'our chaindata location requirement')
         
+        sigmadiff = self.calcSigmadiff(chaindata)
+        self.blockAssertEqual(chaindata.sigmadiff, sigmadiff, 'sigmadiff validaton')
+                    
         debug( 'Chain.addBlock: NEW BLOCK : %s' % repr(tree.getHash().hex()) )
         self.add(tree)
+        
+        if maxsigmadiff < sigmadiff:
+            debug('Chain.addBlock: New head : %s' % tree.getHash().hex())
+            self.head = tree
+            self.headChaindata = chaindata
         
         if self.initComplete == False:
             self.initComplete = True
@@ -348,7 +346,12 @@ class GPDHTChain(Forest):
         self.db.dumpChaindata(chaindata)
         self.db.setAncestors(tree, chaindata.prevblocks[0])
         
+        self.restartMiner()
+        
         return True
+        
+    def blockAssertEqual(self, a, b, description):
+        if a != b: raise BlockError('blockAssert fail : %s' % description)
         
     def hasBlock(self, bh):
         return bh in self.trees
