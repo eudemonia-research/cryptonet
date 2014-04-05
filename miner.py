@@ -7,9 +7,10 @@ from datastructs import *
 class Miner:
     def __init__(self, chain, seeknbuild):
         self.shutdown = False
-        self.restart = True
+        self._restart = True
         self.threads = [threading.Thread(target=self.mine)]
         self.chain = chain
+        self.chain.setMiner(self)
         self.seeknbuild = seeknbuild
         
     def start(self):
@@ -20,7 +21,8 @@ class Miner:
         self.shutdown = True
         
     def restart(self):
-        self.restart = True
+        debug('miner: recieved restart')
+        self._restart = True
         
     def mine(self):
         while not self.shutdown:
@@ -41,13 +43,13 @@ class Miner:
                     break
                 nonce += 1
                 if count % 100 == 0:
-                    if self.restart: break
+                    if self._restart: break
                     if count % 100000 == 0:
-                        self.restart = True
+                        self._restart = True
             if self.shutdown: break
-            if self.restart: 
+            if self._restart: 
                 debug('Miner restarting')
-                self.restart = False
+                self._restart = False
                 continue
             debug('Miner: Found Soln : %s' % PoW.hex())
             #self.chain.addBlock(h, chaindata) - no no no
