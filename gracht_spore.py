@@ -31,6 +31,7 @@ chaindata = Chaindata([
     BANT("0000000000000000000000000000000000000000000000000000000000000000", True), 
     BANT("0000000000000000000000000000000000000000000000000000000000000000", True)
     ])
+    
 genesisblock = (tree, chaindata)
 
 
@@ -38,7 +39,8 @@ genesisblock = (tree, chaindata)
 
 config = {
     'host': '0.0.0.0',
-    'port': 32555
+    'port': 32555,
+    'networkdebug': False
 }
 
 parser = argparse.ArgumentParser()
@@ -46,6 +48,7 @@ parser.add_argument('-port', nargs=1, default=32555, type=int, help='port for no
 parser.add_argument('-addnode', nargs=1, default='', type=str, help='node to connect to non-exclusively. Format xx.xx.xx.xx:yyyy')
 parser.add_argument('-genesis', nargs=1, default=BANT(), type=BANT, help='genesis block in hex')
 parser.add_argument('-mine', action='store_true')
+parser.add_argument('-networkdebug', action='store_true')
 args = parser.parse_args()
 
 config['port'] = args.port
@@ -65,6 +68,9 @@ seeknbuild = SeekNBuild(gracht, gpdht)
 
 if args.mine:
     miner = Miner(gpdht, seeknbuild)
+    
+if args.networkdebug:
+	config['networkdebug'] = True
 
 #gracht.set_recvieve_decode(RLP_DESERIALIZE)
 #gracht.set_send_encode(RLP_SERIALIZE)
@@ -79,18 +85,20 @@ def onConnect(node):
 @gracht.handler('intro')
 def intro(node, payload):
     payload = ALL_BANT(payload)
+    debug('MSG intro : %s' % repr(ghash(RLP_SERIALIZE(payload))[:8]))
     if node in intros:
         return None
     intros[node] = payload
     topblock = payload[IM['topblock']]
     if not gpdht.hasBlock(topblock):
-        seeknbuild.addBlocksToSeek([payload[IM['topblock']]])
+        seeknbuild.addBlocksToSeek([(0, topblock)])
     
 
 @gracht.handler('blocks')
 def blocks(node, payload):
     payload = ALL_BANT(payload)
-    debug('MSG blocks : %s' % repr(ghash(RLP_SERIALIZE(payload))[:8]))
+    if config['networkdebug']:
+		debug('MSG blocks : %s' % repr(payload))
     for block in payload:
         # [[hashtree],[header],[uncleslist]]
         ht = HashTree(block[BM['hashtree']])
@@ -103,7 +111,7 @@ def blocks(node, payload):
             continue
         seeknbuild.addBlock(ht, cd)
         # TODO : add prevblocks to future,all
-        seeknbuild.addBlocksToSeek(cd.prevblocks)
+        seeknbuild.addBlocksToSeek(cd.prevblocksWithHeight)
                 
     
 @gracht.handler('requestblocks')
@@ -168,6 +176,6 @@ if args.mine:
 
 gracht.run()
 
-seeknbuild.stop()
+seeknbuild.shutdown()
 if args.mine:
-    miner.stop()
+    miner.shutdown()

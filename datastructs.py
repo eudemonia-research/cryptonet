@@ -206,7 +206,7 @@ class GPDHTChain(Forest):
     _initialConditions = [
             BANT(1,padTo=4), # version
             BANT(0,padTo=4), # height
-            BANT(b'\xff\xff\xff\x02'), # target
+            BANT(b'\x01\xff\xff\x01'), # target
             BANT(b'\x01\x00\x00'), # sigmadiff
             BANT(int(time.time()), padTo=6), # timestamp
             BANT(0, padTo=4), # votes
@@ -331,13 +331,13 @@ class GPDHTChain(Forest):
         sigmadiff = self.calcSigmadiff(chaindata)
         self.blockAssertEqual(chaindata.sigmadiff, sigmadiff, 'sigmadiff validaton')
                     
-        debug( 'Chain.addBlock: NEW BLOCK : %s' % repr(tree.getHash().hex()) )
+        debug( 'Chain.addBlock: new valid block : %s' % tree.getHash().hex()[:32] )
         self.add(tree)
         
         if maxsigmadiff < sigmadiff:
-            debug('Chain.addBlock: New head : %s' % tree.getHash().hex())
             self.head = tree
             self.headChaindata = chaindata
+            debug('Chain.addBlock: New head @ h %d: %s' % (self.headChaindata.height, tree.getHash().hex()[:32]))
         
         if self.initComplete == False:
             self.initComplete = True
@@ -423,6 +423,7 @@ class Chaindata:
         self.uncles = BANT(cd[CDM['uncles']], padTo=32)
         # there is an ancestry summary here
         self.prevblocks = ALL_BANT(cd[CDM['prevblock']:])
+        self.prevblocksWithHeight = [(int(self.height) - 2**i, self.prevblocks[i]) for i in range(len(self.prevblocks))]
         
         self.unpackedTarget = unpackTarget(self.target)
         

@@ -6,7 +6,7 @@ from datastructs import *
 
 class Miner:
     def __init__(self, chain, seeknbuild):
-        self.shutdown = False
+        self._shutdown = False
         self._restart = True
         self.threads = [threading.Thread(target=self.mine)]
         self.chain = chain
@@ -17,14 +17,14 @@ class Miner:
         for t in self.threads:
             t.start()
         
-    def stop(self):
-        self.shutdown = True
+    def shutdown(self):
+        self._shutdown = True
         
     def restart(self):
         self._restart = True
         
     def mine(self):
-        while not self.shutdown:
+        while not self._shutdown:
             chaindata = self.chain.chaindataTemplate()  
             target = chaindata.unpackedTarget
             message = BANT("It was a bright cold day in April, and the clocks were striking thirteen.")
@@ -34,7 +34,7 @@ class Miner:
             h = HashTree(potentialTree)
             count = 0
             debug("Miner running on block #%d" % chaindata.height)
-            while not self.shutdown:
+            while not self._shutdown:
                 count += 1
                 h.update(3, nonce)
                 PoW = h.getHash()
@@ -45,7 +45,7 @@ class Miner:
                     if self._restart: break
                     if count % 100000 == 0:
                         self._restart = True
-            if self.shutdown: break
+            if self._shutdown: break
             if self._restart: 
                 debug('Miner restarting')
                 self._restart = False
