@@ -16,25 +16,24 @@ intros = {}
 
 # GENESIS BLOCK
 tree = HashTree([
-    BANT("4da5bb26a234e081daa99197f4f546616a1a56ec10f55211e9cbca3db12c4468", True), 
-    BANT("4da5bb26a234e081daa99197f4f546616a1a56ec10f55211e9cbca3db12c4468", True), 
-    BANT("193f65c9e4e7b8b92d082784344fad9e732499bc1e7c63f89ae61832cccb7ccc", True), 
-    BANT("193f65c9e4e7b8b92d082784344fad9e732499bc1e7c63f89ae61832cccb8ef2", True)
+    BANT("5428e1798a6e841a9cd81a30ec8e8e68a579fa7e5f4b81152b957052d73ddd98", True),
+    BANT("5428e1798a6e841a9cd81a30ec8e8e68a579fa7e5f4b81152b957052d73ddd98", True),
+    BANT("193f65c9e4e7b8b92d082784344fad9e732499bc1e7c63f89ae61832cccb7ccc", True),
+    BANT("193f65c9e4e7b8b92d082784344fad9e732499bc1e7c63f89ae61832cccb7f50", True)
     ])
 chaindata = Chaindata([
-    BANT("00000001", True), 
-    BANT("00000000", True), 
-    BANT("ffffff02", True), 
-    BANT("010000", True), 
-    BANT("0000533cf190", True), 
-    BANT("00000000", True), 
-    BANT("0000000000000000000000000000000000000000000000000000000000000000", True), 
+    BANT("0001", True),
+    BANT("00000000", True),
+    BANT("ffffff01", True),
+    BANT("0100", True),
+    BANT("0000534133e0", True),
+    BANT("00000001", True),
+    BANT("0000000000000000000000000000000000000000000000000000000000000000", True),
     BANT("0000000000000000000000000000000000000000000000000000000000000000", True)
     ])
+
     
 genesisblock = (tree, chaindata)
-
-
 
 
 config = {
@@ -85,7 +84,8 @@ def onConnect(node):
 @gracht.handler('intro')
 def intro(node, payload):
     payload = ALL_BANT(payload)
-    debug('MSG intro : %s' % repr(ghash(RLP_SERIALIZE(payload))[:8]))
+    if config['networkdebug']:
+        debug('MSG intro : %s' % repr(ghash(RLP_SERIALIZE(payload))[:8]))
     if node in intros:
         return None
     intros[node] = payload
@@ -98,7 +98,7 @@ def intro(node, payload):
 def blocks(node, payload):
     payload = ALL_BANT(payload)
     if config['networkdebug']:
-        debug('MSG blocks : %s' % repr(payload))
+        debug('MSG blocks : %s' % repr(ghash(RLP_SERIALIZE(payload))[:8]))
     for block in payload:
         # [[hashtree],[header],[uncleslist]]
         ht = HashTree(block[BM['hashtree']])
@@ -117,6 +117,8 @@ def blocks(node, payload):
 @gracht.handler('requestblocks')
 def requestblocks(node, payload):
     payload = ALL_BANT(payload)
+    if config['networkdebug']:
+        debug('MSG requestblocks : %s' % repr(ghash(RLP_SERIALIZE(payload))[:8]))
     # construct response
     ret = []
     for bh in payload:

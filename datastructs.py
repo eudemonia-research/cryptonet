@@ -204,16 +204,18 @@ class GPDHTChain(Forest):
     ''' Holds a PoW chain and can answer queries '''
     # initial conditions must be updated when Chaindata structure updated
     _initialConditions = [
-            BANT(1,padTo=4), # version
+            BANT(1,padTo=2), # version
             BANT(0,padTo=4), # height
-            BANT(b'\x01\xff\xff\x01'), # target
-            BANT(b'\x01\x00\x00'), # sigmadiff
+            BANT(b'\xff\xff\xff\x01'), # target
+            BANT(b'\x01\x00'), # sigmadiff
             BANT(int(time.time()), padTo=6), # timestamp
-            BANT(0, padTo=4), # votes
+            BANT(1, padTo=4), # votes
             BANT(bytearray(32)), # uncles
             BANT(bytearray(32)), # prevblock
         ]
     _target1 = BANT(2**256-1)
+    retargetPeriod = 64
+    blocksPerDay = 1440
     
     def __init__(self, genesisBlock=None, db=None):
         super(GPDHTChain, self).__init__()
@@ -268,6 +270,8 @@ class GPDHTChain(Forest):
             ret[CDM['timestamp']] = BANT(int(time.time()))
             # set votes
             # set uncles
+            # set target
+            ret[CDM['target']] = self.calcExpectedTarget(Chaindata(ret))
             # set sigmadiff
             ret[CDM['sigmadiff']] = self.headChaindata.sigmadiff + self.targetToDiff(ret[CDM['target']])
         return Chaindata(ret)
@@ -281,15 +285,13 @@ class GPDHTChain(Forest):
         
     def setGenesis(self, block):
         tree, chaindata = block
-        debug('Setting Genesis Block')
         assert int(chaindata.uncles) == 0
         assert int(chaindata.prevblocks[0]) == 0
         assert len(chaindata.prevblocks) == 1
         assert int(chaindata.version) == 1
         
         target = chaindata.unpackedTarget
-        debug("Chain.setGenesis: target : %064x" % target)
-        assert int(tree.getHash()) < target
+        assert validPoW(tree, chaindata)
         
         self.genesisTree = tree
         self.genesisHash = tree.getHash()
@@ -299,15 +301,21 @@ class GPDHTChain(Forest):
         self.headTree = self.genesisTree
         self.headChaindata = self.genesisChaindata
         
-        debug('Adding Genesis; details:')
-        debug('\ttree: %s' % tree.leaves())
-        debug('\tchaindata: %s' % chaindata.rawlist)
+        debug('setGenesis:\n')
+        debug('\ttree: %s' % repr(self.genesisTree.leaves()))
+        debug('\chaindata: %s' % repr(self.genesisChaindata.rawlist))
+        
         self.addBlock(tree, chaindata)
         
         
     # added sigmadiff stuff, need to test
     def addBlock(self, tree, chaindata, uncles=None):
         if self.hasBlock(tree.getHash()): return
+        
+        self.blockAssertEqual(chaindata.height + 10000 > self.headChaindata.height, True, 'new block is not older than 10,000 blocks')
+        self.blockAssertEqual(chaindata.timestamp < time.time() + 60*15, True, 'new block cannot be more than 15 minutes ahead of present')
+        
+        self.blockAssertEqual(chaindata.target, self.calcExpectedTarget(chaindata), 'target must be as expected')
         
         self.blockAssertEqual(validPoW(tree, chaindata), True, 'internal PoW validation')
         self.blockAssertEqual(chaindata.uncles, BANT(0, padTo=32), 'uncles MR validation')
@@ -325,14 +333,18 @@ class GPDHTChain(Forest):
             self.blockAssertEqual(chaindata.height, prevChaindata.height + 1, 'height validation')
             maxsigmadiff = self.headChaindata.sigmadiff
             
-        self.blockAssertEqual(tree.pos(0), self.appid, 'appid requirement')
+        self.blockAssertEqual(tree.pos(0), self.appid, 'appid location requirement')
         self.blockAssertEqual(tree.pos(1), chaindata.getHash(), 'our chaindata location requirement')
         
         sigmadiff = self.calcSigmadiff(chaindata)
         self.blockAssertEqual(chaindata.sigmadiff, sigmadiff, 'sigmadiff validaton')
-                    
+        
         debug( 'Chain.addBlock: new valid block : %s' % tree.getHash().hex()[:32] )
         self.add(tree)
+        
+        self.db.dumpTree(tree)
+        self.db.dumpChaindata(chaindata)
+        self.db.setAncestors(tree, chaindata.prevblocks[0])
         
         if maxsigmadiff < sigmadiff:
             self.head = tree
@@ -341,10 +353,6 @@ class GPDHTChain(Forest):
         
         if self.initComplete == False:
             self.initComplete = True
-        
-        self.db.dumpTree(tree)
-        self.db.dumpChaindata(chaindata)
-        self.db.setAncestors(tree, chaindata.prevblocks[0])
         
         self.restartMiner()
         
@@ -370,6 +378,31 @@ class GPDHTChain(Forest):
         diff = self.targetToDiff(cd.target)
         sigmadiff = prevsigmadiff + diff
         return sigmadiff
+        
+    def calcExpectedTarget(self, cd):
+        ''' given chaindata, calculate the expected target '''
+        if cd.prevblocks[0] == 0: return self._initialConditions[CDM['target']]
+        parentTree = self.db.getEntry(cd.prevblocks[0])
+        parentChaindata = Chaindata(self.db.getEntry(parentTree[1]))
+        
+        if cd.height % self.retargetPeriod != 0:
+            return parentChaindata.target
+        
+        oldAncestorTree = self.db.getEntry(cd.prevblocks[(self.retargetPeriod-1).bit_length()])
+        oldAncestorChaindata = Chaindata(self.db.getEntry(oldAncestorTree[1]))
+        timedelta = cd.timestamp - oldAncestorChaindata.timestamp
+        print(cd.timestamp.hex(), oldAncestorChaindata.timestamp.hex())
+        expectedTimedelta = 60 * 60 * 24 * self.retargetPeriod // self.blocksPerDay
+        
+        print(timedelta.__int__(), expectedTimedelta)
+        
+        if timedelta < expectedTimedelta // 4: timedelta = expectedTimedelta // 4
+        if timedelta > expectedTimedelta * 4: timedelta = expectedTimedelta * 4
+        
+        newTarget = packTarget(parentChaindata.unpackedTarget * timedelta // expectedTimedelta)
+        print('New Target Calculated: %s, height: %d' % (newTarget.hex(), cd.height)   )
+        return newTarget
+        
     
     def targetToDiff(self, target):
         if isinstance(target, BANT): return self._target1 // unpackTarget(target)
@@ -414,10 +447,10 @@ class Chaindata:
     def __init__(self, cd):
         self.rawlist = cd[:]
         # ["version", "height", "target", "sigmadiff", "timestamp", "votes", "uncles"] # prev1, 2, 4, 8, ... appended here
-        self.version = cd[CDM['version']]
-        self.height = cd[CDM['height']]
-        self.target = cd[CDM['target']]
-        self.sigmadiff = cd[CDM['sigmadiff']]
+        self.version = BANT(cd[CDM['version']], padTo=2)
+        self.height = BANT(cd[CDM['height']], padTo=4)
+        self.target = BANT(cd[CDM['target']], padTo=4)
+        self.sigmadiff = BANT(cd[CDM['sigmadiff']])
         self.timestamp = BANT(cd[CDM['timestamp']], padTo=6)
         self.votes = BANT(cd[CDM['votes']], padTo=4)
         self.uncles = BANT(cd[CDM['uncles']], padTo=32)
@@ -425,7 +458,7 @@ class Chaindata:
         self.prevblocks = ALL_BANT(cd[CDM['prevblock']:])
         self.prevblocksWithHeight = [(int(self.height) - 2**i, self.prevblocks[i]) for i in range(len(self.prevblocks))]
         
-        self.unpackedTarget = unpackTarget(self.target)
+        self.unpackedTarget = BANT(unpackTarget(self.target))
         
         self.hash = ghash(RLP_SERIALIZE(cd))
         

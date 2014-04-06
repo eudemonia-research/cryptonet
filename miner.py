@@ -35,25 +35,22 @@ class Miner:
             potentialTree = [self.chain.appid, chaindata.getHash(), message.getHash(), nonce]
             h = HashTree(potentialTree)
             count = 0
-            debug("Miner running on block #%d" % chaindata.height)
-            while not self._shutdown:
+            #debug("Miner running on block #%d" % chaindata.height)
+            while not self._shutdown and not self._restart:
                 count += 1
                 h.update(3, nonce)
                 PoW = h.getHash()
                 if PoW < target:
                     break
                 nonce += 1
-                if count % 100 == 0:
-                    if self._restart: break
-                    if count % 100000 == 0:
-                        self._restart = True
+                if count % 100000 == 0:
+                    self._restart = True
             if self._shutdown: break
             if self._restart: 
-                debug('Miner restarting')
                 self._restart = False
+                time.sleep(0.05)
                 continue
             debug('Miner: Found Soln : %s' % PoW.hex())
-            #self.chain.addBlock(h, chaindata) - no no no
             self.seeknbuild.addBlock(h, chaindata)
             while not self.chain.hasBlock(PoW):
                 time.sleep(0.03)

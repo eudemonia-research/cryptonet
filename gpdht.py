@@ -24,6 +24,25 @@ def ghash(msg):
     return BANT(s.digest())
 
 
+
+def packTarget(unpackedTarget):
+    # TODO : test
+    pad = 32 - len(unpackedTarget)
+    while unpackedTarget[0] == 0:
+        pad += 1
+        unpackedTarget = unpackedTarget[1:]
+    a = unpackedTarget[:3] + bytearray([pad])
+    return BANT(a)
+    
+def unpackTarget(packedTarget):
+    # TODO : test
+    packedTarget = bytes(packedTarget)
+    pad = packedTarget[3]
+    sigfigs = packedTarget[:3]
+    rt = ZERO*pad + sigfigs + ZERO*(32-3-pad)
+    return BANT(int(hexlify(rt),16))
+
+
 #==============================================================================
 # BANT STUFF
 #==============================================================================
@@ -102,6 +121,7 @@ class BANT:
     def __add__(self, other):
         # TODO : should adding a STRING to a BANT append or addition?
         if isinstance(other, str): return BANT(self.this + bytearray(other))
+        if isinstance(other, bytearray): return BANT(self.this + bytearray(other))
         return BANT(ADDBYTEARRAYS(self.this, BANT(other).this))
     def __sub__(self, other):
         return BANT(int(self) - int(other))
@@ -253,4 +273,3 @@ def RLP_SERIALIZE(blistIn):
         raise ValueError('input is not a BANT or a list')
     
     return BANT(ret)
-

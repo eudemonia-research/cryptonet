@@ -12,7 +12,7 @@ def debug(msg, newline=True):
 # CONST
 #==============================================================================
 
-ZERO = b'\x00'
+ZERO = bytes(1)
 
 #==============================================================================
 # LOGIC
@@ -68,21 +68,7 @@ def strlist(l):
 # NETWORK
 #==============================================================================
 
-def packTarget(unpackedTarget):
-    # TODO : test
-    pad = 0
-    while unpackedTarget[0] == ZERO:
-        pad += 1
-        unpackedTarget = unpackedTarget[1:]
-    return unpackedTarget[:3]+chr(pad)
-    
-def unpackTarget(packedTarget):
-    # TODO : test
-    packedTarget = bytes(packedTarget)
-    pad = packedTarget[3]
-    sigfigs = packedTarget[:3]
-    rt = ZERO*pad + sigfigs + ZERO*(32-3-pad)
-    return int(hexlify(rt),16)
+
     
     
 def packSigmadiff(unpackedSigmaDiff):
