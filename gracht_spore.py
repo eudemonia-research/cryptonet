@@ -70,7 +70,7 @@ if args.mine:
     miner = Miner(gpdht, seeknbuild)
     
 if args.networkdebug:
-	config['networkdebug'] = True
+    config['networkdebug'] = True
 
 #gracht.set_recvieve_decode(RLP_DESERIALIZE)
 #gracht.set_send_encode(RLP_SERIALIZE)
@@ -98,7 +98,7 @@ def intro(node, payload):
 def blocks(node, payload):
     payload = ALL_BANT(payload)
     if config['networkdebug']:
-		debug('MSG blocks : %s' % repr(payload))
+        debug('MSG blocks : %s' % repr(payload))
     for block in payload:
         # [[hashtree],[header],[uncleslist]]
         ht = HashTree(block[BM['hashtree']])
