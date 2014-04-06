@@ -16,17 +16,15 @@ intros = {}
 
 # GENESIS BLOCK
 tree = HashTree([
-    BANT("5428e1798a6e841a9cd81a30ec8e8e68a579fa7e5f4b81152b957052d73ddd98", True),
-    BANT("5428e1798a6e841a9cd81a30ec8e8e68a579fa7e5f4b81152b957052d73ddd98", True),
-    BANT("193f65c9e4e7b8b92d082784344fad9e732499bc1e7c63f89ae61832cccb7ccc", True),
-    BANT("193f65c9e4e7b8b92d082784344fad9e732499bc1e7c63f89ae61832cccb7f50", True)
-    ])
+	BANT("00000000000000000000000000000000000000000000000000000000000002c3aa", True), 
+	BANT("e884780c3d277ec3a2a511194091481579728c55fe3a059cd52b66cc92ecc341", True)
+])
 chaindata = Chaindata([
     BANT("0001", True),
     BANT("00000000", True),
     BANT("ffffff01", True),
     BANT("0100", True),
-    BANT("0000534133e0", True),
+    BANT("0000534146f0", True),
     BANT("00000001", True),
     BANT("0000000000000000000000000000000000000000000000000000000000000000", True),
     BANT("0000000000000000000000000000000000000000000000000000000000000000", True)
@@ -59,7 +57,7 @@ if isinstance(args.addnode, list) and args.addnode[0] != '':
 
 
 db = Database()
-gpdht = GPDHTChain(db=db, genesisBlock=genesisblock)
+gpdht = GPDHTChain(db=db)#, genesisBlock=genesisblock)
 
 gracht = Spore(seeds=seeds, address=(config['host'], config['port']))
 
@@ -70,9 +68,6 @@ if args.mine:
     
 if args.networkdebug:
     config['networkdebug'] = True
-
-#gracht.set_recvieve_decode(RLP_DESERIALIZE)
-#gracht.set_send_encode(RLP_SERIALIZE)
 
 @gracht.on_connect
 def onConnect(node):

@@ -41,3 +41,6 @@ chaindataList = [
     ] # prev2, 4, 8, ... appended here
 chaindataMap = dict([(title,n) for n,title in enumerate(chaindataList)])
 CDM = chaindataMap
+
+GENESISBLOCKHASH = b'\x00\xe7\xb4\xe1\x98\x36\xe0\x28\x2d\x40\x83\xad\xb9\xe1\xdb\x56\x30\x38\x95\xbf\x96\xec\xc4\xbf\x3a\xf8\x74\x45\xbb\xd0\xa8\x1f'
+

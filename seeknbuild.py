@@ -170,6 +170,6 @@ class SeekNBuild:
                 self.past.remove(bh)
                 self.done.add(bh)
                 if success:
-                    self.gracht.broadcast('blocks', ALL_BYTES([[block[0].leaves(), block[1].rawlist, []]]))
+                    self.gracht.broadcast('blocks', ALL_BYTES([[block[0].leaves, block[1].rawlist, []]]))
             
             

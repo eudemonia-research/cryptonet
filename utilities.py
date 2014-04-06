@@ -20,7 +20,10 @@ ZERO = bytes(1)
 
 def xor_strings(xs, ys):
     return "".join(chr(ord(x) ^ ord(y)) for x, y in zip(xs, ys))
-    
+
+def xor_bytearrays(xs, ys):
+	print('xorin',[i for i in zip(xs,ys)])
+	return bytearray([x ^ y for x,y in zip(xs, ys)])
     
 #==============================================================================
 # DATA TYPES
@@ -67,8 +70,6 @@ def strlist(l):
 #==============================================================================
 # NETWORK
 #==============================================================================
-
-
     
     
 def packSigmadiff(unpackedSigmaDiff):

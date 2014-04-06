@@ -29,20 +29,16 @@ class Miner:
         while not self._shutdown:
             chaindata = self.chain.chaindataTemplate()  
             target = chaindata.unpackedTarget
-            message = BANT("It was a bright cold day in April, and the clocks were striking thirteen.")
-            with open('/dev/urandom', 'br') as r:
-                nonce = BANT(bytes(r.read(32)))
-            potentialTree = [self.chain.appid, chaindata.getHash(), message.getHash(), nonce]
-            h = HashTree(potentialTree)
+            potentialTree = [self.chain.appid, chaindata.getHash()]
+            h = HashTree(potentialTree, key=randBytes(32))
             count = 0
             #debug("Miner running on block #%d" % chaindata.height)
             while not self._shutdown and not self._restart:
                 count += 1
-                h.update(3, nonce)
+                h.incrementKey()
                 PoW = h.getHash()
                 if PoW < target:
                     break
-                nonce += 1
                 if count % 100000 == 0:
                     self._restart = True
             if self._shutdown: break

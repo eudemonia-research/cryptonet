@@ -4,7 +4,7 @@ import hashlib, sys
 import sha3
 
 from utilities import *
-
+from constants import *
 
 #==============================================================================
 # GENERAL CRYPTONET FUNCTIONS
@@ -41,6 +41,11 @@ def unpackTarget(packedTarget):
     sigfigs = packedTarget[:3]
     rt = ZERO*pad + sigfigs + ZERO*(32-3-pad)
     return BANT(int(hexlify(rt),16))
+    
+    
+def randBytes(n):
+	with open('/dev/urandom', 'br') as r:
+		return BANT(bytes(r.read(n)))
 
 
 #==============================================================================
@@ -136,7 +141,7 @@ class BANT:
     def __pow__(self, other):
         return BANT(int(self) ** int(other))
     def __xor__(self, other):
-        return BANT(xor_strings(self.this.str(), other.this.str()))
+        return BANT(xor_bytearrays(self.this, other.this))
         
     def __str__(self):
         return ''.join([chr(i) for i in self.this])

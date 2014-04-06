@@ -9,7 +9,7 @@ class Database:
         return key in self.d
     
     def dumpTree(self, tree):
-        self.d[tree.getHash()] = tree.leaves()
+        self.d[tree.getHash()] = tree.leaves
         
     def dumpChaindata(self, cd):
         self.d[cd.getHash()] = cd.rawlist

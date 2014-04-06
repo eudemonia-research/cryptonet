@@ -5,10 +5,28 @@ from gpdht import *
 from constants import *
 from errors import *
 
-
 #==============================================================================
 # HashTree
 #==============================================================================
+        
+class XoRWrapper:
+    def __init__(self, msg, key=BANT(GENESISBLOCKHASH)):
+        self.msg = msg
+        self.setKey(BANT(key))
+        self.ttl = 0
+    def __int__(self): return int(self.hash)
+    def __eq__(self, other): return BANT(self.hash) == other
+    def __repr__(self): return repr(self.hash)
+    def getHash(self, force=False):
+        return self.hash
+    def setKey(self, newKey):
+        self.key = newKey[:32]
+        self.hash = (self.msg.getHash() ^ self.key)
+        print(self.msg.hex(), self.key.hex(), self.hash.hex())
+    def incrementKey(self):
+        self.setKey(self, self.key + 1)
+    def setParent(self, parent):
+        self.parent = parent
         
         
 class FakeHashNode:
@@ -37,7 +55,7 @@ class FakeHashNode:
     
         
 class HashNode:
-    def __init__(self, children, ttl=None):
+    def __init__(self, children, ttl=None, xor=BANT(0, padTo=32)):
         self.myhash = None
         self.parent = None
         self.children = children
@@ -48,6 +66,7 @@ class HashNode:
             assert children[0].ttl == children[1].ttl
         if ttl != None: self.ttl = ttl
         if len(children) < 1 or len(children) > 2: raise ValueError("HashNode: children must be a list/tuple of length 1 or 2")
+        self.xor = xor
         self.getHash()
         
     
@@ -62,9 +81,10 @@ class HashNode:
     def getHash(self, force=False):
         if self.myhash == None or force:
             # p0.hash ++ p1.hash
-            concat = lambda x: self.children[x[0]].getHash().concat(self.children[x[1]].getHash())
+            concat = lambda x: (self.children[x[0]].getHash() ^ self.xor).concat(self.children[x[1]].getHash() ^ self.xor)
             if len(self.children) == 1: self.myhash = ghash(concat([0,0]))
             else: self.myhash = ghash(concat([0,1]))
+            self.myhash = self.myhash
             if self.parent != None: self.parent.getHash(True)
         return self.myhash
         
@@ -89,20 +109,32 @@ class HashNode:
         
 class HashTree:
     # TODO : take out TTL stuff, and rename to something that makes sense.
-    def __init__(self, init):       
+    def __init__(self, init, key=None):       
         assert len(init) > 0
         self.n = len(init)
+        self.leaves = init
+        if key == None: self.key = BANT('GENESISBLOCK', padTo=32)
+        else: self.key = key
+        self.recalcTree(init)
         
-        chunks = init
-        
+    def recalcTree(self, chunks):
+        if isinstance(chunks[0], XoRWrapper): chunks[0].setKey(self.key)
+        else: chunks[0] = XoRWrapper(chunks[0], self.key)
         while len(chunks) > 1:
             newChunks = []
             for i in range(0,len(chunks),2):
-                newChunks.append(HashNode(chunks[i:i+2]))
+                newChunks.append(HashNode(chunks[i:i+2], xor=self.key))
             chunks = newChunks
         self.root = chunks[0]
         self.height = self.root.ttl
         
+    def setKey(self, newKey):
+        self.key = BANT(newKey, padTo=32)[:32]
+        self.recalcTree(self.leaves)
+        
+    def incrementKey(self):
+        self.key += 1
+        self.recalcTree(self.leaves)
         
     def doHash(self, msg):
         return ghash(msg)
@@ -116,7 +148,7 @@ class HashTree:
             w = w.children[ len(w.children)-1 ]
         
         
-    def leaves(self):
+    def gen_leaves(self):
         w = self.root
         fringe = [w]
         while fringe[0].ttl != 0:
@@ -231,18 +263,15 @@ class GPDHTChain(Forest):
     def mine(self, chaindata):
         # TODO : redo for new structure
         target = chaindata.unpackedTarget
-        message = BANT("It was a bright cold day in April, and the clocks were striking thirteen.")
-        nonce = message.getHash()+1
-        potentialTree = [i.getHash() for i in [chaindata, chaindata, message, message]]
-        h = HashTree(potentialTree)
+        potentialTree = [i.getHash() for i in [chaindata, chaindata]]
+        h = HashTree(potentialTree, key=chaindata.getHash())
         count = 0
         while True:
             count += 1
-            h.update(3, nonce)
+            h.incrementKey()
             PoW = h.getHash()
             if PoW < target:
                 break
-            nonce += 1
             if count % 10000 == 0:
                 debug("Mining Genesis : %d : %s" % (count, PoW.hex()))
         debug('Chain.mine: Found Soln : %s' % PoW.hex())
@@ -302,7 +331,7 @@ class GPDHTChain(Forest):
         self.headChaindata = self.genesisChaindata
         
         debug('setGenesis:\n')
-        debug('\ttree: %s' % repr(self.genesisTree.leaves()))
+        debug('\ttree: %s' % repr(self.genesisTree.leaves))
         debug('\chaindata: %s' % repr(self.genesisChaindata.rawlist))
         
         self.addBlock(tree, chaindata)
@@ -350,7 +379,7 @@ class GPDHTChain(Forest):
             self.head = tree
             self.headChaindata = chaindata
             debug('Chain.addBlock: New head @ h %d: %s' % (self.headChaindata.height, tree.getHash().hex()[:32]))
-        
+            debug('Chain.addBlock: %s' % repr(tree.leaves))
         if self.initComplete == False:
             self.initComplete = True
         
