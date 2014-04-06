@@ -118,13 +118,21 @@ class SeekNBuild:
             
             if height > self.chain.headChaindata.height + 1:
                 self.pastQueue.put((height, nonce, block))
-                time.sleep(0.05)
+                # try some of those which were parentless:
+                if self.pastQueueNoParent.empty():
+                    time.sleep(0.05)
+                while not self.pastQueueNoParent.empty():
+                    self.pastQueue.put(self.pastQueueNoParent.get())
             else:
                 # TODO: if chain doesn't have parent block put to the side for a bit, but don't throw away
-                #if not self.chain.hasBlock(block[BM['chaindata']].parentblocks[0]):
-                #    self.pastQueueNoParent.put((height, nonce, block))
+                if not self.chain.hasBlock(block[BM['chaindata']].prevblocks[0]):
+                    self.pastQueueNoParent.put((height, nonce, block))
+                    continue
                 if self.chain.hasBlock(bh):
-                    self.past.remove(bh)
+                    try:
+                        self.past.remove(bh)
+                    except KeyError:
+                        pass
                     self.done.add(bh)
                     continue
                 success = self.chain.addBlock(block[BM['hashtree']], block[BM['chaindata']], block[BM['uncles']])
