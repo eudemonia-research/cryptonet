@@ -19,6 +19,8 @@ class Miner:
         
     def shutdown(self):
         self._shutdown = True
+        for t in self.threads:
+            t.join()
         
     def restart(self):
         self._restart = True

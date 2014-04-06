@@ -47,6 +47,8 @@ class SeekNBuild:
         
     def shutdown(self):
         self._shutdown = True
+        for t in self.threads:
+            t.join()
         
     def addBlock(self, tree, chaindata, uncles=[]):
         bh = tree.getHash()
