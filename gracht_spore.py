@@ -56,7 +56,9 @@ seeds = []
 if isinstance(args.addnode, list) and args.addnode[0] != '':
     h,p = args.addnode[0].split(':')
     seeds.append((h,p))
-
+    
+# bootstrap while testing
+seeds.append(('xk.io',32555))
 
 db = Database()
 gpdht = GPDHTChain(db=db, genesisBlock=genesisblock)
@@ -176,8 +178,17 @@ def outro(node, payload):
 if args.mine:
     miner.start()
 
+def poll():
+    time.sleep(5)
+    while gracht.running:
+        print([peer.address for peer in gracht.all_connected_peers()])
+        time.sleep(30)
+
+threading.Thread(target=poll).start()
+
 gracht.run()
 
 seeknbuild.shutdown()
 if args.mine:
     miner.shutdown()
+
