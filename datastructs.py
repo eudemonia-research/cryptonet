@@ -421,6 +421,8 @@ class GPDHTChain(Forest):
         #return [self.db.getSuccessors(b) for b in blocks]
         pass
         
+    def getHeight(self):
+        return self.headChaindata.height
         
     def getTopBlock(self):
         return self.head
