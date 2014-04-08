@@ -1,0 +1,15 @@
+Class:
+    def __init__(self, attr1=None, attr2=None, attr3=None, ...):
+        self.attr1 = attr1
+        ....
+        
+    def serialise(self):
+        return RLP_ENCODE([attr1, [attr2, attr3], attr4, ...])
+        
+    def deserialise(self, ser):
+        l = RLP_DECODE(ser)
+        self.attr1 = l[0]
+        self.attr2 = l[1][0]
+        self.attr3 = l[1][1]
+        self.attr4 = l[2]
+        ...
