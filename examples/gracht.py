@@ -130,7 +130,7 @@ class Header(object):
         oldAncestorTree = self.db.getEntry(cd.prevblocks[(self.retargetPeriod-1).bit_length()])
         oldAncestorChaindata = Chaindata(self.db.getEntry(oldAncestorTree[1]))
         timedelta = cd.timestamp - oldAncestorChaindata.timestamp
-        print(cd.timestamp.hex(), oldAncestorChaindata.timestamp.hex())
+        #print(cd.timestamp.hex(), oldAncestorChaindata.timestamp.hex())
         expectedTimedelta = 60 * 60 * 24 * self.retargetPeriod // self.blocksPerDay
         
         print(timedelta.__int__(), expectedTimedelta)
@@ -228,9 +228,9 @@ class Block(object):
         self.header.assertValidity(chain)
         # we have parent
         if chain.initialized:
-            self.assertTrue( chain.hasBlock(self.parenthash), 'parent must exist' )
+            self.assertTrue( chain.hasBlockhash(self.parenthash), 'parent must exist' )
             # genesis block location requirement
-            self.assertTrue( chain.genesisBlock.getHash() == self.tree.pos(0), 'genesis block hash location requirement' )        
+            self.assertTrue( chain.genesisBlock.header.getHash() == self.tree.pos(0), 'genesis block hash location requirement' )        
         else:
             self.assertTrue( self.parenthash == 0 and len(self.parenthash) == 32, 'parent must be zeroed' )
             self.assertTrue( self.tree.pos(0) == self.tree.pos(1) and self.tree.pos(0) == self.header.getHash(), 'genesis header hash requirement' )
@@ -241,7 +241,7 @@ class Block(object):
         ''' if any block hashes known and should seek, add here.
         Should be in list of tuples of (height, blockhash) '''
         
-        print(self.height.hex(), [(int(self.height) - 2**i, self.header.prevblocks[i]) for i in range(len(self.header.prevblocks))])
+        #print(self.height.hex(), [(int(self.height) - 2**i, self.header.prevblocks[i]) for i in range(len(self.header.prevblocks))])
         
         return [(int(self.height) - 2**i, self.header.prevblocks[i]) for i in range(len(self.header.prevblocks))]
         

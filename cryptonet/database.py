@@ -24,10 +24,10 @@ class Database:
         self.rpush(old + diff, young)
         self.rpush(young - diff, old)
         
-    def setAncestors(self, tree, prevblockhash):
+    def setAncestors(self, block):
         s = 0
-        bh = tree.getHash()
-        cur = prevblockhash
+        bh = block.getHash()
+        cur = block.parenthash
         if cur == 0: return True # genesis block
         self.linkAnc(bh, cur, 2**s)
         while self.exists(cur - 2**s):

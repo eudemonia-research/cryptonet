@@ -130,7 +130,8 @@ class Chain(object):
         if block.betterThan(self.head):
             self.head = block
         
-        self.db.setEntry(block.getHash(), block)    
+        self.db.setEntry(block.getHash(), block)
+        self.db.setAncestors(block)
         self.blocks.add(block)
         self.blockhashes.add(block.getHash())
         
@@ -138,7 +139,7 @@ class Chain(object):
         if self.initialized == False:
             self.initialized = True
         
-        print('added block %d, hash: %s' % (block.height, block.getHash()))
+        print('added block %d, hash: %x' % (block.height, block.getHash()))
         
         self.restartMiner()
         

@@ -16,7 +16,7 @@ class Cryptonet(object):
         
         self.p2p = Spore(seeds=chainVars.seeds)
         self.setHandlers()
-        print(self.p2p.peers)
+        print('cryptonet init, peers: ', self.p2p.peers)
         
         self.db = Database()
         self.chain = Chain(chainVars, db=self.db)
@@ -69,7 +69,7 @@ class Cryptonet(object):
                 node.misbehaving()
                 return
             if config['networkdebug'] or True:
-                debug('MSG intro : %s' % repr(theirIntro.getHash())[:8])
+                debug('MSG intro : %s' % repr(theirIntro.getHash()[:8]))
             if node in self.intros:
                 return None
             self.intros[node] = theirIntro
@@ -83,10 +83,14 @@ class Cryptonet(object):
             if config['networkdebug'] or True:
                 debug('MSG blocks : %s' % repr(ghash(rlp.serialize(payload))[:8]))
             for pb in payload:
+                #print('blocks:', pb)
                 try:
                     potentialBlock = self._Block(pb)
+                    #print('blocks:', potentialBlock)
+                    if potentialBlock.height == 1: print ('HERE')
                     potentialBlock.assertInternalConsistency()
                 except ValidationError:
+                    print('blocksHandler error', e)
                     node.misbehaving()
                     continue
                 self.seekNBuild.addBlock(potentialBlock)

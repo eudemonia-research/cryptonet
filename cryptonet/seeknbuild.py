@@ -114,7 +114,7 @@ class SeekNBuild:
                 if toGet > 0: # pick some blocks to request
                     for i in range(toGet):
                         _, h = self.futureQueue.get()
-                        print('blockSeeker: asking for height: ',_)
+                        #print('blockSeeker: asking for height: ',_)
                         self.future.remove(h)
                         if _ != 0:
                             requesting.append(h)
@@ -155,12 +155,12 @@ class SeekNBuild:
             if block.height == 0:
                 continue
             bh = block.getHash()
-            print('checking %d' % block.height)
+            #print('chainbuilder: checking %d' % block.height)
             
             # TODO : handle orphans intelligently
-            if block.height > self.getChainHeight() + 100:
-                print('chainbuilder: chain height: %d' % self.getChainHeight())
-                print('block.height %d' % block.height)
+            if block.height > self.getChainHeight() + 1:
+                #print('chainbuilder: chain height: %d' % self.getChainHeight())
+                #print('chainbuilder: block.height %d' % block.height)
                 self.pastQueue.put((height, nonce, block))
                 # try some of those which were parentless:
                 with self.past_lock:
@@ -177,15 +177,15 @@ class SeekNBuild:
                     continue
                 # TODO : handle orphans intelligently
                 if not self.chain.hasBlockhash(block.parenthash):
-                    print('dont have parent')
-                    print(self.chain.head.getHash().hex(), block.parenthash.hex())
+                    #print('chainbuilder: dont have parent')
+                    #print('chainbuilder: head and curr', self.chain.head.getHash().hex(), block.parenthash.hex())
                     self.pastQueueNoParent.put((height, nonce, block))
                     continue
                 try:
                     block.assertValidity(self.chain)
                 except ValidationError as e:
                     # invalid block
-                    print(e)
+                    print('chainbuidler validation error: ', e)
                     continue
                 success = self.chain.addBlock(block)
                 self.past.remove(bh)
