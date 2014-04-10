@@ -1,7 +1,7 @@
-Gracht
-======
+Cryptonet
+=========
 
-Pre-reference implementation for GPDHT
+A generic library to build structures based on a blockchain with a P2P network.
 
 
 ## Dependancies
@@ -12,6 +12,8 @@ Pre-reference implementation for GPDHT
 
 
 ## Standards
+
+These will be reviewed before the beta. Currently designed for Gracht.
 
 ### Block
 
@@ -70,7 +72,7 @@ H: MerkleRoot( [ht1, ht2, ht3, ...] )
 
 ## Architecture
 
-### R (class) - find new blocks and ensure longest chain is being used.
+### SeekNBuild - find new blocks and ensure longest chain is being used.
 
 R has five sets:
 
