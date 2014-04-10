@@ -11,7 +11,18 @@ from binascii import hexlify, unhexlify
 # GENERAL CRYPTONET FUNCTIONS
 #==============================================================================
     
-    
+
+def num2bits(n, minlen=0):
+    n = int(n)
+    r = []
+    while n > 0:
+        r.append(n%2)
+        n //= 2
+    pad = minlen - len(r)
+    while pad > 0:
+        r.append(0)
+        pad -= 1
+    return r[::-1]
 
 def validPoW(ht, cd):
     return ht.getHash() < cd.unpackedTarget
@@ -106,12 +117,6 @@ class Chain(object):
     def hash(self, message):
         return ghash(message)
         
-        '''
-    def hashChaindata(self, cd):
-        if isinstance(cd, Chaindata): return cd.getHash()
-        return self.hash(RLP_SERIALIZE(cd))
-        '''
-        
     def setGenesis(self, block):
         if self.genesisBlock == None:
             block.assertValidity(self)
@@ -139,7 +144,7 @@ class Chain(object):
         if self.initialized == False:
             self.initialized = True
         
-        print('added block %d, hash: %x' % (block.height, block.getHash()))
+        print('added block %d, hash: %064x' % (block.height, block.getHash()))
         
         self.restartMiner()
         

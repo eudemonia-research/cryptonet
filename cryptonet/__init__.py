@@ -5,6 +5,7 @@ from cryptonet.gpdht import *
 from cryptonet.database import Database
 from cryptonet.errors import *
 from cryptonet.datastructs import *
+from cryptonet.miner import Miner
 
 from gpdht import *
 
@@ -20,9 +21,9 @@ class Cryptonet(object):
         
         self.db = Database()
         self.chain = Chain(chainVars, db=self.db)
-        self.miner = None
-        #self.miner = Miner(chain)
         self.seekNBuild = SeekNBuild(self.p2p, self.chain)
+        self.miner = Miner(self.chain, self.seekNBuild)
+        #self.miner = None
         
         self.genesisBinary = chainVars.genesisBinary
         

@@ -84,7 +84,7 @@ class HashNode:
         
 class MerkleTree:
     # TODO : take out TTL stuff, and rename to something that makes sense.
-    def __init__(self, init):       
+    def __init__(self, init):
         assert len(init) > 0
         self.n = len(init)
         self.leaves = init[:]
@@ -98,8 +98,6 @@ class MerkleTree:
             chunks = newChunks
         self.root = chunks[0]
         self.height = self.root.ttl
-        
-        
         
         
     def doHash(self, msg):
@@ -159,7 +157,6 @@ class MerkleTree:
         node = self.pos(pos).parent
         path = self.pathToPos(pos)
         node.setChild(path[-1], val)
-        
             
     def getHash(self, force=False):
         return self.root.getHash(force)
