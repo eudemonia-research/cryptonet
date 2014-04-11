@@ -2,8 +2,9 @@ import time
 import threading
 import queue
 
-from gpdht import *
+from cryptonet.gpdht import *
 from cryptonet.errors import *
+from cryptonet.debug import *
 
 class AtomicIncrementor:
     def __init__(self):

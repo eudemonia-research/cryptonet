@@ -1,26 +1,66 @@
 #!/usr/bin/env python3
 
-import time
+import time, argparse
 
 from cryptonet import Cryptonet
+from cryptonet.miner import Miner
 from cryptonet.datastructs import ChainVars
 from cryptonet.datastructs import MerkleTree
 from cryptonet.errors import ValidationError
 from cryptonet.gpdht import *
 from cryptonet import rlp
 
+from encodium import *
+
 chainVars = ChainVars()
-chainVars.seeds = [('xk.io',32555)]
-chainVars.genesisBinary = b"\xf8\xe7\xf8\x84\xa0T(\xe1y\x8an\x84\x1a\x9c\xd8\x1a0\xec\x8e\x8eh\xa5y\xfa~_K\x81\x15+\x95pR\xd7=\xdd\x98\xa0T(\xe1y\x8an\x84\x1a\x9c\xd8\x1a0\xec\x8e\x8eh\xa5y\xfa~_K\x81\x15+\x95pR\xd7=\xdd\x98\xa0\x19?e\xc9\xe4\xe7\xb8\xb9-\x08\'\x844O\xad\x9es$\x99\xbc\x1e|c\xf8\x9a\xe6\x182\xcc\xcb|\xcc\xa0\x19?e\xc9\xe4\xe7\xb8\xb9-\x08\'\x844O\xad\x9es$\x99\xbc\x1e|c\xf8\x9a\xe6\x182\xcc\xcb\x7fP\xf8^\x82\x00\x01\x84\x00\x00\x00\x00\x84\xff\xff\xff\x01\x82\x01\x00\x86\x00\x00SA3\xe0\x84\x00\x00\x00\x01\xa0\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xa0\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xc0"
+
+
+config = {
+    'host': '0.0.0.0',
+    'port': 32555,
+    'networkdebug': False
+}
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-port', nargs=1, default=32555, type=int, help='port for node to bind to')
+parser.add_argument('-addnode', nargs=1, default='', type=str, help='node to connect to non-exclusively. Format xx.xx.xx.xx:yyyy')
+parser.add_argument('-genesis', nargs=1, default=BANT(), type=BANT, help='genesis block in hex')
+parser.add_argument('-mine', action='store_true')
+parser.add_argument('-networkdebug', action='store_true')
+args = parser.parse_args()
+
+config['port'] = args.port
+if isinstance(args.port, list): config['port'] = args.port[0]
+seeds = []
+if isinstance(args.addnode, list) and args.addnode[0] != '':
+    h,p = args.addnode[0].split(':')
+    seeds.append((h,p))
+    
+# bootstrap while testing
+#seeds.append(('xk.io',32555))
+
+
+chainVars.seeds = seeds
+chainVars.genesisBinary = None
+chainVars.genesisBinary = b'\x01O\x01!\x00\xd7gm\xa06{\xa2\xa6\xa3{\x0b\xd6\xb6\xc2\x80\xfc\x19\xca\xf5WD\x8am\xae\xe1+\xaf\xaa\x86\x9b\xfbB!\x00\xd7gm\xa06{\xa2\xa6\xa3{\x0b\xd6\xb6\xc2\x80\xfc\x19\xca\xf5WD\x8am\xae\xe1+\xaf\xaa\x86\x9b\xfbB\t\x00\xabT\xa9\x8c\xdcgs\xf46\x01\x01\x01\x01\x00 \x00\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\x02\x01\x00\x04SG\x9c\x93\x01\x00\x01\x00\x03\x01\x01\x00\x01\x01'
+chainVars.address = (config['host'], config['port'])
+chainVars.mine = args.mine
+
 
 gracht = Cryptonet(chainVars)
 
+class Uncle(Field):
+    pass
 
-class Header(object):
-    _target1 = BANT(2**256-1)
-    retargetPeriod = 64
-    blocksPerDay = 1440
-    _initialConditions = [
+class Header(Field):
+    
+    DEFAULT_TARGET = 2**248-1
+    _TARGET1 = 2**256-1
+    RETARGET_PERIOD = 64
+    BLOCKS_PER_DAY = 1440
+    timeint = lambda : int(time.time())
+    
+    '''_initialConditions = [
             BANT(1,padTo=2), # version
             BANT(0,padTo=4), # height
             BANT(b'\xff\xff\xff\x01'), # target
@@ -29,29 +69,34 @@ class Header(object):
             BANT(1, padTo=4), # votes
             BANT(bytearray(32)), # uncles
             BANT(bytearray(32)), # prevblock
-        ]
-    def __init__(self, hl, uncles):
-        self.uncles = uncles
-        self.rawlist = hl
+        ]'''
         
-        self.map = ["version", "height", "target", "sigmadiff", "timestamp", "votes", "uncles", "prevblocks"] # prev1, 2, 4, 8, ... appended here
-        self.map = dict([(title,n) for n,title in enumerate(self.map)])
-        
-        self.version = hl[self.map['version']]
-        self.height = hl[self.map['height']]
-        self.target = hl[self.map['target']]
-        self.sigmadiff = hl[self.map['sigmadiff']]
-        self.timestamp = hl[self.map['timestamp']]
-        self.votes = hl[self.map['votes']]
-        self.unclesMR = hl[self.map['uncles']]
-        # there is an ancestry summary here
-        self.prevblocks = hl[self.map['prevblocks']:]
-        self.prevblocksWithHeight = [(int(self.height) - 2**i, self.prevblocks[i]) for i in range(len(self.prevblocks))]
-        self.unpackedTarget = BANT(self.unpackTarget())
-        self.hash = ghash(rlp.serialize(hl))
+    def init(self):
+        #self.prevblocksWithHeight = [(self.height - 2**i, self.prevblocks[i]) for i in range(len(self.prevblocks))]
+        pass
+    
+    def fields():
+        version = Integer(default=1, length=4)
+        height = Integer(default=0, length=4)
+        target = Integer(default=Header.DEFAULT_TARGET, length=32)
+        sigmadiff = Integer(default=0x100)
+        timestamp = Integer(default=Header.timeint, length=5)
+        votes = Integer(default=0, length=1)
+        unclesMR = Integer(default=0, length=32)
+        prevblocks = List(Integer(), default=[0])
         
     def getHash(self):
-        return self.hash
+        tempCont = [
+            self.version.to_bytes(4, 'big'),
+            self.height.to_bytes(4, 'big'),
+            self.target.to_bytes(32, 'big'),
+            self.sigmadiff.to_bytes(32, 'big'),
+            self.timestamp.to_bytes(5, 'big'),
+            self.votes.to_bytes(1, 'big'),
+            self.unclesMR.to_bytes(32, 'big'),
+        ]
+        tempCont.extend( [i.to_bytes(32, 'big') for i in self.prevblocks] )
+        return ghash(b''.join(tempCont))
         
     def assertTrue(self, condition, message):
         if not condition:
@@ -60,7 +105,7 @@ class Header(object):
     def assertInternalConsistency(self):
         self.assertTrue( self.timestamp < time.time() + 60*15, 'new block cannot be more than 15 minutes ahead of present' )
         self.assertTrue( self.unclesMR == 0, 'uncles must be zeroed' )
-        self.assertTrue( len(self.unclesMR) == 32, 'uncles must be 32 bytes long' )
+        self.assertTrue( self.unclesMR <= 2**256-1, 'uncles must be no more than 32 bytes long' )
         self.assertTrue( self.version == 1, 'version must be equal to 1' )
         
     def assertValidity(self, chain):
@@ -74,57 +119,41 @@ class Header(object):
             self.assertTrue( self.unclesMR == 0, 'genesis requires zeroed unclesMR' )
             self.assertTrue( self.prevblocks[0] == 0, 'genesis requires zeroed prevblock' )
             self.assertTrue( len(self.prevblocks) == 1, 'genesis can have only one prevblock' )
-            print(self.calcSigmadiff(self).hex())
             self.assertTrue( self.sigmadiff == self.calcSigmadiff(self), 'genesis sigmadiff requirement' )
         
-    # TODO : test
-    def unpackTarget(self, given=None):
-        if given == None: packedTarget = self.target[:]
-        else: packedTarget = given[:]
-        pad = packedTarget[3]
-        sigfigs = packedTarget[:3]
-        rt = b'\x00'*int(pad) + bytes(sigfigs) + b'\x00'*(32-3-int(pad))
-        return BANT(int(hexlify(rt),16))
-        
-    # TODO : test
-    def packTarget(self, unpackedTarget):
-        unpackedTarget = unpackedTarget[:]
-        pad = 32 - len(unpackedTarget)
-        while unpackedTarget[0] == 0:
-            pad += 1
-            unpackedTarget = unpackedTarget[1:]
-        a = unpackedTarget[:3] + bytearray([pad])
-        return a
-        
-    def targetToDiff(self, target):
-        return self._target1 // self.unpackTarget(target)
+    def targetToDiff(target):
+        return Header._TARGET1 // target
         
     # need to test
-    def calcSigmadiff(self, header, prevblock=None):
+    def calcSigmadiff(header, prevblock=None):
         ''' given header, calculate the sigmadiff '''
-        if header.prevblocks[0] == 0: prevsigmadiff = BANT(0)
+        if header.prevblocks[0] == 0: prevsigmadiff = 0
         else: prevsigmadiff = prevblock.header.sigmadiff
-        return prevsigmadiff + self.targetToDiff(header.target)
+        debug(type(prevsigmadiff), type(header.target))
+        return prevsigmadiff + Header.targetToDiff(header.target)
         
-    def calcExpectedTarget(self, header, chain):
+    def calcExpectedTarget(header, chain):
         ''' given a header and prevblock, calculate the expected target '''
-        if header.prevblocks[0] == 0: return self._initialConditions[self.map['target']]
+        if header.prevblocks[0] == 0: return self.DEFAULT_TARGET
         prevblock = chain.getBlock(header.prevblocks[0])
-        if header.height % self.retargetPeriod != 0: return prevblock.header.target
+        if header.height % self.RETARGET_PERIOD != 0: return prevblock.header.target
         
-        oldAncestor = chain.getBlock(header.prevblocks[(self.retargetPeriod-1).bit_length()])
+        oldAncestor = chain.getBlock(header.prevblocks[(self.RETARGET_PERIOD-1).bit_length()])
         timedelta = header.timestamp - oldAncestor.header.timestamp
-        expectedTimedelta = 60 * 60 * 24 * self.retargetPeriod // self.blocksPerDay
+        expectedTimedelta = 60 * 60 * 24 * self.RETARGET_PERIOD // self.BLOCKS_PER_DAY
         
         if timedelta < expectedTimedelta // 4: timedelta = expectedTimedelta // 4
         if timedelta > expectedTimedelta * 4: timedelta = expectedTimedelta * 4
         
-        newTarget = self.packTarget(prevblock.header.unpackedTarget * timedelta // expectedTimedelta)
-        print('New Target Calculated: %04x, height: %d' % (newTarget, header.height)   )
+        newTarget = prevblock.header.target * timedelta // expectedTimedelta
+        debug('New Target Calculated: %04x, height: %d' % (newTarget, header.height))
         return newTarget
         
-    def headerTemplate(self, chain, prevblock):
-        # TODO : do a real block template here
+    def headerTemplate(chain, prevblock):
+        newHeader = Header.make(height = chain.head.height + 1, prevblocks = chain.db.getAncestors(chain.head.getHash()))
+        newHeader.target = Header.calcExpectedTarget(newHeader, chain)
+        newHeader.sigmadiff = Header.calcSigmadiff(newHeader, prevblock)
+        '''# TODO : do a real block template here
         ret = self._initialConditions[:]
         # set height
         ret[self.map['height']] = chain.head.height + 1
@@ -139,57 +168,33 @@ class Header(object):
         # set target
         ret[self.map['target']] = self.calcExpectedTarget(Header(ret, Uncles([])), chain)
         # set sigmadiff
-        ret[self.map['sigmadiff']] = chain.head.header.sigmadiff + self.targetToDiff(ret[self.map['target']])
-        return Header(ret, Uncles([]))
+        ret[self.map['sigmadiff']] = chain.head.header.sigmadiff + self.targetToDiff(ret[self.map['target']])'''
+        return newHeader
         
     def getCandidate(self, chain, prevblock):
         ''' should return a candidate header that builds on this one '''
         return self.headerTemplate(chain, prevblock)
         
-class Uncles:
-    def __init__(self, ul):
-        self._uncles = []
-        for uncle in ul:
-            # TODO : validate Chaindata in hashtree
-            self._uncles.append( HashTree(uncle[UM['hashtree']]) )
-        # commented for now
-        #self._tree = HashTree(self._uncles)
-        self.rawlist = []
-    
-    #def getHash():
-        #return self._tree.getHash()            
-
-
 @gracht.block
-class Block(object):
-    def __init__(self, rawlist=None):
-        if rawlist != None: self.setFromRawlist(rawlist)
-        
-    def __eq__(self, other):
-        return self.getHash() == other.getHash()
+class Block(Field):   
+    def init(self):
+        self.merkletree = MerkleTree.make(leaves = self.leaves)
+        self.parenthash = self.header.prevblocks[0]
+        self.height = self.header.height
+         
+    def fields():
+        leaves = List(Integer(default=0, length=32), default=[])
+        header = Header()
+        uncles = List(Uncle(), default=[])
         
     def __hash__(self):
-        return int(self.getHash())
-        
-    def setFromRawlist(self, rawlist):
-        self.tree = MerkleTree(rawlist[0])
-        self.header = Header(rawlist[1], Uncles(rawlist[2]))
-        
-        self.height = self.header.height
-        self.parenthash = self.header.prevblocks[0]
-        
-    def serialize(self):
-        return rlp.serialize([self.tree.leaves, self.header.rawlist, self.header.uncles.rawlist])
-        
-    def deserialize(self, serialized):
-        self.setFromRawlist(rlp.deserialize(serialized))
-        return self
+        return self.getHash()
         
     def getHash(self):
-        return self.tree.getHash()
+        return int(self.merkletree.getHash())
         
     def validPoW(self):
-        return self.getHash() < self.header.unpackedTarget
+        return self.getHash() < self.header.target
         
     def assertTrue(self, condition, message):
         if not condition:
@@ -198,20 +203,20 @@ class Block(object):
     def assertInternalConsistency(self):
         ''' This should fail if the block could never be valid - no reference to chain possible '''
         self.header.assertInternalConsistency()
-        self.assertTrue( self.validPoW(), 'PoW must validate against header' )
-        self.assertTrue( self.header.getHash() == self.tree.pos(1), 'Header hash must be in pos 1 of tree' )
+        self.assertTrue( self.validPoW(), 'PoW must validate against header: %064x' % self.getHash() )
+        #debug('block: AssertInternalConsistency', self.tree.leaves)
+        self.assertTrue( self.header.getHash() == self.leaves[1], 'Header hash must be in pos 1 of tree, %s %064x' % (self.leaves, self.header.getHash()))
         
     def assertValidity(self, chain):
         ''' This should fail only when the block cannot be fully validated against our chain. '''
         self.assertInternalConsistency()
         self.header.assertValidity(chain)
-        # we have parent
         if chain.initialized:
             self.assertTrue( chain.hasBlockhash(self.parenthash), 'parent must exist' )
-            self.assertTrue( chain.genesisBlock.header.getHash() == self.tree.pos(0), 'genesis block hash location requirement' )        
+            self.assertTrue( chain.genesisBlock.header.getHash() == self.merkletree.leaves[0], 'genesis block hash location requirement' )        
         else:
-            self.assertTrue( self.parenthash == 0 and len(self.parenthash) == 32, 'parent must be zeroed' )
-            self.assertTrue( self.tree.pos(0) == self.tree.pos(1) and self.tree.pos(0) == self.header.getHash(), 'genesis header hash requirement' )
+            self.assertTrue( self.parenthash == 0, 'parent must be zeroed' )
+            self.assertTrue( self.merkletree.leaves[0] == self.merkletree.leaves[1] and self.merkletree.leaves[0] == self.header.getHash(), 'genesis header hash requirement' )
     
     def betterThan(self, other):
         return self.header.sigmadiff > other.header.sigmadiff
@@ -219,17 +224,18 @@ class Block(object):
     def relatedBlocks(self):
         ''' if any block hashes known and should seek, add here.
         Should be in list of tuples of (height, blockhash) '''
-        return [(int(self.height) - 2**i, self.header.prevblocks[i]) for i in range(len(self.header.prevblocks))]
+        return self.header.prevblocksWithHeight
         
     def incrementNonce(self):
-        nonce = self.tree.leaves[-1] + 1
-        self.tree = MerkleTree(self.tree.leaves[:3] + [nonce])
+        nonce = self.merkletree.leaves[-1] + 1
+        self.leaves = self.merkletree.leaves[:-1] + [nonce]
+        self.merkletree = MerkleTree.make(leaves = self.leaves)
         
     def getCandidate(self, chain):
         ''' return a block object that is a candidate for the next block '''
         newHeader = self.header.getCandidate(chain, self)
-        newTreeList = [self.tree.leaves[0], newHeader.getHash(), BANT("message").getHash(), BANT("").getHash()]
-        return Block([newTreeList, newHeader.rawlist, []])
+        newTreeList = [self.tree.leaves[0], newHeader.getHash(), ghash(b'some_message'), ghash(b'another_message?')]
+        return Block.make(tree=newTreeList, header=newHeader, uncles=[])
         
         
 '''tree = [
@@ -250,6 +256,11 @@ h =  [
     
 a = Block([tree,h,[]])
 print(a.serialize().raw())'''
-    
 
-gracht.run()
+def makeGenesis():
+    genH = Header.make()
+    genB = Block.make(leaves=[genH.getHash(), genH.getHash(), 12345678900987654321], header=genH)
+    m = Miner(gracht.chain, gracht.seekNBuild)
+    m.mine(genB)
+
+#gracht.run()

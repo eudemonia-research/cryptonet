@@ -1,6 +1,8 @@
 import threading
 import time
 
+from cryptonet.debug import *
+
 class Miner:
     def __init__(self, chain, seeknbuild):
         self._shutdown = False
@@ -22,9 +24,9 @@ class Miner:
     def restart(self):
         self._restart = True
         
-    def mine(self):
+    def mine(self, block=None):
         while not self._shutdown:
-            block = self.chain.head.getCandidate(self.chain)
+            if block == None: block = self.chain.head.getCandidate(self.chain)
             count = 0
             print('miner restarting')
             while not self._shutdown and not self._restart:
@@ -39,7 +41,8 @@ class Miner:
                 self._restart = False
                 time.sleep(0.01)
                 continue
-            print('Miner: Found Soln : %064x' % block.getHash())
+            debug('Miner: Found Soln : %064x' % block.getHash())
+            debug('Miner: ser\'d block: ', block.serialize())
             self.seeknbuild.addBlock(block)
             while not self.chain.hasBlockhash(block.getHash()):
                 time.sleep(0.1)

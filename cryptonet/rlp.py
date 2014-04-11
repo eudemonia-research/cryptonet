@@ -1,5 +1,7 @@
-import gpdht
-BANT = gpdht.BANT
+import cryptonet.gpdht
+from cryptonet.debug import *
+
+BANT = cryptonet.gpdht.BANT
 
 i2b = lambda x : x.to_bytes((x.bit_length() // 8) + 1, 'big')
 

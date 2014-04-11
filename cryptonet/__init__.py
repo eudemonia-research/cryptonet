@@ -6,8 +6,7 @@ from cryptonet.database import Database
 from cryptonet.errors import *
 from cryptonet.datastructs import *
 from cryptonet.miner import Miner
-
-from gpdht import *
+from cryptonet.debug import *
 
 config = {'networkdebug':True}
 
@@ -15,20 +14,22 @@ class Cryptonet(object):
     def __init__(self, chainVars):
         self._Block = None
         
-        self.p2p = Spore(seeds=chainVars.seeds)
+        self.p2p = Spore(seeds=chainVars.seeds, address=chainVars.address)
         self.setHandlers()
-        print('cryptonet init, peers: ', self.p2p.peers)
+        debug('cryptonet init, peers: ', self.p2p.peers)
         
         self.db = Database()
         self.chain = Chain(chainVars, db=self.db)
         self.seekNBuild = SeekNBuild(self.p2p, self.chain)
-        self.miner = Miner(self.chain, self.seekNBuild)
-        #self.miner = None
+        self.miner = None
+        if chainVars.mine:
+            self.miner = Miner(self.chain, self.seekNBuild)
         
-        self.genesisBinary = chainVars.genesisBinary
+        self.mineGenesis = False
+        if chainVars.genesisBinary == None: self.mineGenesis = True
+        else: self.genesisBinary = chainVars.genesisBinary
         
         self.intros = {}
-        
         
     def run(self):
         if self.miner != None: self.miner.run()
@@ -43,7 +44,10 @@ class Cryptonet(object):
         
     def block(self, blockObject):
         self._Block = blockObject
-        self.chain.setGenesis(self._Block().deserialize(BANT(self.genesisBinary)))
+        if self.mineGenesis:
+            pass
+        else:
+            self.chain.setGenesis(self._Block().make(self.genesisBinary))
         return blockObject
         
         
@@ -52,20 +56,19 @@ class Cryptonet(object):
     #==================
     
     def setHandlers(self):
-        print('setHandlers')
+        debug('setHandlers')
         @self.p2p.on_connect
         def onConnectHandler(node):
-            print('onConnectHandler')
-            myIntro = Intro(topblock = self.chain.head.getHash())
-            node.send('intro', ALL_BYTES(myIntro.serialize()))
+            debug('onConnectHandler')
+            myIntro = Intro.make(topblock=bytes(self.chain.head.getHash()))
+            node.send('intro', myIntro.serialize())
             
             
         @self.p2p.handler('intro')
         def introHandler(node, payload):
-            payload = ALL_BANT(payload)
-            print('introHandler')
+            debug('introHandler')
             try:
-                theirIntro = Intro(payload)
+                theirIntro = Intro.make(payload)
             except ValidationError:
                 node.misbehaving()
                 return
@@ -75,24 +78,22 @@ class Cryptonet(object):
                 return None
             self.intros[node] = theirIntro
             if not self.chain.hasBlock(theirIntro.topblock):
+                debug('introhand', theirIntro.topblock)
                 self.seekNBuild.seekHash(theirIntro.topblock)
             
 
         @self.p2p.handler('blocks')
         def blocksHandler(node, payload):
-            payload = ALL_BANT(payload)
+            blockList = BlockList.make(payload)
             if config['networkdebug'] or True:
-                debug('MSG blocks : %s' % repr(ghash(rlp.serialize(payload))[:8]))
-            for pb in payload:
-                #print('blocks:', pb)
+                debug('MSG blocks : %s' % repr(blockList.getHash()[:8]))
+            for blockser in blockList.blocks:
                 try:
-                    potentialBlock = self._Block(pb)
-                    #print('blocks:', potentialBlock)
-                    if potentialBlock.height == 1: print ('HERE')
+                    potentialBlock = self._Block().make(blockser)
                     potentialBlock.assertInternalConsistency()
-                except ValidationError:
-                    print('blocksHandler error', e)
-                    node.misbehaving()
+                except ValidationError as e:
+                    debug('blocksHandler error', e)
+                    #node.misbehaving()
                     continue
                 self.seekNBuild.addBlock(potentialBlock)
                 self.seekNBuild.seekManyWithPriority(potentialBlock.relatedBlocks())
@@ -100,14 +101,13 @@ class Cryptonet(object):
             
         @self.p2p.handler('requestblocks')
         def requestblocksHandler(node, payload):
-            payload = ALL_BANT(payload)
+            hashList = HashList.make(payload)
             if config['networkdebug'] or True:
-                debug('MSG requestblocks : %s' % repr(ghash(RLP_SERIALIZE(payload))[:8]))
-            # construct response
-            ret = []
-            for bh in payload:
-                if self.chain.hasBlock(bh):
+                debug('MSG requestblocks : %s' % repr(ghash(payload)[:8]))
+            ret = BlockList()
+            for bh in hashList:
+                if self.chain.hasBlockhash(bh):
                     ret.append(self.chain.getBlock(bh).serialize())
-            node.send('blocks', ALL_BYTES(ret))
+            node.send('blocks', ret.serialize())
             
         # done setting handlers

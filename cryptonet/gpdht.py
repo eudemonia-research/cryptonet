@@ -4,6 +4,8 @@ import hashlib, sys
 import sha3
 from binascii import hexlify, unhexlify
 
+from cryptonet.debug import *
+
 #from utilities import *
 
 
@@ -33,7 +35,7 @@ def ghash(msg):
     As always, should return a BANT '''
     s = hashlib.sha3_256()
     s.update(bytes(msg))
-    return BANT(s.digest())
+    return int.from_bytes(s.digest(), 'big')
 
 
 
@@ -62,18 +64,6 @@ def unpackTarget(packedTarget):
 class Chain(object):
     ''' Holds a PoW chain and can answer queries '''
     # initial conditions must be updated when Chaindata structure updated
-    '''
-    _initialConditions = [
-            BANT(1,padTo=2), # version
-            BANT(0,padTo=4), # height
-            BANT(b'\xff\xff\xff\x01'), # target
-            BANT(b'\x01\x00'), # sigmadiff
-            BANT(int(time.time()), padTo=6), # timestamp
-            BANT(1, padTo=4), # votes
-            BANT(bytearray(32)), # uncles
-            BANT(bytearray(32)), # prevblock
-        ]
-        '''
     
     def __init__(self, chainVars, genesisBlock=None, db=None):
         self.initialized = False
@@ -144,7 +134,7 @@ class Chain(object):
         if self.initialized == False:
             self.initialized = True
         
-        print('added block %d, hash: %064x' % (block.height, block.getHash()))
+        debug('added block %d, hash: %064x' % (block.height, block.getHash()))
         
         self.restartMiner()
         
@@ -206,6 +196,13 @@ def ADDBYTEARRAYS(a,b,carry=0):
     return ADDBYTEARRAYS(a[:-1],b[:-1],c) + bytearray([d])
 
 
+class I:
+    def __init__(self, i, width=None):
+        self.i = i
+        self.width = i.bit_length() // 8 + 1
+        if width != None: self.width = max(self.width, width)
+    
+
 class BANT:
     '''Byte Array Number Thing
     Special data structure where it acts as a number and a byte array/list
@@ -243,7 +240,7 @@ class BANT:
         return int(self) > int(other)
     def __eq__(self, other):
         if other == None: return False
-        if isinstance(other, str):
+        if isinstance(other, bytes):
             return self.this == other
         return int(self) == int(other)
     def __ne__(self, other):

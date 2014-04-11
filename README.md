@@ -74,7 +74,7 @@ H: MerkleRoot( [ht1, ht2, ht3, ...] )
 
 ### SeekNBuild - find new blocks and ensure longest chain is being used.
 
-R has five sets:
+SeekNBuild
 
 * future - set of hashes to seek out in the future (of potential blocks)
 * present - set of hashes which are currently being sought (have been requested)

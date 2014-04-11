@@ -1,11 +1,13 @@
 from cryptonet.gpdht import *
+from cryptonet.debug import *
 from cryptonet import rlp
+from encodium import *
 import math
 
 #==============================================================================
 # HashTree
 #==============================================================================
-        
+"""
 class FakeHashNode:
     ''' FakeHashNode should be used when the *hash* is known but the children are not. '''
     def __init__(self, h, ttl):
@@ -173,8 +175,27 @@ class MerkleTree:
         elif isinstance(other, BANT):
             return self.getHash() == other
         else:
-            return self.getHash() == other.getHash()
+            return self.getHash() == other.getHash()"""
 
+class MerkleLeavesToRoot(Field):
+    def fields():
+        leaves = List(Integer(width=32))
+        
+    def init(self):
+        self.update()
+        
+    def update(self):
+        print(self.leaves)
+        t = self.leaves[:]
+        while len(t) > 1: 
+            if len(t) % 2 != 0: t.append(int.from_bytes(b'\x00'*32, 'big'))
+            t = [ghash(t[i].to_bytes(32,'big') + t[i+1].to_bytes(32,'big')) for i in range(0,len(t),2)]
+        self.root = t[0]
+        
+    def getHash(self):
+        return self.root
+        
+MerkleTree = MerkleLeavesToRoot
 
 #============================
 # ChainVars
@@ -184,25 +205,57 @@ class ChainVars:
     def __init__(self, **kwargs):
         pass
             
-            
+
 #============================
 # Messages
 #============================
 
-class Intro:
-    def __init__(self, rawlist=None, topblock=None):
-        self.topblock = topblock
-        self.rawlist = [topblock]*8
+
+class Intro(Field):
+    def fields():
+        version = Integer(default=1, width=4)
+        services = Integer(default=1, width=4)
+        timestamp = Integer(default=1, width=5)
+        user_agent = String(default='cryptonet/0.0.1/', max_length=32)
+        topblock = Integer(length=32)
+        relay = Integer(default=0, length=1)
+        leaflets = List(Bytes(length=32), default=[])
         
-        if rawlist != None:
-            self.rawlist = rawlist
-            self.fromList(rawlist)
-    def fromList(self, l):
-        self.topblock = l[7]
-    def deserialize(self, ser):
-        self.fromList(rlp.deserialize(ser))
-        return self
-    def serialize(self):
-        return rlp.serialize(self.rawlist)
     def getHash(self):
         return ghash(self.serialize())
+        
+        
+#============================
+# Other / General
+#============================
+        
+        
+class HashList(Field):
+    def fields():
+        hashlist = List(Integer(length=32), default=[])
+        
+    def __iter__(self):
+        return self.hashlist
+        
+    def getHash(self):
+        return ghash(self.serialize())
+
+
+class BlockList(Field):
+    def fields():
+        blocklist = List(Bytes(), default=[])
+        
+    def __iter__(self):
+        return self.blocklist
+        
+    def getHash(self):
+        return ghash(self.serialize())
+        
+
+        
+#============================
+# Blocks, headers, transactions
+#============================
+
+class stdBlock(Field):
+    pass
