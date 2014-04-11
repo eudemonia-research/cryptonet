@@ -197,7 +197,7 @@ class SeekNBuild:
                 self.past.remove(bh)
                 self.done.add(bh)
                 if success:
-                    BlockList.make()
-                    self.p2p.broadcast('blocks', [[block[0].leaves(), block[1].rawlist, []]]))
+                    toSend = BlockList.make(blocklist = [block.serialize()])
+                    self.p2p.broadcast('blocks', toSend.serialize())
             
             

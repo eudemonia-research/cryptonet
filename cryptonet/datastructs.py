@@ -1,6 +1,5 @@
 from cryptonet.gpdht import *
 from cryptonet.debug import *
-from cryptonet import rlp
 from encodium import *
 import math
 

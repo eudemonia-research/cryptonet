@@ -65,8 +65,10 @@ class Chain(object):
     ''' Holds a PoW chain and can answer queries '''
     # initial conditions must be updated when Chaindata structure updated
     
-    def __init__(self, chainVars, genesisBlock=None, db=None):
+    def __init__(self, chainVars, genesisBlock=None, db=None, cryptonet=None):
         self.initialized = False
+        self.cryptonet = cryptonet
+        self._Block = self.cryptonet._Block
         self.head = None
         self.db = db
         self.miner = None
@@ -75,27 +77,6 @@ class Chain(object):
         
         self.genesisBlock = None
         if genesisBlock != None: self.setGenesis(genesisBlock)
-        
-        
-    '''def mine(self, chaindata):
-        # TODO : redo for new structure
-        target = chaindata.unpackedTarget
-        message = BANT("It was a bright cold day in April, and the clocks were striking thirteen.")
-        nonce = message.getHash()+1
-        potentialTree = [i.getHash() for i in [chaindata, chaindata, message, message]]
-        h = HashTree(potentialTree)
-        count = 0
-        while True:
-            count += 1
-            h.update(3, nonce)
-            PoW = h.getHash()
-            if PoW < target:
-                break
-            nonce += 1
-            if count % 10000 == 0:
-                debug("Mining Genesis : %d : %s" % (count, PoW.hex()))
-        debug('Chain.mine: Found Soln : %s' % PoW.hex())
-        return (h, chaindata)'''
         
     def restartMiner(self):
         if self.miner != None:
