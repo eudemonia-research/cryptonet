@@ -19,7 +19,7 @@ class Cryptonet(object):
         debug('cryptonet init, peers: ', self.p2p.peers)
         
         self.db = Database()
-        self.chain = Chain(chainVars, db=self.db)
+        self.chain = Chain(chainVars, db=self.db, cryptonet=self)
         self.seekNBuild = SeekNBuild(self.p2p, self.chain)
         self.miner = None
         if chainVars.mine:
@@ -60,7 +60,7 @@ class Cryptonet(object):
         @self.p2p.on_connect
         def onConnectHandler(node):
             debug('onConnectHandler')
-            myIntro = Intro.make(topblock=bytes(self.chain.head.getHash()))
+            myIntro = Intro.make(topblock=self.chain.head.getHash())
             node.send('intro', myIntro.serialize())
             
             
@@ -73,7 +73,7 @@ class Cryptonet(object):
                 node.misbehaving()
                 return
             if config['networkdebug'] or True:
-                debug('MSG intro : %s' % repr(theirIntro.getHash()[:8]))
+                debug('MSG intro : %064x' % theirIntro.getHash())
             if node in self.intros:
                 return None
             self.intros[node] = theirIntro
@@ -86,7 +86,7 @@ class Cryptonet(object):
         def blocksHandler(node, payload):
             blockList = BlockList.make(payload)
             if config['networkdebug'] or True:
-                debug('MSG blocks : %s' % repr(blockList.getHash()[:8]))
+                debug('MSG blocks : %064x' % blockList.getHash())
             for blockser in blockList.blocks:
                 try:
                     potentialBlock = self._Block().make(blockser)
@@ -103,7 +103,7 @@ class Cryptonet(object):
         def requestblocksHandler(node, payload):
             hashList = HashList.make(payload)
             if config['networkdebug'] or True:
-                debug('MSG requestblocks : %s' % repr(ghash(payload)[:8]))
+                debug('MSG requestblocks : %064x' % payload.getHash())
             ret = BlockList()
             for bh in hashList:
                 if self.chain.hasBlockhash(bh):

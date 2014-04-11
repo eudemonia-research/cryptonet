@@ -263,4 +263,4 @@ def makeGenesis():
     m = Miner(gracht.chain, gracht.seekNBuild)
     m.mine(genB)
 
-#gracht.run()
+gracht.run()

@@ -6,6 +6,10 @@ from cryptonet.gpdht import *
 from cryptonet.errors import *
 from cryptonet.debug import *
 
+from cryptonet.datastructs import *
+
+from encodium import *
+
 class AtomicIncrementor:
     def __init__(self):
         self.lock = threading.Lock()
@@ -97,7 +101,8 @@ class SeekNBuild:
     def blockSeeker(self):
         while not self._shutdown and not self.chain.initialized: time.sleep(0.1)
         while not self._shutdown:
-            requesting = []
+            # we will eventually serialize this so we make it a Field
+            requesting = List(Integer(length=32), default=[]).make()
             
             try:
                 with self.present_lock:
@@ -136,7 +141,7 @@ class SeekNBuild:
                         somepeer = self.p2p.random_peer()
                     else:
                         break
-                somepeer.send('requestblocks', ALL_BYTES(requesting))
+                somepeer.send('requestblocks', requesting.serialize())
                 somepeer.data['lastmessage'] = time.time()
             else:
                 time.sleep(0.1)
@@ -192,6 +197,7 @@ class SeekNBuild:
                 self.past.remove(bh)
                 self.done.add(bh)
                 if success:
-                    self.p2p.broadcast('blocks', ALL_BYTES([[block[0].leaves(), block[1].rawlist, []]]))
+                    BlockList.make()
+                    self.p2p.broadcast('blocks', [[block[0].leaves(), block[1].rawlist, []]]))
             
             
