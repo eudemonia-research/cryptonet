@@ -3,7 +3,6 @@
 import unittest
 from cryptonet.datastructs import *
 from cryptonet.gpdht import *
-from cryptonet import rlp
 #from examples.gracht import Header, Uncles
 
 class TestGracht(unittest.TestCase):
@@ -11,7 +10,22 @@ class TestGracht(unittest.TestCase):
     #def test_header(self):
         #genesisHeader = Header([BANT("0001", True), BANT("00000000", True), BANT("ffffff01", True), BANT("0100", True), BANT("0000534133e0", True), BANT("00000001", True), BANT("0000000000000000000000000000000000000000000000000000000000000000", True), BANT("0000000000000000000000000000000000000000000000000000000000000000", True)], Uncles([]))
         #self.assertTrue(genesisHeader.getHash() == BANT("5428e1798a6e841a9cd81a30ec8e8e68a579fa7e5f4b81152b957052d73ddd98", True))
+    
+class TestStructs(unittest.TestCase):
+    def test_IntList(self):
+        cases = [
+            [0,1,2,3,4,5,6,7,8,9],
+        ]
         
+        for case in cases:
+            caseField = IntList.make(contents=case)
+            self.assertEqual(len(caseField), len(case))
+            self.assertEqual(caseField.__iter__(), case)
+            for i in range(len(case)):
+                self.assertEqual(caseField[i], case[i])
+            for c in (case, caseField):
+                c.append(23)
+            self.assertEqual(caseField, case)
     
 class TestCryptonet(unittest.TestCase):
     
@@ -25,39 +39,6 @@ class TestCryptonet(unittest.TestCase):
         self.assertEqual(mt.root, 89752586187535061124859689857005670910448617032952735280732624523812978565650)
 
 
-# Borrowed from Spore
-class TestRLP(unittest.TestCase):
-
-    def setUp(self):
-        pass
-
-    def tearDown(self):
-        pass
-
-    def test_encode(self):
-        encoded = rlp.serialize([ [], [[]], [ [], [[]] ] ])
-        self.assertEqual(encoded, bytes([ 0xc7, 0xc0, 0xc1, 0xc0, 0xc3, 0xc0, 0xc1, 0xc0 ]))
-
-        encoded = rlp.serialize(ALL_BANT([b'cat',b'dog']))
-        self.assertEqual(encoded, bytes([ 0xc8, 0x83 ]) + b'cat' + bytes([0x83]) + b'dog')
-
-        # Empty string.
-        self.assertEqual(rlp.serialize(ALL_BANT(b'')), bytes([ 0x80 ]))
-
-        # Empty list.
-        self.assertEqual(rlp.serialize([]), bytes([ 0xc0 ]))
-
-        # b'\x0f'
-        self.assertEqual(rlp.serialize(ALL_BANT(b'\x0f')), bytes([0x0f]))
-        
-        #slow
-        #big_list = [ [ BANT(b'', padTo=1024) ] * 1024 ]
-        #self.assertEqual(rlp.deserialize(rlp.serialize(big_list)), big_list)
-
-        data = BANT(b'Lorem ipsum dolor sit amet, consectetur adipisicing elit')
-        encoded = rlp.serialize(data)
-        decoded = rlp.deserialize(encoded)
-        self.assertEqual(data, decoded)
 
 
 if __name__ == '__main__':

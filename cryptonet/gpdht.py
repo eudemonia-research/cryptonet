@@ -105,6 +105,7 @@ class Chain(object):
         
         if block.betterThan(self.head):
             self.head = block
+            debug('chain: new head %d, hash: %064x' % (block.height, block.getHash()))
         
         self.db.setEntry(block.getHash(), block)
         self.db.setAncestors(block)

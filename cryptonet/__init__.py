@@ -84,12 +84,12 @@ class Cryptonet(object):
 
         @self.p2p.handler('blocks')
         def blocksHandler(node, payload):
-            blockList = BlockList.make(payload)
+            blocklist = BytesList.make(payload)
             if config['networkdebug'] or True:
-                debug('MSG blocks : %064x' % blockList.getHash())
-            for blockser in blockList.blocks:
+                debug('MSG blocks : %064x' % blocklist.getHash())
+            for serializedBlock in blocklist:
                 try:
-                    potentialBlock = self._Block().make(blockser)
+                    potentialBlock = self._Block().make(serializedBlock)
                     potentialBlock.assertInternalConsistency()
                 except ValidationError as e:
                     debug('blocksHandler error', e)
@@ -101,11 +101,11 @@ class Cryptonet(object):
             
         @self.p2p.handler('requestblocks')
         def requestblocksHandler(node, payload):
-            hashList = HashList.make(payload)
+            requests = HashList.make(payload)
             if config['networkdebug'] or True:
-                debug('MSG requestblocks : %064x' % payload.getHash())
-            ret = BlockList()
-            for bh in hashList:
+                debug('MSG requestblocks : %064x' % requests.getHash())
+            ret = BytesList.make()
+            for bh in requests:
                 if self.chain.hasBlockhash(bh):
                     ret.append(self.chain.getBlock(bh).serialize())
             node.send('blocks', ret.serialize())

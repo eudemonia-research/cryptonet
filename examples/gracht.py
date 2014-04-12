@@ -8,7 +8,6 @@ from cryptonet.datastructs import ChainVars
 from cryptonet.datastructs import MerkleTree
 from cryptonet.errors import ValidationError
 from cryptonet.gpdht import *
-from cryptonet import rlp
 
 from encodium import *
 
@@ -23,8 +22,8 @@ config = {
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-port', nargs=1, default=32555, type=int, help='port for node to bind to')
-parser.add_argument('-addnode', nargs=1, default='', type=str, help='node to connect to non-exclusively. Format xx.xx.xx.xx:yyyy')
-parser.add_argument('-genesis', nargs=1, default=BANT(), type=BANT, help='genesis block in hex')
+parser.add_argument('-addnode', nargs=1, default=b'', type=str, help='node to connect to non-exclusively. Format xx.xx.xx.xx:yyyy')
+parser.add_argument('-genesis', nargs=1, default=b'', type=bytes, help='genesis block in hex')
 parser.add_argument('-mine', action='store_true')
 parser.add_argument('-networkdebug', action='store_true')
 args = parser.parse_args()
@@ -114,7 +113,7 @@ class Header(Field):
         if chain.initialized:
             self.assertTrue( self.prevblocks == chain.getAncestors(self.prevblocks[0]), 'prevblocks should match predicted ancestors' )
             self.assertTrue( self.height == chain.getBlock(self.prevblocks[0]).height + 1, 'height requirement, prevheight += 1' )
-            self.assertTrue( self.sigmadiff == self.calcSigmadiff(self, chain.getBlock(self.prevblocks[0])), 'sigmadiff as expected' )
+            self.assertTrue( self.sigmadiff == Header.calcSigmadiff(self, chain.getBlock(self.prevblocks[0])), 'sigmadiff as expected' )
         else:
             self.assertTrue( self.unclesMR == 0, 'genesis requires zeroed unclesMR' )
             self.assertTrue( self.prevblocks[0] == 0, 'genesis requires zeroed prevblock' )
@@ -129,18 +128,17 @@ class Header(Field):
         ''' given header, calculate the sigmadiff '''
         if header.prevblocks[0] == 0: prevsigmadiff = 0
         else: prevsigmadiff = prevblock.header.sigmadiff
-        debug(type(prevsigmadiff), type(header.target))
         return prevsigmadiff + Header.targetToDiff(header.target)
         
     def calcExpectedTarget(header, chain):
         ''' given a header and prevblock, calculate the expected target '''
-        if header.prevblocks[0] == 0: return self.DEFAULT_TARGET
+        if header.prevblocks[0] == 0: return Header.DEFAULT_TARGET
         prevblock = chain.getBlock(header.prevblocks[0])
-        if header.height % self.RETARGET_PERIOD != 0: return prevblock.header.target
+        if header.height % Header.RETARGET_PERIOD != 0: return prevblock.header.target
         
-        oldAncestor = chain.getBlock(header.prevblocks[(self.RETARGET_PERIOD-1).bit_length()])
+        oldAncestor = chain.getBlock(header.prevblocks[(Header.RETARGET_PERIOD-1).bit_length()])
         timedelta = header.timestamp - oldAncestor.header.timestamp
-        expectedTimedelta = 60 * 60 * 24 * self.RETARGET_PERIOD // self.BLOCKS_PER_DAY
+        expectedTimedelta = 60 * 60 * 24 * Header.RETARGET_PERIOD // Header.BLOCKS_PER_DAY
         
         if timedelta < expectedTimedelta // 4: timedelta = expectedTimedelta // 4
         if timedelta > expectedTimedelta * 4: timedelta = expectedTimedelta * 4
@@ -173,7 +171,7 @@ class Header(Field):
         
     def getCandidate(self, chain, prevblock):
         ''' should return a candidate header that builds on this one '''
-        return self.headerTemplate(chain, prevblock)
+        return Header.headerTemplate(chain, prevblock)
         
 @gracht.block
 class Block(Field):   
@@ -234,8 +232,8 @@ class Block(Field):
     def getCandidate(self, chain):
         ''' return a block object that is a candidate for the next block '''
         newHeader = self.header.getCandidate(chain, self)
-        newTreeList = [self.tree.leaves[0], newHeader.getHash(), ghash(b'some_message'), ghash(b'another_message?')]
-        return Block.make(tree=newTreeList, header=newHeader, uncles=[])
+        newTreeList = [self.merkletree.leaves[0], newHeader.getHash(), ghash(b'some_message'), ghash(b'another_message?')]
+        return Block.make(leaves=newTreeList, header=newHeader, uncles=[])
         
         
 '''tree = [

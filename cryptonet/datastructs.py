@@ -184,7 +184,6 @@ class MerkleLeavesToRoot(Field):
         self.update()
         
     def update(self):
-        print(self.leaves)
         t = self.leaves[:]
         while len(t) > 1: 
             if len(t) % 2 != 0: t.append(int.from_bytes(b'\x00'*32, 'big'))
@@ -224,33 +223,52 @@ class Intro(Field):
         return ghash(self.serialize())
         
         
+        
 #============================
 # Other / General
 #============================
         
+
+class ListFieldPrimative(Field):
+    def init(self):
+        def __len__(self):
+            return len(self.contents)
+        self.__len__ = __len__
+    
+    def extend(self, item):
+        self.contents.append(item)
+    
+    def append(self, item):
+        self.contents.append(item)
         
-class HashList(Field):
-    def fields():
-        hashlist = List(Integer(length=32), default=[])
+    def __getitem__(self, index):
+        return self.contents[index]
+        
+    def __setitem__(self, index, value):
+        self.contents[index] = value
+        
+    def len(self):
+        return len(self.contents)  
         
     def __iter__(self):
-        return self.hashlist
+        return self.contents
         
     def getHash(self):
         return ghash(self.serialize())
 
-
-class BlockList(Field):
+        
+class IntList(ListFieldPrimative):
     def fields():
-        blocklist = List(Bytes(), default=[])
-        
-    def __iter__(self):
-        return self.blocklist
-        
-    def getHash(self):
-        return ghash(self.serialize())
-        
+        contents = List(Integer(), default=[])
 
+class HashList(IntList):
+    def fields():
+        contents = List(Integer(length=32), default=[])
+
+class BytesList(ListFieldPrimative):
+    def fields():
+        contents = List(Bytes(), default=[])
+        
         
 #============================
 # Blocks, headers, transactions
