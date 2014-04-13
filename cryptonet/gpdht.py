@@ -101,6 +101,7 @@ class Chain(object):
         
     # added sigmadiff stuff, need to test
     def addBlock(self, block):
+        ''' returns True on success '''
         if self.hasBlock(block): return
         
         if block.betterThan(self.head):
@@ -119,6 +120,8 @@ class Chain(object):
         debug('added block %d, hash: %064x' % (block.height, block.getHash()))
         
         self.restartMiner()
+        
+        return True
         
     def getBlock(self, blockhash):
         return self.db.getEntry(blockhash)

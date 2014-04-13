@@ -102,6 +102,7 @@ class SeekNBuild:
         while not self._shutdown and not self.chain.initialized: time.sleep(0.1)
         while not self._shutdown:
             # we will eventually serialize this so we make it a Field
+            def l(self): return len(self.contents)
             requesting = IntList.make()
             
             try:
@@ -116,7 +117,7 @@ class SeekNBuild:
                 pass
             
             with self.future_lock:
-                toGet = min(len(self.future), self.max_blocks_at_once()) - len(requesting)
+                toGet = min(len(self.future), self.max_blocks_at_once()) - requesting.len()
                 if toGet > 0: # pick some blocks to request
                     for i in range(toGet):
                         _, h = self.futureQueue.get()
@@ -130,13 +131,13 @@ class SeekNBuild:
                         self.presentQueue.put((int(time.time()), h))
                         self.present.add(h)
             
-            if len(requesting) > 0:
+            if requesting.len() > 0:
                 # TODO : don't broadcast to all nodes, just one
                 #self.p2p.broadcast('requestblocks', ALL_BYTES(requesting.hashlist))
                 somepeer = self.p2p.random_peer()
                 while True:
                     # ordered carefully
-                    if somepeer == None or ('lastmessage' in somepeer.data and somepeer.data['lastmessage'] + 0.2 > time.time()):
+                    if somepeer == None:
                         time.sleep(0.01)
                         somepeer = self.p2p.random_peer()
                     else:

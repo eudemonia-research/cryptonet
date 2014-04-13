@@ -48,38 +48,26 @@ chainVars.mine = args.mine
 
 gracht = Cryptonet(chainVars)
 
-class Uncle(Field):
+class GrachtUncle(Field):
     pass
 
-class Header(Field):
+class GrachtHeader(Field):
     
     DEFAULT_TARGET = 2**248-1
     _TARGET1 = 2**256-1
     RETARGET_PERIOD = 64
     BLOCKS_PER_DAY = 1440
     timeint = lambda : int(time.time())
-    
-    '''_initialConditions = [
-            BANT(1,padTo=2), # version
-            BANT(0,padTo=4), # height
-            BANT(b'\xff\xff\xff\x01'), # target
-            BANT(b'\x01\x00'), # sigmadiff
-            BANT(int(time.time()), padTo=6), # timestamp
-            BANT(1, padTo=4), # votes
-            BANT(bytearray(32)), # uncles
-            BANT(bytearray(32)), # prevblock
-        ]'''
         
     def init(self):
-        #self.prevblocksWithHeight = [(self.height - 2**i, self.prevblocks[i]) for i in range(len(self.prevblocks))]
-        pass
-    
+        self.prevblocksWithHeight = [(self.height - 2**i, self.prevblocks[i]) for i in range(len(self.prevblocks))]
+        
     def fields():
         version = Integer(default=1, length=4)
         height = Integer(default=0, length=4)
-        target = Integer(default=Header.DEFAULT_TARGET, length=32)
+        target = Integer(default=GrachtHeader.DEFAULT_TARGET, length=32)
         sigmadiff = Integer(default=0x100)
-        timestamp = Integer(default=Header.timeint, length=5)
+        timestamp = Integer(default=GrachtHeader.timeint, length=5)
         votes = Integer(default=0, length=1)
         unclesMR = Integer(default=0, length=32)
         prevblocks = List(Integer(), default=[0])
@@ -113,7 +101,7 @@ class Header(Field):
         if chain.initialized:
             self.assertTrue( self.prevblocks == chain.getAncestors(self.prevblocks[0]), 'prevblocks should match predicted ancestors' )
             self.assertTrue( self.height == chain.getBlock(self.prevblocks[0]).height + 1, 'height requirement, prevheight += 1' )
-            self.assertTrue( self.sigmadiff == Header.calcSigmadiff(self, chain.getBlock(self.prevblocks[0])), 'sigmadiff as expected' )
+            self.assertTrue( self.sigmadiff == GrachtHeader.calcSigmadiff(self, chain.getBlock(self.prevblocks[0])), 'sigmadiff as expected' )
         else:
             self.assertTrue( self.unclesMR == 0, 'genesis requires zeroed unclesMR' )
             self.assertTrue( self.prevblocks[0] == 0, 'genesis requires zeroed prevblock' )
@@ -121,60 +109,44 @@ class Header(Field):
             self.assertTrue( self.sigmadiff == self.calcSigmadiff(self), 'genesis sigmadiff requirement' )
         
     def targetToDiff(target):
-        return Header._TARGET1 // target
+        return GrachtHeader._TARGET1 // target
         
     # need to test
     def calcSigmadiff(header, prevblock=None):
         ''' given header, calculate the sigmadiff '''
         if header.prevblocks[0] == 0: prevsigmadiff = 0
         else: prevsigmadiff = prevblock.header.sigmadiff
-        return prevsigmadiff + Header.targetToDiff(header.target)
+        return prevsigmadiff + GrachtHeader.targetToDiff(header.target)
         
     def calcExpectedTarget(header, chain):
         ''' given a header and prevblock, calculate the expected target '''
-        if header.prevblocks[0] == 0: return Header.DEFAULT_TARGET
+        if header.prevblocks[0] == 0: return GrachtHeader.DEFAULT_TARGET
         prevblock = chain.getBlock(header.prevblocks[0])
-        if header.height % Header.RETARGET_PERIOD != 0: return prevblock.header.target
+        if header.height % GrachtHeader.RETARGET_PERIOD != 0: return prevblock.header.target
         
-        oldAncestor = chain.getBlock(header.prevblocks[(Header.RETARGET_PERIOD-1).bit_length()])
+        oldAncestor = chain.getBlock(header.prevblocks[(GrachtHeader.RETARGET_PERIOD-1).bit_length()])
         timedelta = header.timestamp - oldAncestor.header.timestamp
-        expectedTimedelta = 60 * 60 * 24 * Header.RETARGET_PERIOD // Header.BLOCKS_PER_DAY
+        expectedTimedelta = 60 * 60 * 24 * GrachtHeader.RETARGET_PERIOD // GrachtHeader.BLOCKS_PER_DAY
         
         if timedelta < expectedTimedelta // 4: timedelta = expectedTimedelta // 4
         if timedelta > expectedTimedelta * 4: timedelta = expectedTimedelta * 4
         
         newTarget = prevblock.header.target * timedelta // expectedTimedelta
-        debug('New Target Calculated: %04x, height: %d' % (newTarget, header.height))
+        debug('New Target Calculated: %064x, height: %d' % (newTarget, header.height))
         return newTarget
         
     def headerTemplate(chain, prevblock):
-        newHeader = Header.make(height = chain.head.height + 1, prevblocks = chain.db.getAncestors(chain.head.getHash()))
-        newHeader.target = Header.calcExpectedTarget(newHeader, chain)
-        newHeader.sigmadiff = Header.calcSigmadiff(newHeader, prevblock)
-        '''# TODO : do a real block template here
-        ret = self._initialConditions[:]
-        # set height
-        ret[self.map['height']] = chain.head.height + 1
-        # set prevblocks
-        ancs = chain.db.getAncestors(chain.head.getHash())
-        ret[self.map['prevblocks']] = ancs[0]
-        ret.extend(ancs[1:])
-        # set timestamp
-        ret[self.map['timestamp']] = BANT(int(time.time()))
-        # set votes
-        # set uncles
-        # set target
-        ret[self.map['target']] = self.calcExpectedTarget(Header(ret, Uncles([])), chain)
-        # set sigmadiff
-        ret[self.map['sigmadiff']] = chain.head.header.sigmadiff + self.targetToDiff(ret[self.map['target']])'''
-        return newHeader
+        newGrachtHeader = GrachtHeader.make(height = chain.head.height + 1, prevblocks = chain.db.getAncestors(chain.head.getHash()))
+        newGrachtHeader.target = GrachtHeader.calcExpectedTarget(newGrachtHeader, chain)
+        newGrachtHeader.sigmadiff = GrachtHeader.calcSigmadiff(newGrachtHeader, prevblock)
+        return newGrachtHeader
         
     def getCandidate(self, chain, prevblock):
         ''' should return a candidate header that builds on this one '''
-        return Header.headerTemplate(chain, prevblock)
+        return GrachtHeader.headerTemplate(chain, prevblock)
         
 @gracht.block
-class Block(Field):   
+class GrachtBlock(Field):   
     def init(self):
         self.merkletree = MerkleTree.make(leaves = self.leaves)
         self.parenthash = self.header.prevblocks[0]
@@ -182,8 +154,8 @@ class Block(Field):
          
     def fields():
         leaves = List(Integer(default=0, length=32), default=[])
-        header = Header()
-        uncles = List(Uncle(), default=[])
+        header = GrachtHeader()
+        uncles = List(GrachtUncle(), default=[])
         
     def __hash__(self):
         return self.getHash()
@@ -203,7 +175,7 @@ class Block(Field):
         self.header.assertInternalConsistency()
         self.assertTrue( self.validPoW(), 'PoW must validate against header: %064x' % self.getHash() )
         #debug('block: AssertInternalConsistency', self.tree.leaves)
-        self.assertTrue( self.header.getHash() == self.leaves[1], 'Header hash must be in pos 1 of tree, %s %064x' % (self.leaves, self.header.getHash()))
+        self.assertTrue( self.header.getHash() == self.leaves[1], 'GrachtHeader hash must be in pos 1 of tree, %s %064x' % (self.leaves, self.header.getHash()))
         
     def assertValidity(self, chain):
         ''' This should fail only when the block cannot be fully validated against our chain. '''
@@ -231,33 +203,14 @@ class Block(Field):
         
     def getCandidate(self, chain):
         ''' return a block object that is a candidate for the next block '''
-        newHeader = self.header.getCandidate(chain, self)
-        newTreeList = [self.merkletree.leaves[0], newHeader.getHash(), ghash(b'some_message'), ghash(b'another_message?')]
-        return Block.make(leaves=newTreeList, header=newHeader, uncles=[])
-        
-        
-'''tree = [
-    BANT("5428e1798a6e841a9cd81a30ec8e8e68a579fa7e5f4b81152b957052d73ddd98", True),
-    BANT("5428e1798a6e841a9cd81a30ec8e8e68a579fa7e5f4b81152b957052d73ddd98", True),
-    BANT("193f65c9e4e7b8b92d082784344fad9e732499bc1e7c63f89ae61832cccb7ccc", True),
-    BANT("193f65c9e4e7b8b92d082784344fad9e732499bc1e7c63f89ae61832cccb7f50", True)
-    ]
-h =  [
-    BANT("0001", True),
-    BANT("00000000", True),
-    BANT("ffffff01", True),
-    BANT("0100", True),
-    BANT("0000534133e0", True),
-    BANT("00000001", True),
-    BANT("0000000000000000000000000000000000000000000000000000000000000000", True),
-    BANT("0000000000000000000000000000000000000000000000000000000000000000", True)]
-    
-a = Block([tree,h,[]])
-print(a.serialize().raw())'''
+        newGrachtHeader = self.header.getCandidate(chain, self)
+        newTreeList = [self.merkletree.leaves[0], newGrachtHeader.getHash(), ghash(b'some_message'), ghash(b'another_message?')]
+        return GrachtBlock.make(leaves=newTreeList, header=newGrachtHeader, uncles=[])
+
 
 def makeGenesis():
-    genH = Header.make()
-    genB = Block.make(leaves=[genH.getHash(), genH.getHash(), 12345678900987654321], header=genH)
+    genH = GrachtHeader.make()
+    genB = GrachtBlock.make(leaves=[genH.getHash(), genH.getHash(), int.from_bytes(b'some message', 'big')], header=genH)
     m = Miner(gracht.chain, gracht.seekNBuild)
     m.mine(genB)
 
