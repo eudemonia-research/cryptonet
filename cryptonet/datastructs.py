@@ -205,31 +205,14 @@ class ChainVars:
             
 
 #============================
-# Messages
+# Primatives
 #============================
-
-
-class Intro(Field):
-    def fields():
-        version = Integer(default=1, width=4)
-        services = Integer(default=1, width=4)
-        timestamp = Integer(default=1, width=5)
-        user_agent = String(default='cryptonet/0.0.1/', max_length=32)
-        topblock = Integer(length=32)
-        relay = Integer(default=0, length=1)
-        leaflets = List(Bytes(length=32), default=[])
         
+class BaseField(Field):
     def getHash(self):
         return ghash(self.serialize())
-        
-        
-        
-#============================
-# Other / General
-#============================
-        
 
-class ListFieldPrimative(Field):
+class ListFieldPrimative(BaseField):
     def init(self):
         def __len__(self):
             return len(self.contents)
@@ -252,9 +235,6 @@ class ListFieldPrimative(Field):
         
     def __iter__(self):
         return self.contents
-        
-    def getHash(self):
-        return ghash(self.serialize())
 
         
 class IntList(ListFieldPrimative):
@@ -269,10 +249,93 @@ class BytesList(ListFieldPrimative):
     def fields():
         contents = List(Bytes(), default=[])
         
+
+
+#============================
+# Messages
+#============================
+
+
+class Intro(BaseField):
+    def fields():
+        version = Integer(default=1, width=4)
+        services = Integer(default=1, width=4)
+        timestamp = Integer(default=1, width=5)
+        user_agent = String(default='cryptonet/0.0.1/', max_length=32)
+        topblock = Integer(length=32)
+        relay = Integer(default=0, length=1)
+        leaflets = List(Bytes(length=32), default=[])
+        
+
+RequestBlocksMessage = HashList
+BlocksMessage = BytesList
+        
+        
+        
         
 #============================
 # Blocks, headers, transactions
 #============================
 
-class stdBlock(Field):
-    pass
+class BitcoinTransactionOutPoint(BaseField):
+    ''' not an output from a tx '''
+    def fields():
+        txhash = Integer(length=32)
+        index = Integer(length=4)
+
+class BitcoinTransactionInput(BaseField):
+    def fields():
+        previous_output = BitcoinTransactionOutPoint()
+        sigscript = BytesList()
+        sequence = Integer(length=4)
+    
+class BitcoinTransactionOutput(BaseField):
+    def fields():
+        value = Integer(length=8)
+        txout = Bytes()
+
+class BitcoinTransaction(BaseField):
+    def fields():
+        version = Integer(length=4)
+        inputs = List(BitcoinTransactionInput(), default=[])
+        outputs = List(BitcoinTransactionOutput(), default=[])
+        locktime = Integer(length=4)
+        
+class BitcoinTransactionMerkleTree(BaseField):
+    def fields():
+        transactions = List(BitcoinTransaction(), default=[])
+        merkleroot = Integer(length=32, optional=True, default=0)
+        
+    def init(self):
+        tempMT = MerkleLeavesToRoot.make(leaves=self.transactions)
+        self.merkleroot = tempMT.getHash()
+    
+    def getHash(self):
+        return self.merkleroot
+
+class BitcoinHeader(Field):
+    
+    def fields():
+        version = Integer(length=4)
+        prevblock = Integer(length=32)
+        merkleroot = Integer(length=32)
+        timestamp = Integer(length=4)
+        nbits = Bytes(length=4)
+        nonce = Integer(lenght=4)
+        
+    def getHash(self):
+        return ghash(b''.join([
+            self.version.to_bytes(4,'big'),
+            self.prevblock.to_bytes(32, 'big'),
+            self.merkleroot.to_bytes(32, 'big'),
+            self.timestamp.to_bytes(4, 'big'),
+            self.nbits,
+            self.nonce.to_bytes(4, 'big')
+            ])
+
+class BitcoinBlock(Field):
+    
+    def fields():
+        header = Header()
+        transactions = BitcoinTransactionMerkleTree()
+        
