@@ -40,15 +40,14 @@ class ChainVars:
 #============================
         
 class BaseField(Field):
+    def __init__(self, *args, **kwargs):
+        Field.__init__(self, *args, **kwargs)
+        self.default_options = Field.default_options
+        
     def getHash(self):
         return ghash(self.serialize())
 
-class ListFieldPrimative(BaseField):
-    def init(self):
-        def __len__(self):
-            return len(self.contents)
-        self.__len__ = __len__
-    
+class ListFieldPrimative(Field):
     def extend(self, item):
         self.contents.append(item)
     
@@ -65,20 +64,84 @@ class ListFieldPrimative(BaseField):
         return len(self.contents)  
         
     def __iter__(self):
-        return self.contents
+        return None
 
         
 class IntList(ListFieldPrimative):
+    
     def fields():
         contents = List(Integer(), default=[])
+        
+    def extend(self, item):
+        self.contents.append(item)
+    
+    def append(self, item):
+        self.contents.append(item)
+        
+    def __getitem__(self, index):
+        return self.contents[index]
+        
+    def __setitem__(self, index, value):
+        self.contents[index] = value
+        
+    def len(self):
+        return len(self.contents)  
+        
+    def __iter__(self):
+        return self.contents.__iter__()
+        
+    def getHash(self):
+        return ghash(self.serialize())
 
-class HashList(IntList):
+class HashList(IntList):    
     def fields():
         contents = List(Integer(length=32), default=[])
+        
+    def extend(self, item):
+        self.contents.append(item)
+    
+    def append(self, item):
+        self.contents.append(item)
+        
+    def __getitem__(self, index):
+        return self.contents[index]
+        
+    def __setitem__(self, index, value):
+        self.contents[index] = value
+        
+    def len(self):
+        return len(self.contents)  
+        
+    def __iter__(self):
+        return self.contents.__iter__()
+        
+    def getHash(self):
+        return ghash(self.serialize())
 
 class BytesList(ListFieldPrimative):
     def fields():
         contents = List(Bytes(), default=[])
+        
+    def extend(self, item):
+        self.contents.append(item)
+    
+    def append(self, item):
+        self.contents.append(item)
+        
+    def __getitem__(self, index):
+        return self.contents[index]
+        
+    def __setitem__(self, index, value):
+        self.contents[index] = value
+        
+    def len(self):
+        return len(self.contents)  
+        
+    def __iter__(self):
+        return self.contents.__iter__()
+        
+    def getHash(self):
+        return ghash(self.serialize())
         
 
 
@@ -87,7 +150,7 @@ class BytesList(ListFieldPrimative):
 #============================
 
 
-class Intro(BaseField):
+class Intro(Field):
     def fields():
         version = Integer(default=1, width=4)
         services = Integer(default=1, width=4)
@@ -96,6 +159,9 @@ class Intro(BaseField):
         topblock = Integer(length=32)
         relay = Integer(default=0, length=1)
         leaflets = List(Bytes(length=32), default=[])
+        
+    def getHash(self):
+        return ghash(self.serialize())
         
 
 RequestBlocksMessage = HashList
@@ -108,24 +174,24 @@ BlocksMessage = BytesList
 # Blocks, headers, transactions
 #============================
 
-class BitcoinTransactionOutPoint(BaseField):
+class BitcoinTransactionOutPoint(Field):
     ''' not an output from a tx '''
     def fields():
         txhash = Integer(length=32)
         index = Integer(length=4)
 
-class BitcoinTransactionInput(BaseField):
+class BitcoinTransactionInput(Field):
     def fields():
         previous_output = BitcoinTransactionOutPoint()
         sigscript = BytesList()
         sequence = Integer(length=4)
     
-class BitcoinTransactionOutput(BaseField):
+class BitcoinTransactionOutput(Field):
     def fields():
         value = Integer(length=8)
         txout = Bytes()
 
-class BitcoinTransaction(BaseField):
+class BitcoinTransaction(Field):
     def fields():
         version = Integer(length=4)
         inputs = List(BitcoinTransactionInput(), default=[])
@@ -133,7 +199,7 @@ class BitcoinTransaction(BaseField):
         locktime = Integer(length=4)
         
         
-class BitcoinTransactionMerkleTree(BaseField):
+class BitcoinTransactionMerkleTree(Field):
     def fields():
         transactions = List(BitcoinTransaction(), default=[])
         merkleroot = Integer(length=32, optional=True, default=0)
@@ -145,7 +211,7 @@ class BitcoinTransactionMerkleTree(BaseField):
     def getHash(self):
         return self.merkleroot
 
-class BitcoinHeader(BaseField):
+class BitcoinHeader(Field):
     def fields():
         version = Integer(length=4)
         prevblock = Integer(length=32)
@@ -162,8 +228,8 @@ class BitcoinHeader(BaseField):
             self.timestamp.to_bytes(4, 'big'),
             self.nbits,
             self.nonce.to_bytes(4, 'big')
-            ])
-
+            ]))
+            
 class BitcoinBlock(Field):
     def fields():
         header = Header()
