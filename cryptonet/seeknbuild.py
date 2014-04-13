@@ -142,7 +142,6 @@ class SeekNBuild:
                         somepeer = self.p2p.random_peer()
                     else:
                         break
-                print('seek',requesting)
                 somepeer.send('requestblocks', requesting.serialize())
                 somepeer.data['lastmessage'] = time.time()
             else:
@@ -195,11 +194,10 @@ class SeekNBuild:
                     # invalid block
                     print('chainbuidler validation error: ', e)
                     continue
-                success = self.chain.addBlock(block)
+                self.chain.addBlock(block)
                 self.past.remove(bh)
                 self.done.add(bh)
-                if success:
-                    toSend = BytesList.make(byteslist = [block.serialize()])
-                    self.p2p.broadcast('blocks', toSend.serialize())
-            
+                toSend = BytesList.make(contents = [block.serialize()])
+                self.p2p.broadcast('blocks', toSend.serialize())
+        
             

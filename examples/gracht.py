@@ -118,10 +118,9 @@ class GrachtHeader(Field):
         else: prevsigmadiff = prevblock.header.sigmadiff
         return prevsigmadiff + GrachtHeader.targetToDiff(header.target)
         
-    def calcExpectedTarget(header, chain):
+    def calcExpectedTarget(header, prevblock, chain):
         ''' given a header and prevblock, calculate the expected target '''
         if header.prevblocks[0] == 0: return GrachtHeader.DEFAULT_TARGET
-        prevblock = chain.getBlock(header.prevblocks[0])
         if header.height % GrachtHeader.RETARGET_PERIOD != 0: return prevblock.header.target
         
         oldAncestor = chain.getBlock(header.prevblocks[(GrachtHeader.RETARGET_PERIOD-1).bit_length()])
@@ -137,7 +136,7 @@ class GrachtHeader(Field):
         
     def headerTemplate(chain, prevblock):
         newGrachtHeader = GrachtHeader.make(height = chain.head.height + 1, prevblocks = chain.db.getAncestors(chain.head.getHash()))
-        newGrachtHeader.target = GrachtHeader.calcExpectedTarget(newGrachtHeader, chain)
+        newGrachtHeader.target = GrachtHeader.calcExpectedTarget(newGrachtHeader, prevblock, chain)
         newGrachtHeader.sigmadiff = GrachtHeader.calcSigmadiff(newGrachtHeader, prevblock)
         return newGrachtHeader
         

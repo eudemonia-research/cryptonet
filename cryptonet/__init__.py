@@ -108,6 +108,7 @@ class Cryptonet(object):
             for bh in requests:
                 if self.chain.hasBlockhash(bh):
                     ret.append(self.chain.getBlock(bh).serialize())
-            node.send('blocks', ret.serialize())
+            if ret.len() > 0:
+                node.send('blocks', ret.serialize())
             
         # done setting handlers
