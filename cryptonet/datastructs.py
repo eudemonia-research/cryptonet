@@ -145,9 +145,9 @@ class BytesList(ListFieldPrimative):
         
 
 
-#============================
+#===============================================================================
 # Messages
-#============================
+#===============================================================================
 
 
 class Intro(Field):
@@ -166,13 +166,71 @@ class Intro(Field):
 
 RequestBlocksMessage = HashList
 BlocksMessage = BytesList
+
+
+
+#===============================================================================
+# Stand-alone Blocks, headers, transactions
+#===============================================================================
+
+
+class StandaloneBlock(Field):
+    fields():
+        header = StandaloneHeader()
+        transactions = StandardTransactionMerkleTree()
+        states = StandardStateMerkleTree()
         
         
+#===============================================================================
+# Standard Blocks, headers, transactions
+#===============================================================================
+
+# Default to balance based transactions, not input/output txs like Bitcoin
+
+class StandardSignature(Field):
+    def fields():
+        v = Integer(length=1)
+        r = Integer(length=32)
+        s = Integer(length=32)
+
+# subtx: [data[0], data[1], ..., data[n]]
+class StandardSubtransaction(Field):
+    def fields():
+        data = List() # unsure if these should be restricted to numbers or bytes or w/e just yet
+
+class StandardTransaction(Field):
+    def fields():
+        nonce = Integer(length=32)
+        subtxlist = List(StandardSubtransaction())
+        signature = StandardSignature()
         
+StandardTransactionMerkleTree = MerkleTree
+StandardStateMerkleTree = MerkleTree
+StandardState = MerklePatriciaDict
         
-#============================
-# Blocks, headers, transactions
-#============================
+class StandardHeader(Field):
+    # since standard blocks will run on the grachten many traditional elements
+    # of headers, like target, timestamp, etc, are outsourced to the grachten
+    # blockchain. There should be some API so blocks/headers can access this
+    # though. Perhaps access to the entire grachten block? Maybe just provide
+    # with authenticated list and trust that? Unsure as yet.
+    def fields():
+        version = Integer(length=2)
+        period = Integer(length=2) # max block time once every ~18 hours for 2 byte int
+        transactionsMR = Integer(length=32)
+        statesMR = Integer(length=32)
+        prevblock = Integer(length=32)
+
+class StandardBlock(Field):
+    def fields():
+        header = StandardHeader()
+        transactions = StandardTransactionMerkleTree()
+        states = StandardStateMerkleTree()
+
+#===============================================================================
+# Bitcoin Blocks, headers, transactions
+# Not yet complete, need to validate
+#===============================================================================
 
 class BitcoinTransactionOutPoint(Field):
     ''' not an output from a tx '''

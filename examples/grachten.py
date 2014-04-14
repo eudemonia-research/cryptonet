@@ -55,7 +55,7 @@ class GrachtHeader(Field):
     
     DEFAULT_TARGET = 2**248-1
     _TARGET1 = 2**256-1
-    RETARGET_PERIOD = 64
+    RETARGET_PERIOD = 16
     BLOCKS_PER_DAY = 1440
     timeint = lambda : int(time.time())
         
