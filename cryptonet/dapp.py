@@ -9,10 +9,20 @@ Provides resources to dapps. Eg: statedeltas
 class Dapp(object):
     
     def __init__(self, name, state_maker):
-        self.state = StateDelta()
-        self.state_maker = state_maker
         assert isinstance(name, bytes)
         self.name = name
+        self.state_maker = state_maker
+        self.state_maker.register_dapp(self)
+        self.super_state = state_maker.super_state
+        self.set_state(StateDelta())
+        
+    def synchronize_state(self):
+        ''' Needed when self.state is set to a new object. '''
+        self.super_state.register_dapp(self.name, self.state)
+        
+    def set_state(self, new_state):
+        self.state = new_state
+        self.synchronize_state()
         
     @staticmethod
     def on_block(working_state, block, chain):
@@ -32,15 +42,25 @@ class StateDelta(object):
         self.my_hash = None
         self.deleted_keys = set()
         
+    def __contains__(self, key):
+        if key in self.deleted_keys:
+            return False
+        if key in self.key_value_store:
+            return True
+        if self.parent == None:
+            return False
+        return key in self.parent
+        
     def __getitem__(self, key):
         ''' return value if known else ask next statedelta '''
         if key in self.deleted_keys:
-            raise KeyError('Unknown entry, %x' % key)
-        if key in self.key_value_store:
+            pass
+        elif key in self.key_value_store:
             return self.key_value_store[key]
-        if self.parent == None:
-            raise KeyError('Unknown entry, %x' % key)
-        return self.parent[key]
+        elif self.parent != None:
+            return self.parent[key]
+        raise KeyError('Unknown key, %x' % key)
+        
         
     def __setitem__(self, key, value):
         if key in self.deleted_keys:
