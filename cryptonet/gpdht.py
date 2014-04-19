@@ -4,6 +4,7 @@ import hashlib, sys
 import sha3
 from binascii import hexlify, unhexlify
 
+import cryptonet
 from cryptonet.debug import *
 
 #from utilities import *
@@ -65,7 +66,7 @@ class Chain(object):
     ''' Holds a PoW chain and can answer queries '''
     # initial conditions must be updated when Chaindata structure updated
     
-    def __init__(self, chainVars, genesisBlock=None, db=None, cryptonet=None):
+    def __init__(self, chainVars, genesisBlock=None, db=None, cryptonet=cryptonet):
         self.initialized = False
         self.cryptonet = cryptonet
         self._Block = self.cryptonet._Block

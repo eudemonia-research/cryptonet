@@ -144,6 +144,9 @@ class GrachtHeader(Field):
         ''' should return a candidate header that builds on this one '''
         return GrachtHeader.headerTemplate(chain, prevblock)
         
+    def validPoW(self):
+        return self.getHash() < self.target
+        
 @gracht.block
 class GrachtBlock(Field):   
     def init(self):
@@ -163,7 +166,7 @@ class GrachtBlock(Field):
         return int(self.merkletree.getHash())
         
     def validPoW(self):
-        return self.getHash() < self.header.target
+        return self.header.validPoW()
         
     def assertTrue(self, condition, message):
         if not condition:

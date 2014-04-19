@@ -167,7 +167,7 @@ class Intro(Field):
 RequestBlocksMessage = HashList
 BlocksMessage = BytesList
 
-
+"""
 
 #===============================================================================
 # Stand-alone Blocks, headers, transactions
@@ -175,7 +175,7 @@ BlocksMessage = BytesList
 
 
 class StandaloneBlock(Field):
-    fields():
+    def fields():
         header = StandaloneHeader()
         transactions = StandardTransactionMerkleTree()
         states = StandardStateMerkleTree()
@@ -214,6 +214,8 @@ class StandardHeader(Field):
     # blockchain. There should be some API so blocks/headers can access this
     # though. Perhaps access to the entire grachten block? Maybe just provide
     # with authenticated list and trust that? Unsure as yet.
+    #
+    # Period: How often blocks appear
     def fields():
         version = Integer(length=2)
         period = Integer(length=2) # max block time once every ~18 hours for 2 byte int
@@ -295,3 +297,5 @@ class BitcoinBlock(Field):
         
     def getHash(self):
         return self.header.getHash()
+
+"""

@@ -61,6 +61,7 @@ class SeekNBuild:
             t.join()
         
     def addBlock(self, block):
+        # blocks should be internally consistent at this point
         bh = block.getHash()
         toPut = (block.height, self.nonces.getNext(), block)
         
@@ -102,7 +103,6 @@ class SeekNBuild:
         while not self._shutdown and not self.chain.initialized: time.sleep(0.1)
         while not self._shutdown:
             # we will eventually serialize this so we make it a Field
-            def l(self): return len(self.contents)
             requesting = IntList.make()
             
             try:
@@ -157,6 +157,7 @@ class SeekNBuild:
         while not self._shutdown:
             try:
                 height, nonce, block = self.pastQueue.get(timeout=0.1)
+                print('builder:',height, nonce, block)
             except queue.Empty:
                 continue
             if block.height == 0:

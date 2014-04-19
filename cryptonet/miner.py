@@ -45,7 +45,7 @@ class Miner:
                 time.sleep(0.01)
                 continue
             debug('Miner: Found Soln : %064x' % block.getHash())
-            #debug('Miner: ser\'d block: ', block.serialize())
+            debug('Miner: ser\'d block: ', block.serialize())
             self.seeknbuild.addBlock(block)
             while not self.chain.hasBlockhash(block.getHash()) and not self._shutdown:
                 time.sleep(0.1)

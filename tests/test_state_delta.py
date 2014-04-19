@@ -15,10 +15,26 @@ class TestStateDelta(unittest.TestCase):
     * after 100 checkpoints everything is as expected
     '''
     
+    # TODO : Test `del state_delta[item]`
+    
     def setUp(self):
         self.genesis_state_delta = StateDelta()
         self.genesis_state_delta[0] = 0
         self.current_state = self.genesis_state_delta
+        
+    def test_del_item(self):
+        cur = self.current_state
+        cur[0] = 1
+        self.assertTrue(0 in cur)
+        del cur[0]
+        self.assertTrue(0 not in cur)
+        cur[0] = 1
+        cur = cur.checkpoint()
+        self.assertTrue(0 in cur)
+        cur = cur.checkpoint()
+        self.assertTrue(0 in cur)
+        del cur[0]
+        self.assertTrue(0 not in cur)
 
     def test_easy_checkpoint(self):
         cur = self.current_state
