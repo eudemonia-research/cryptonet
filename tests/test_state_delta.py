@@ -42,6 +42,19 @@ class TestStateDelta(unittest.TestCase):
         self.assertEqual(cur[0], 0)
         with self.assertRaises(KeyError):
             a = cur[-1]
+            
+    def test_merge_precedence(self):
+        ''' deliberately overwrite old key and ensure that even after that SD
+        has been merged the value remains the same '''
+        cur = StateDelta()
+        cur = cur.checkpoint()
+        cur[1] = [1]
+        for i in range(1,11): 
+            if i == 5:
+                cur[1] = 5
+            cur = cur.checkpoint()
+        self.assertEqual(cur[1], 5)
+        
     
     def test_checkpoint_heights(self):
         expected_results = [
@@ -55,12 +68,15 @@ class TestStateDelta(unittest.TestCase):
         for h, r in expected_results:
             self.assertEqual(self.current_state.gen_checkpoint_heights(h), r)
         
-        # test property that a reorg of size n requires no more than 2n recalculations of state
+        # test property that a reorg of size n requires no more than 2n 
+        # recalculations of state
         for h, r in expected_results:
-            for i in range(1,len(r)-1): # don't test first or last - trivial cases anyway
+            # don't test first or last - trivial cases anyway
+            for i in range(1,len(r)-1): 
                 # choose reorg_point to be worst possibilities
                 reorg_point = r[i]-1
-                # ensure that recalcs of state in a reorg is strictly less than twice the lenght of the reorg
+                # ensure that recalcs of state in a reorg is strictly less than 
+                # twice the length of the reorg
                 self.assertTrue(h - r[i-1] < (h - reorg_point) * 2)
 
 
