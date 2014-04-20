@@ -28,7 +28,7 @@ def num2bits(n, minlen=0):
     return r[::-1]
 
 def validPoW(ht, cd):
-    return ht.getHash() < cd.unpackedTarget
+    return ht.get_hash() < cd.unpackedTarget
 
 def ghash(msg):
     ''' This is the hash function that should be used EVERYWHERE in GPDHT.
@@ -107,18 +107,18 @@ class Chain(object):
         
         if block.betterThan(self.head):
             self.head = block
-            debug('chain: new head %d, hash: %064x' % (block.height, block.getHash()))
+            debug('chain: new head %d, hash: %064x' % (block.height, block.get_hash()))
         
-        self.db.setEntry(block.getHash(), block)
+        self.db.setEntry(block.get_hash(), block)
         self.db.setAncestors(block)
         self.blocks.add(block)
-        self.blockhashes.add(block.getHash())
+        self.blockhashes.add(block.get_hash())
         
         
         if self.initialized == False:
             self.initialized = True
         
-        debug('added block %d, hash: %064x' % (block.height, block.getHash()))
+        debug('added block %d, hash: %064x' % (block.height, block.get_hash()))
         
         self.restartMiner()
         

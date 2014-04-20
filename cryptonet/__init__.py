@@ -10,6 +10,8 @@ from cryptonet.debug import *
 
 config = {'networkdebug':True}
 
+global_hash = ghash
+
 class Cryptonet(object):
     def __init__(self, chainVars):
         self._Block = None
@@ -60,7 +62,7 @@ class Cryptonet(object):
         @self.p2p.on_connect
         def onConnectHandler(node):
             debug('onConnectHandler')
-            myIntro = Intro.make(topblock=self.chain.head.getHash())
+            myIntro = Intro.make(topblock=self.chain.head.get_hash())
             node.send('intro', myIntro.serialize())
             
             
@@ -73,7 +75,7 @@ class Cryptonet(object):
                 node.misbehaving()
                 return
             if config['networkdebug'] or True:
-                debug('MSG intro : %064x' % theirIntro.getHash())
+                debug('MSG intro : %064x' % theirIntro.get_hash())
             if node in self.intros:
                 return None
             self.intros[node] = theirIntro
@@ -86,7 +88,7 @@ class Cryptonet(object):
         def blocksHandler(node, payload):
             blocklist = BytesList.make(payload)
             if config['networkdebug'] or True:
-                debug('MSG blocks : %064x' % blocklist.getHash())
+                debug('MSG blocks : %064x' % blocklist.get_hash())
             for serializedBlock in blocklist:
                 try:
                     potentialBlock = self._Block().make(serializedBlock)
@@ -103,7 +105,7 @@ class Cryptonet(object):
         def requestblocksHandler(node, payload):
             requests = HashList.make(payload)
             if config['networkdebug'] or True:
-                debug('MSG requestblocks : %064x' % requests.getHash())
+                debug('MSG requestblocks : %064x' % requests.get_hash())
             ret = BytesList.make()
             for bh in requests:
                 if self.chain.hasBlockhash(bh):

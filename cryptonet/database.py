@@ -28,7 +28,7 @@ class Database:
         
     def setAncestors(self, block):
         s = 0
-        bh = block.getHash()
+        bh = block.get_hash()
         cur = block.parenthash
         if cur == 0: return True # genesis block
         self.linkAnc(bh, cur, 2**s)

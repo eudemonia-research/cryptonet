@@ -2,11 +2,15 @@ from cryptonet.datastructs import MerkleLeavesToRoot
 
 ''' dapp.py
 
-Provides commonDapps. Eg: chainheaders
-Provides resources to dapps. Eg: statedeltas
+Provides common dapps. Eg: TxPrism, ChainHeaders
+Provides resources to dapps. Eg: StateDelta
 '''
 
 class Dapp(object):
+    ''' The generic Dapp.
+    All dapps should inherit from this class.
+    self.on_transaction and self.on_block must be overloaded.
+    '''
     
     def __init__(self, name, state_maker):
         assert isinstance(name, bytes)
@@ -24,13 +28,29 @@ class Dapp(object):
         self.state = new_state
         self.synchronize_state()
         
-    @staticmethod
-    def on_block(working_state, block, chain):
+    def on_block(subtx, block, chain):
         raise NotImplemented('on_block has not been implemented')
         
-    @staticmethod
-    def on_transaction(working_state, block, chain):
+    def on_transaction(subtx, block, chain):
         raise NotImplemented('on_transaction has not been implemented')
+        
+    def checkpoint(self, hard_checkpoint=True):
+        ''' Checkpoint state. '''
+        self.set_state(self.state.checkpoint(hard_checkpoint))
+    
+    def reset_to_last_checkpoint(self):
+        ''' Apply to state. '''
+        self.set_state(self.state.last_checkpoint())
+        
+    def make_last_checkpoint_hard(self):
+        ''' Harden last checkpoint. '''
+        self.state.parent.harden(self.state)
+        
+    def prune_to_or_beyond(self, height):
+        ''' Set self.state to the best known state at a height equal to or less
+        than the height provided.
+        '''
+        self.set_state(self.state.prune_to_or_beyond(height))
 
 class StateDelta(object):
     
@@ -52,7 +72,7 @@ class StateDelta(object):
         return key in self.parent
         
     def __getitem__(self, key):
-        ''' return value if known else ask next statedelta '''
+        ''' return value if known else ask next StateDelta '''
         if key in self.deleted_keys:
             pass
         elif key in self.key_value_store:
@@ -93,6 +113,7 @@ class StateDelta(object):
                 leaves.extend([k, self.key_value_store[k]])
             merkle_tree = MerkleLeavesToRoot(leaves)
             self.my_hash = merkle_tree.get_hash()
+        return self.my_hash
         
     def ancestors(self):
         if self.parent == None: 
@@ -108,12 +129,29 @@ class StateDelta(object):
             raise ValueError('StateDelta: this SD already checkpointed')
         new_state_delta = StateDelta(self, self.height + 1)
         if hard_checkpoint:
-            heights_to_keep = self.gen_checkpoint_heights(self.height + 1)
-            for ancestor in self.ancestors():
-                if ancestor.height not in heights_to_keep: 
-                    ancestor.merge_with_child()
-            self.child = new_state_delta
+            self.harden(new_state_delta)
         return new_state_delta
+        
+    def harden(self, new_child):
+        ''' Merge any state deltas that can be merged and set child. '''
+        heights_to_keep = self.gen_checkpoint_heights(self.height + 1)
+        for ancestor in self.ancestors():
+            if ancestor.height not in heights_to_keep: 
+                ancestor.merge_with_child()
+        self.child = new_child
+        
+    def last_checkpoint(self):
+        ''' Return last checkpoint, which is self.parent. '''
+        return self.parent
+        
+    def prune_to_or_beyond(self, height):
+        ''' If this StateDelta is less than height, it is an acceptable prune,
+        so return. If not, do what self.parent says.
+        '''
+        assert height >= 0
+        if self.height <= height:
+            return self
+        return self.parent.prune_to_or_beyond(height)
             
     def merge_with_child(self):
         ''' Triggers self.child.absorb(self); links self.child and self.parent. '''
@@ -147,3 +185,31 @@ class StateDelta(object):
             else: 
                 height -= 2**i
         return r
+        
+        
+class TxPrism(Dapp):
+    
+    def on_block(self, tx, block, chain):
+        pass
+        
+    def on_transaction(self, tx, block, chain):
+        ''' Process a transaction.
+        tx has following info (subject to change):
+        tx.value, tx.fee, tx.data, tx.sender, tx.dapp
+        '''
+        assert tx.value > 0
+        assert tx.fee >= 0
+        assert workingState[tx.sender] >= tx.value + tx.fee
+        workingState[tx.sender] -= tx.value + tx.fee
+        
+        if tx.dapp == b'':
+            assert len(tx.data) == 1
+            recipient = tx.data[0]
+            workingState[recipient] += tx.value
+        else:
+            assert tx.dapp in self.state_maker.dapps
+            self.state[tx.dapp] += tx.value
+            self.state_maker.dapps[tx.dapp].on_transaction(tx, block, chain)
+            
+            
+            

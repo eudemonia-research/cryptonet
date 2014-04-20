@@ -62,7 +62,7 @@ class SeekNBuild:
         
     def addBlock(self, block):
         # blocks should be internally consistent at this point
-        bh = block.getHash()
+        bh = block.get_hash()
         toPut = (block.height, self.nonces.getNext(), block)
         
         if bh in self.done: return
@@ -162,7 +162,7 @@ class SeekNBuild:
                 continue
             if block.height == 0:
                 continue
-            bh = block.getHash()
+            bh = block.get_hash()
             #print('chainbuilder: checking %d' % block.height)
             
             # TODO : handle orphans intelligently
@@ -186,7 +186,7 @@ class SeekNBuild:
                 # TODO : handle orphans intelligently
                 if not self.chain.hasBlockhash(block.parenthash):
                     #print('chainbuilder: dont have parent')
-                    #print('chainbuilder: head and curr', self.chain.head.getHash().hex(), block.parenthash.hex())
+                    #print('chainbuilder: head and curr', self.chain.head.get_hash().hex(), block.parenthash.hex())
                     self.pastQueueNoParent.put((height, nonce, block))
                     continue
                 try:

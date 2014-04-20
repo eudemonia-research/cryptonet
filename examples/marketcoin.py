@@ -6,37 +6,6 @@ marketcoin = Cryptonet()
 
 
 ## Must be accessible to on_block:
-
-
-# root dapp
-@marketcoin.dapp(b'')
-class TxPrism(cryptonet.template.Dapp):
-    
-    @staticmethod
-    def on_block(workingState, block, chain):
-        return workingState
-        
-    @staticmethod
-    def on_transaction(workingState, tx, chain):
-        # tx has following info
-        # tx.value, tx.fee, tx.data, tx.sender, tx.dapp
-        assert tx.value > 0
-        assert tx.fee >= 0
-        assert workingState[tx.sender] >= tx.value + tx.fee
-        workingState[tx.sender] -= tx.value + tx.fee
-        
-        if tx.dapp == b'':
-            assert len(tx.data) == 1
-            recipient = tx.data[0]
-            workingState[recipient] += tx.value
-        else:
-            assert tx.dapp in chain.dapps
-            workingState[tx.dapp] += tx.value
-            # pass through substate - not full state
-            chain.dapps[tx.dapp].on_transaction(workingState, tx.data, chain)
-            
-            
-            
             
 #@marketcoin.dapp(b'BTC_CH')
 class BitcoinChainheaders(cryptonet.template.Dapp):

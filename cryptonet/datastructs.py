@@ -21,7 +21,7 @@ class MerkleLeavesToRoot(Field):
             t = [ghash(t[i].to_bytes(32,'big') + t[i+1].to_bytes(32,'big')) for i in range(0,len(t),2)]
         self.root = t[0]
         
-    def getHash(self):
+    def get_hash(self):
         return self.root
         
 MerkleTree = MerkleLeavesToRoot
@@ -44,7 +44,7 @@ class BaseField(Field):
         Field.__init__(self, *args, **kwargs)
         self.default_options = Field.default_options
         
-    def getHash(self):
+    def get_hash(self):
         return ghash(self.serialize())
 
 class ListFieldPrimative(Field):
@@ -90,7 +90,7 @@ class IntList(ListFieldPrimative):
     def __iter__(self):
         return self.contents.__iter__()
         
-    def getHash(self):
+    def get_hash(self):
         return ghash(self.serialize())
 
 class HashList(IntList):    
@@ -115,7 +115,7 @@ class HashList(IntList):
     def __iter__(self):
         return self.contents.__iter__()
         
-    def getHash(self):
+    def get_hash(self):
         return ghash(self.serialize())
 
 class BytesList(ListFieldPrimative):
@@ -140,7 +140,7 @@ class BytesList(ListFieldPrimative):
     def __iter__(self):
         return self.contents.__iter__()
         
-    def getHash(self):
+    def get_hash(self):
         return ghash(self.serialize())
         
 
@@ -160,7 +160,7 @@ class Intro(Field):
         relay = Integer(default=0, length=1)
         leaflets = List(Bytes(length=32), default=[])
         
-    def getHash(self):
+    def get_hash(self):
         return ghash(self.serialize())
         
 
@@ -266,9 +266,9 @@ class BitcoinTransactionMerkleTree(Field):
         
     def init(self):
         tempMT = MerkleLeavesToRoot.make(leaves=self.transactions)
-        self.merkleroot = tempMT.getHash()
+        self.merkleroot = tempMT.get_hash()
     
-    def getHash(self):
+    def get_hash(self):
         return self.merkleroot
 
 class BitcoinHeader(Field):
@@ -280,7 +280,7 @@ class BitcoinHeader(Field):
         nbits = Bytes(length=4)
         nonce = Integer(lenght=4)
         
-    def getHash(self):
+    def get_hash(self):
         return ghash(b''.join([
             self.version.to_bytes(4,'big'),
             self.prevblock.to_bytes(32, 'big'),
@@ -295,7 +295,7 @@ class BitcoinBlock(Field):
         header = Header()
         transactions = BitcoinTransactionMerkleTree()
         
-    def getHash(self):
-        return self.header.getHash()
+    def get_hash(self):
+        return self.header.get_hash()
 
 """

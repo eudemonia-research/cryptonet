@@ -72,7 +72,7 @@ class GrachtHeader(Field):
         unclesMR = Integer(default=0, length=32)
         prevblocks = List(Integer(), default=[0])
         
-    def getHash(self):
+    def get_hash(self):
         tempCont = [
             self.version.to_bytes(4, 'big'),
             self.height.to_bytes(4, 'big'),
@@ -135,7 +135,7 @@ class GrachtHeader(Field):
         return newTarget
         
     def headerTemplate(chain, prevblock):
-        newGrachtHeader = GrachtHeader.make(height = chain.head.height + 1, prevblocks = chain.db.getAncestors(chain.head.getHash()))
+        newGrachtHeader = GrachtHeader.make(height = chain.head.height + 1, prevblocks = chain.db.getAncestors(chain.head.get_hash()))
         newGrachtHeader.target = GrachtHeader.calcExpectedTarget(newGrachtHeader, prevblock, chain)
         newGrachtHeader.sigmadiff = GrachtHeader.calcSigmadiff(newGrachtHeader, prevblock)
         return newGrachtHeader
@@ -145,7 +145,7 @@ class GrachtHeader(Field):
         return GrachtHeader.headerTemplate(chain, prevblock)
         
     def validPoW(self):
-        return self.getHash() < self.target
+        return self.get_hash() < self.target
         
 @gracht.block
 class GrachtBlock(Field):   
@@ -160,10 +160,10 @@ class GrachtBlock(Field):
         uncles = List(GrachtUncle(), default=[])
         
     def __hash__(self):
-        return self.getHash()
+        return self.get_hash()
         
-    def getHash(self):
-        return int(self.merkletree.getHash())
+    def get_hash(self):
+        return int(self.merkletree.get_hash())
         
     def validPoW(self):
         return self.header.validPoW()
@@ -175,9 +175,9 @@ class GrachtBlock(Field):
     def assertInternalConsistency(self):
         ''' This should fail if the block could never be valid - no reference to chain possible '''
         self.header.assertInternalConsistency()
-        self.assertTrue( self.validPoW(), 'PoW must validate against header: %064x' % self.getHash() )
+        self.assertTrue( self.validPoW(), 'PoW must validate against header: %064x' % self.get_hash() )
         #debug('block: AssertInternalConsistency', self.tree.leaves)
-        self.assertTrue( self.header.getHash() == self.leaves[1], 'GrachtHeader hash must be in pos 1 of tree, %s %064x' % (self.leaves, self.header.getHash()))
+        self.assertTrue( self.header.get_hash() == self.leaves[1], 'GrachtHeader hash must be in pos 1 of tree, %s %064x' % (self.leaves, self.header.get_hash()))
         
     def assertValidity(self, chain):
         ''' This should fail only when the block cannot be fully validated against our chain. '''
@@ -185,10 +185,10 @@ class GrachtBlock(Field):
         self.header.assertValidity(chain)
         if chain.initialized:
             self.assertTrue( chain.hasBlockhash(self.parenthash), 'parent must exist' )
-            self.assertTrue( chain.genesisBlock.header.getHash() == self.merkletree.leaves[0], 'genesis block hash location requirement' )        
+            self.assertTrue( chain.genesisBlock.header.get_hash() == self.merkletree.leaves[0], 'genesis block hash location requirement' )        
         else:
             self.assertTrue( self.parenthash == 0, 'parent must be zeroed' )
-            self.assertTrue( self.merkletree.leaves[0] == self.merkletree.leaves[1] and self.merkletree.leaves[0] == self.header.getHash(), 'genesis header hash requirement' )
+            self.assertTrue( self.merkletree.leaves[0] == self.merkletree.leaves[1] and self.merkletree.leaves[0] == self.header.get_hash(), 'genesis header hash requirement' )
     
     def betterThan(self, other):
         return self.header.sigmadiff > other.header.sigmadiff
@@ -206,13 +206,13 @@ class GrachtBlock(Field):
     def getCandidate(self, chain):
         ''' return a block object that is a candidate for the next block '''
         newGrachtHeader = self.header.getCandidate(chain, self)
-        newTreeList = [self.merkletree.leaves[0], newGrachtHeader.getHash(), ghash(b'some_message'), ghash(b'another_message?')]
+        newTreeList = [self.merkletree.leaves[0], newGrachtHeader.get_hash(), ghash(b'some_message'), ghash(b'another_message?')]
         return GrachtBlock.make(leaves=newTreeList, header=newGrachtHeader, uncles=[])
 
 
 def makeGenesis():
     genH = GrachtHeader.make()
-    genB = GrachtBlock.make(leaves=[genH.getHash(), genH.getHash(), int.from_bytes(b'some message', 'big')], header=genH)
+    genB = GrachtBlock.make(leaves=[genH.get_hash(), genH.get_hash(), int.from_bytes(b'some message', 'big')], header=genH)
     m = Miner(gracht.chain, gracht.seekNBuild)
     m.mine(genB)
 
