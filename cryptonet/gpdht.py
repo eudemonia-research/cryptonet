@@ -5,7 +5,8 @@ import sha3
 from binascii import hexlify, unhexlify
 
 import cryptonet
-from cryptonet.debug import *
+from cryptonet.debug import debug
+from cryptonet.errors import ChainError
 
 #from utilities import *
 
@@ -14,7 +15,13 @@ from cryptonet.debug import *
 # GENERAL CRYPTONET FUNCTIONS
 #==============================================================================
     
-i2b = lambda x : x.to_bytes((x.bit_length() // 8) + 1, 'big')
+def i2b(x):
+    """
+    Take and integer and return bytes with no \x00 padding.
+    :param x: input integer
+    :return: bytes
+    """
+    return x.to_bytes((x.bit_length() // 8) + 1, 'big')
 
 def num2bits(n, minlen=0):
     n = int(n)
@@ -28,9 +35,6 @@ def num2bits(n, minlen=0):
         pad -= 1
     return r[::-1]
 
-def valid_proof_of_work(ht, cd):
-    return ht.get_hash() < cd.unpacked_target
-
 def global_hash(msg):
     ''' This is the hash function that should be used EVERYWHERE in GPDHT.
     Currently defined to be SHA3.
@@ -40,7 +44,7 @@ def global_hash(msg):
     return int.from_bytes(s.digest(), 'big')
 
 
-
+'''
 def pack_target(unpacked_target):
     # TODO : test
     pad = 32 - len(unpacked_target)
@@ -57,20 +61,25 @@ def unpack_target(packed_target):
     sigfigs = packed_target[:3]
     rt = ZERO*pad + sigfigs + ZERO*(32-3-pad)
     return BANT(int(hexlify(rt),16))
-
+'''
 
 #=========================
 # CHAIN
 #=========================
 
 class Chain(object):
-    ''' Holds a PoW chain and can answer queries '''
-    # initial conditions must be updated when Chaindata structure updated
+    ''' A blockchain.
+    '''
     
-    def __init__(self, chain_vars, genesis_block=None, db=None, cryptonet=cryptonet):
+    def __init__(self, chain_vars, genesis_block=None, db=None):
+        """
+        :param chain_vars: arbitrary ChainVars object
+        :param genesis_block: serialized genesis block
+        :param db: db if known (key-value store)
+        :param cryptonet:
+        """
         self.initialized = False
-        self.cryptonet = cryptonet
-        self._Block = self.cryptonet._Block
+        self._Block = cryptonet.standard.Block
         self.head = None
         self.db = db
         self.miner = None
@@ -133,19 +142,6 @@ class Chain(object):
           
     def has_block_hash(self, block_hash):
         return block_hash in self.block_hashes
-    
-    def valid_alert(self, alert):
-        # TODO : not in PoC, probably not in GPDHTChain either
-        # TODO : return True if valid alert
-        pass
-        
-    
-    def get_successors(self, blocks, stop):
-        # TODO : not in PoC
-        # TODO : Probably won't be used with new blockchain struct
-        # TODO : find HCB and then some successors until stop or max num
-        #return [self.db.get_successors(b) for b in blocks]
-        pass
         
     def get_height(self):
         return self.head.height
@@ -161,7 +157,7 @@ class Chain(object):
         pass
         #self.db.get_successors(self.genesisHash)
     
-    def learnOfDB(self, db):
+    def learn_of_db(self, db):
         self.db = db
         self.load_chain()
 

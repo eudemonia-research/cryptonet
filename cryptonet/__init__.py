@@ -10,6 +10,9 @@ from cryptonet.debug import *
 
 config = {'network_debug':True}
 
+# TODO: ECDSA
+# TODO: Alerts
+
 class Cryptonet(object):
     def __init__(self, chain_vars):
         self._Block = None
