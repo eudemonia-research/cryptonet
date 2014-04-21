@@ -22,18 +22,18 @@ class TestMarketcoin(unittest.TestCase):
                                      bits=0x1d00ffff,
                                      nonce=2083236893)
 
-        state = { GENESIS_BLOCK.get_hash(): GENESIS_BLOCK.as_shitty_bytes() }
+        state = { GENESIS_BLOCK.get_hash(): GENESIS_BLOCK.as_bytes() }
 
-        next_block_shitty_bytes = binascii.unhexlify('010000006fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000982051fd1e4ba744bbbe680e1fee14677ba1a3c3540bf7b1cdb606e857233e0e61bc6649ffff001d01e36299')
+        next_block_bytes = binascii.unhexlify('010000006fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000982051fd1e4ba744bbbe680e1fee14677ba1a3c3540bf7b1cdb606e857233e0e61bc6649ffff001d01e36299')
 
-        tx = Transaction(sender=None, fee=None, amount=None, data=[next_block_shitty_bytes])
+        tx = Transaction(sender=None, fee=None, amount=None, data=[next_block_bytes])
 
         state2 = ChainHeaders.on_transaction(state.copy(), tx, None)
 
-        next_block_shitty_hash = sha256(sha256(next_block_shitty_bytes))
+        next_block_hash = sha256(sha256(next_block_bytes))
 
         expected_state2 = state.copy()
-        expected_state2[next_block_shitty_hash] = next_block_shitty_bytes
+        expected_state2[next_block_hash] = next_block_bytes
 
         self.assertEqual(expected_state2, state2)
 
