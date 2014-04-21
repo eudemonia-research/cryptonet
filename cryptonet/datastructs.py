@@ -1,5 +1,5 @@
-from cryptonet.gpdht import *
-from cryptonet.debug import *
+from cryptonet.gpdht import global_hash
+from cryptonet.debug import debug
 from encodium import *
 import math
 
@@ -18,7 +18,7 @@ class MerkleLeavesToRoot(Field):
         t = self.leaves[:]
         while len(t) > 1: 
             if len(t) % 2 != 0: t.append(int.from_bytes(b'\x00'*32, 'big'))
-            t = [ghash(t[i].to_bytes(32,'big') + t[i+1].to_bytes(32,'big')) for i in range(0,len(t),2)]
+            t = [global_hash(t[i].to_bytes(32,'big') + t[i+1].to_bytes(32,'big')) for i in range(0,len(t),2)]
         self.root = t[0]
         
     def get_hash(self):
@@ -45,7 +45,7 @@ class BaseField(Field):
         self.default_options = Field.default_options
         
     def get_hash(self):
-        return ghash(self.serialize())
+        return global_hash(self.serialize())
 
 class ListFieldPrimative(Field):
     def extend(self, item):
@@ -91,7 +91,7 @@ class IntList(ListFieldPrimative):
         return self.contents.__iter__()
         
     def get_hash(self):
-        return ghash(self.serialize())
+        return global_hash(self.serialize())
 
 class HashList(IntList):    
     def fields():
@@ -116,7 +116,7 @@ class HashList(IntList):
         return self.contents.__iter__()
         
     def get_hash(self):
-        return ghash(self.serialize())
+        return global_hash(self.serialize())
 
 class BytesList(ListFieldPrimative):
     def fields():
@@ -141,7 +141,7 @@ class BytesList(ListFieldPrimative):
         return self.contents.__iter__()
         
     def get_hash(self):
-        return ghash(self.serialize())
+        return global_hash(self.serialize())
         
 
 
@@ -158,10 +158,10 @@ class Intro(Field):
         user_agent = String(default='cryptonet/0.0.1/', max_length=32)
         top_block = Integer(length=32)
         relay = Integer(default=0, length=1)
-        leaflets = List(Bytes(length=32), default=[])
+        hash_list = List(Bytes(length=32), default=[])
         
     def get_hash(self):
-        return ghash(self.serialize())
+        return global_hash(self.serialize())
         
 
 RequestBlocksMessage = HashList
@@ -221,7 +221,7 @@ class StandardHeader(Field):
         period = Integer(length=2) # max block time once every ~18 hours for 2 byte int
         transactionsMR = Integer(length=32)
         statesMR = Integer(length=32)
-        prevblock = Integer(length=32)
+        previous_block = Integer(length=32)
 
 class StandardBlock(Field):
     def fields():
@@ -274,16 +274,16 @@ class BitcoinTransactionMerkleTree(Field):
 class BitcoinHeader(Field):
     def fields():
         version = Integer(length=4)
-        prevblock = Integer(length=32)
+        previous_block = Integer(length=32)
         merkleroot = Integer(length=32)
         timestamp = Integer(length=4)
         nbits = Bytes(length=4)
         nonce = Integer(lenght=4)
         
     def get_hash(self):
-        return ghash(b''.join([
+        return global_hash(b''.join([
             self.version.to_bytes(4,'big'),
-            self.prevblock.to_bytes(32, 'big'),
+            self.previous_block.to_bytes(32, 'big'),
             self.merkleroot.to_bytes(32, 'big'),
             self.timestamp.to_bytes(4, 'big'),
             self.nbits,

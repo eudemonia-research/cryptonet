@@ -1,14 +1,9 @@
 import time
-import threading
 import queue
-
-from cryptonet.gpdht import *
-from cryptonet.errors import *
-from cryptonet.debug import *
+#import threading
 
 from cryptonet.datastructs import *
 
-from encodium import *
 
 class AtomicIncrementor:
     def __init__(self):
@@ -187,13 +182,13 @@ class SeekNBuild:
                     self.done.add(bh)
                     continue
                 # TODO : handle orphans intelligently
-                if not self.chain.has_block_hash(block.parenthash):
+                if not self.chain.has_block_hash(block.parent_hash):
                     #print('chain_builder: dont have parent')
-                    #print('chain_builder: head and curr', self.chain.head.get_hash().hex(), block.parenthash.hex())
+                    #print('chain_builder: head and curr', self.chain.head.get_hash().hex(), block.parent_hash.hex())
                     self.past_queue_no_parent.put((height, nonce, block))
                     continue
                 try:
-                    block.assertValidity(self.chain)
+                    block.assert_validity(self.chain)
                 except ValidationError as e:
                     # invalid block
                     print('chainbuidler validation error: ', e)

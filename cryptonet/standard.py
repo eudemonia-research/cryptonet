@@ -1,5 +1,23 @@
 from encodium import *
 
+from cryptonet.gpdht import global_hash
+
+class Signature(Field):
+
+    def fields():
+        v = Integer(width=1)
+        r = Integer(width=32)
+        s = Integer(width=32)
+
+    def to_bytes(self):
+        return b''.join([
+            self.v.to_bytes(1, 'big'),
+            self.r.to_bytes(32, 'big'),
+            self.s.to_bytes(32, 'big'),
+        ])
+
+    def get_hash(self):
+        return global_hash(self.to_bytes())
 
 class Tx(Field):
     
@@ -26,17 +44,13 @@ class SuperTx(Field):
     def fields():
         nonce = Integer(width=4)
         txs = List(Tx())
-        v = Integer(width=1)
-        r = Integer(width=32)
-        s = Integer(width=32)
+        signature = Signature()
         
     def to_bytes(self):
         return b''.join([
             self.nonce.to_bytes(4, 'big'),
             b''.join([x.to_bytes for x in self.txs]),
-            self.v.to_bytes(1, 'big'),
-            self.r.to_bytes(32, 'big'),
-            self.s.to_bytes(32, 'big'),
+            self.signature.to_bytes()
         ])
         
     def get_hash(self):
@@ -50,7 +64,7 @@ class Header(Field):
         nonce = Integer(length=8) # nonce second to increase work needed for PoW
         timestamp = Integer(length=5)
         target = Integer(length=32)
-        sigmadiff = Integer(length=32)
+        sigma_diff = Integer(length=32)
         state_mr = Integer(length=32)
         transaction_mr = Integer(length=32)
         uncles_mr = Integer(length=32, default=0)
@@ -62,15 +76,12 @@ class Header(Field):
             self.nonce.to_bytes(8, 'big'),
             self.timestamp.to_bytes(5, 'big'),
             self.target.to_bytes(32, 'big'),
-            self.sigmadiff.to_bytes(32, 'big'),
+            self.sigma_diff.to_bytes(32, 'big'),
             self.state_mr.to_bytes(32, 'big'),
             self.transaction_mr.to_bytes(32, 'big'),
             self.uncles_mr.to_bytes(32, 'big'),
             b''.join([i.to_bytes(32, 'big') for i in self.previous_blocks]),
         ])
-        
-    def init(self):
-        
         
     def get_hash(self):
         return global_hash(self.to_bytes())

@@ -26,7 +26,7 @@ class Miner:
         
     def mine(self, providedBlock=None):
         while not self._shutdown:
-            if providedBlock == None: block = self.chain.head.getCandidate(self.chain)
+            if providedBlock == None: block = self.chain.head.get_candidate(self.chain)
             else: 
                 block = providedBlock
                 providedBlock = None
@@ -34,8 +34,8 @@ class Miner:
             print('miner restarting')
             while not self._shutdown and not self._restart:
                 count += 1
-                block.incrementNonce()
-                if block.validPoW():
+                block.increment_nonce()
+                if block.valid_proof_of_work():
                     break
                 if count % 100000 == 0:
                     self._restart = True

@@ -10,7 +10,7 @@ class Database:
     def key_exists(self, key):
         return key in self.key_value_store
     
-    def set_value(self, key, value):
+    def set_entry(self, key, value):
         self.key_value_store[key] = value
         
     def get_entry(self, key):
@@ -31,11 +31,11 @@ class Database:
         bh = block.get_hash()
         cur = block.parent_hash
         if cur == 0: return True # genesis block
-        self.link_ancestors(bh, cur, 2**s)
+        self.link_ancestor(bh, cur, 2**s)
         while self.key_exists(cur - 2**s):
             cur = self.get_entry(cur - 2**s)[0] # going backwards will always have only one entry
             s += 1
-            self.link_ancestors(bh, cur, 2**s)
+            self.link_ancestor(bh, cur, 2**s)
         return True
         
     def get_ancestors(self, start):

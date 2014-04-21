@@ -22,15 +22,15 @@ class BitcoinChainheaders(cryptonet.template.Dapp):
         # should accept a list of block headers and validate to store the longest chain
         assert len(tx.data) > 0
         for rawHeader in tx.data:
-            header = cryptonet.Chainheaders.Bitcoin(workingState, rawHeader) # pass in working state so things like prevblock and sigmadiff can be set
-            header.assertValidity(workingState)
+            header = cryptonet.Chainheaders.Bitcoin(workingState, rawHeader) # pass in working state so things like previous_block and sigmadiff can be set
+            header.assert_validity(workingState)
             BitcoinChainheaders.addHeaderToState(workingState, header)
             
         return workingState
             
     @staticmethod
     def addHeaderToState(workingState, header):
-        bh = header.getHash()
+        bh = header.get_hash()
         if workingState[bh] != 0:
             raise ValidationError('BitcoinChainheaders: blockheader already added')
         workingState[bh] = header

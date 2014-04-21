@@ -28,10 +28,10 @@ def num2bits(n, minlen=0):
         pad -= 1
     return r[::-1]
 
-def validPoW(ht, cd):
-    return ht.get_hash() < cd.unpackedTarget
+def valid_proof_of_work(ht, cd):
+    return ht.get_hash() < cd.unpacked_target
 
-def ghash(msg):
+def global_hash(msg):
     ''' This is the hash function that should be used EVERYWHERE in GPDHT.
     Currently defined to be SHA3.
     As always, should return a BANT '''
@@ -41,20 +41,20 @@ def ghash(msg):
 
 
 
-def packTarget(unpackedTarget):
+def pack_target(unpacked_target):
     # TODO : test
-    pad = 32 - len(unpackedTarget)
-    while unpackedTarget[0] == 0:
+    pad = 32 - len(unpacked_target)
+    while unpacked_target[0] == 0:
         pad += 1
-        unpackedTarget = unpackedTarget[1:]
-    a = unpackedTarget[:3] + bytearray([pad])
+        unpacked_target = unpacked_target[1:]
+    a = unpacked_target[:3] + bytearray([pad])
     return BANT(a)
     
-def unpackTarget(packedTarget):
+def unpack_target(packed_target):
     # TODO : test
-    packedTarget = bytes(packedTarget)
-    pad = packedTarget[3]
-    sigfigs = packedTarget[:3]
+    packed_target = bytes(packed_target)
+    pad = packed_target[3]
+    sigfigs = packed_target[:3]
     rt = ZERO*pad + sigfigs + ZERO*(32-3-pad)
     return BANT(int(hexlify(rt),16))
 
@@ -67,7 +67,7 @@ class Chain(object):
     ''' Holds a PoW chain and can answer queries '''
     # initial conditions must be updated when Chaindata structure updated
     
-    def __init__(self, chain_vars, genesisBlock=None, db=None, cryptonet=cryptonet):
+    def __init__(self, chain_vars, genesis_block=None, db=None, cryptonet=cryptonet):
         self.initialized = False
         self.cryptonet = cryptonet
         self._Block = self.cryptonet._Block
@@ -77,8 +77,8 @@ class Chain(object):
         self.blocks = set()
         self.block_hashes = set()
         
-        self.genesisBlock = None
-        if genesisBlock != None: self.setGenesis(genesisBlock)
+        self.genesis_block = None
+        if genesis_block != None: self.set_genesis(genesis_block)
         
     def restart_miner(self):
         if self.miner != None:
@@ -88,30 +88,30 @@ class Chain(object):
         self.miner = miner
     
     def hash(self, message):
-        return ghash(message)
+        return global_hash(message)
         
-    def setGenesis(self, block):
-        if self.genesisBlock == None:
-            block.assertValidity(self)
+    def set_genesis(self, block):
+        if self.genesis_block == None:
+            block.assert_validity(self)
             
-            self.genesisBlock = block
+            self.genesis_block = block
             self.head = block
             
             self.add_block(block)
         else:
-            raise ChainError('genesis block already known: %s' % self.genesisBlock)
+            raise ChainError('genesis block already known: %s' % self.genesis_block)
         
     # added sigmadiff stuff, need to test
     def add_block(self, block):
         ''' returns True on success '''
         if self.has_block(block): return
         
-        if block.betterThan(self.head):
+        if block.better_than(self.head):
             self.head = block
             debug('chain: new head %d, hash: %064x' % (block.height, block.get_hash()))
         
-        self.db.setEntry(block.get_hash(), block)
-        self.db.setAncestors(block)
+        self.db.set_entry(block.get_hash(), block)
+        self.db.set_ancestors(block)
         self.blocks.add(block)
         self.block_hashes.add(block.get_hash())
         
@@ -134,34 +134,34 @@ class Chain(object):
     def has_block_hash(self, block_hash):
         return block_hash in self.block_hashes
     
-    def validAlert(self, alert):
+    def valid_alert(self, alert):
         # TODO : not in PoC, probably not in GPDHTChain either
         # TODO : return True if valid alert
         pass
         
     
-    def getSuccessors(self, blocks, stop):
+    def get_successors(self, blocks, stop):
         # TODO : not in PoC
         # TODO : Probably won't be used with new blockchain struct
         # TODO : find HCB and then some successors until stop or max num
-        #return [self.db.getSuccessors(b) for b in blocks]
+        #return [self.db.get_successors(b) for b in blocks]
         pass
         
     def get_height(self):
         return self.head.height
         
-    def getTopBlock(self):
+    def get_top_block(self):
         return self.head
         
-    def getAncestors(self, start):
-        return self.db.getAncestors(start)
+    def get_ancestors(self, start):
+        return self.db.get_ancestors(start)
         
-    def loadChain(self):
+    def load_chain(self):
         # TODO : load chainstate from database
         pass
-        #self.db.getSuccessors(self.genesisHash)
+        #self.db.get_successors(self.genesisHash)
     
     def learnOfDB(self, db):
         self.db = db
-        self.loadChain()
+        self.load_chain()
 

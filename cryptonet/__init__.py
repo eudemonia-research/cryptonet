@@ -10,8 +10,6 @@ from cryptonet.debug import *
 
 config = {'network_debug':True}
 
-global_hash = ghash
-
 class Cryptonet(object):
     def __init__(self, chain_vars):
         self._Block = None
@@ -27,9 +25,9 @@ class Cryptonet(object):
         if chain_vars.mine:
             self.miner = Miner(self.chain, self.seek_n_build)
         
-        self.mineGenesis = False
-        if chain_vars.genesisBinary == None: self.mineGenesis = True
-        else: self.genesisBinary = chain_vars.genesisBinary
+        self.mine_genesis = False
+        if chain_vars.genesis_binary == None: self.mine_genesis = True
+        else: self.genesis_binary = chain_vars.genesis_binary
         
         self.intros = {}
         
@@ -46,10 +44,10 @@ class Cryptonet(object):
         
     def block(self, blockObject):
         self._Block = blockObject
-        if self.mineGenesis:
+        if self.mine_genesis:
             pass
         else:
-            self.chain.setGenesis(self._Block().make(self.genesisBinary))
+            self.chain.set_genesis(self._Block().make(self.genesis_binary))
         return blockObject
         
         
@@ -62,8 +60,8 @@ class Cryptonet(object):
         @self.p2p.on_connect
         def on_connect_handler(node):
             debug('on_connect_handler')
-            myIntro = Intro.make(top_block=self.chain.head.get_hash())
-            node.send('intro', myIntro.serialize())
+            my_intro = Intro.make(top_block=self.chain.head.get_hash())
+            node.send('intro', my_intro.serialize())
             
             
         @self.p2p.handler('intro')

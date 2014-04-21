@@ -1,62 +1,73 @@
 #!/usr/bin/env python3
 
-from encodium import *
+import encodium
 
 from cryptonet import Cryptonet
 from cryptonet.miner import Miner
 from cryptonet.datastructs import ChainVars
 from cryptonet.datastructs import MerkleTree
 from cryptonet.errors import ValidationError
-from cryptonet.gpdht import Chain, ghash
+from cryptonet.gpdht import Chain, global_hash
 
 chain_vars = ChainVars()
 
 chain_vars.seeds = []
-chain_vars.genesisBinary = b'\x01\x01\x00'
+chain_vars.genesis_binary = b'\x01\x01\x00\x01\x00'
 chain_vars.mine = True
 chain_vars.address = ('',0)
 
-m = Cryptonet(chain_vars)
+min_net = Cryptonet(chain_vars)
 
-@m.block
-class MinBlock(Field):
-    def init(self):
-        self.parenthash = self.prevblock
-        self.height = 1
-
+@min_net.block
+class MinBlock(encodium.Field):
+    
     def fields():
-        prevblock = Integer(length=32)
-    
-    def assert_internal_consistency(self):
-        assert self.prevblock < 2**256
-        assert self.prevblock >= 0
-    
-    def assertValidity(self, chain):
-        self.assert_internal_consistency()
+        parent_hash = encodium.Integer(length=32)
+        height = encodium.Integer(length=4, default=0)
         
     def __hash__(self):
-        return self.getHash()
+        return self.get_hash()
+    
+    def assert_internal_consistency(self):
+        assert self.parent_hash < 2**256
+        assert self.parent_hash >= 0
+    
+    def assert_validity(self, chain):
+        self.assert_internal_consistency()
+        if chain.initialized:
+            print('assert_validity: parent_hash : %064x' % self.parent_hash)
+            assert chain.has_block_hash(self.parent_hash)
+            assert chain.get_block(self.parent_hash).height + 1 == self.height
+        else:
+            assert self.height == 0
+            assert self.parent_hash == 0
         
-    def getHash(self):
-        return ghash(b''.join([
-            self.prevblock.to_bytes(32, 'big')
-        ]))
+    def to_bytes(self):
+        return b''.join([
+            self.parent_hash.to_bytes(32, 'big'),
+            self.height.to_bytes(4, 'big'),
+        ])
         
-    def getCandidate(self, chain):
-        return MinBlock.make(prevblock = self.getHash(), height=self.height+1)
+    def get_hash(self):
+        return global_hash(self.to_bytes())
         
-    def incrementNonce(self):
+    def get_candidate(self, chain):
+        return MinBlock.make(parent_hash=self.get_hash(), height=self.height+1)
+        
+    def increment_nonce(self):
         pass
         
-    def validPoW(self):
+    def valid_proof_of_work(self):
         return True
         
-    def betterThan(self, other):
-        return True
+    def better_than(self, other):
+        return self.height > other.height
         
-m.run()
 
-def makeGenesis():
-    genB = MinBlock.make(prevblock=0)
-    miner = Miner(m.chain, m.seek_n_build)
-    miner.mine(genB)
+def make_genesis():
+    genesis_block = MinBlock.make(parent_hash=0,height=0)
+    miner = Miner(min_net.chain, min_net.seek_n_build)
+    miner.mine(genesis_block)
+
+#make_genesis()
+min_net.run()
