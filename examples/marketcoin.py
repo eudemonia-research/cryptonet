@@ -45,12 +45,12 @@ class BitcoinSPV(cryptonet.template.Dapp):
     ''' SPV and MerkleTree verification.
     SPV takes a block hash, 2 transaction hashes, and a merkle branch.
     The merkle branch should prove those two transaction hashes were included
-    in the merkle tree of the header to which the blockhash belongs. Although
+    in the merkle tree of the header to which the block_hash belongs. Although
     this can be done with partial branches (as in the first two hashes aren't tx
     hashes, but are half way through the merkle tree) there is little benefit.
         1. Verify merkle branch is correct. Should result in MR from block
         2. Verify MR is in header 
-        3. Set txhash XOR blockhash to 1'''
+        3. Set txhash XOR block_hash to 1'''
     
     @staticmethod
     def on_block(workingState, block, chain):
@@ -78,7 +78,7 @@ class BitcoinMarket(cryptonet.template.Dapp):
     1. min_return (in MKC), max_spend (in BTC)     # output to account that provided pledge
     2. min_return (in BTC), fulfillment_requirement (output script) # max spend is tx.value
     3. order-hash or something # tx.sender is verification of ownership
-    4. ordermatch id, rawtx (from BTC network), blockhash (which includes tx)
+    4. ordermatch id, rawtx (from BTC network), block_hash (which includes tx)
     5. 
     '''
     

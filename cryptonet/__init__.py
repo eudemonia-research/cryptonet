@@ -8,35 +8,35 @@ from cryptonet.datastructs import *
 from cryptonet.miner import Miner
 from cryptonet.debug import *
 
-config = {'networkdebug':True}
+config = {'network_debug':True}
 
 global_hash = ghash
 
 class Cryptonet(object):
-    def __init__(self, chainVars):
+    def __init__(self, chain_vars):
         self._Block = None
         
-        self.p2p = Spore(seeds=chainVars.seeds, address=chainVars.address)
-        self.setHandlers()
+        self.p2p = Spore(seeds=chain_vars.seeds, address=chain_vars.address)
+        self.set_handlers()
         debug('cryptonet init, peers: ', self.p2p.peers)
         
         self.db = Database()
-        self.chain = Chain(chainVars, db=self.db, cryptonet=self)
-        self.seekNBuild = SeekNBuild(self.p2p, self.chain)
+        self.chain = Chain(chain_vars, db=self.db, cryptonet=self)
+        self.seek_n_build = SeekNBuild(self.p2p, self.chain)
         self.miner = None
-        if chainVars.mine:
-            self.miner = Miner(self.chain, self.seekNBuild)
+        if chain_vars.mine:
+            self.miner = Miner(self.chain, self.seek_n_build)
         
         self.mineGenesis = False
-        if chainVars.genesisBinary == None: self.mineGenesis = True
-        else: self.genesisBinary = chainVars.genesisBinary
+        if chain_vars.genesisBinary == None: self.mineGenesis = True
+        else: self.genesisBinary = chain_vars.genesisBinary
         
         self.intros = {}
         
     def run(self):
         if self.miner != None: self.miner.run()
         self.p2p.run()
-        self.seekNBuild.shutdown()
+        self.seek_n_build.shutdown()
         if self.miner != None: self.miner.shutdown()
         
         
@@ -57,59 +57,59 @@ class Cryptonet(object):
     # Cryptonet Handlers
     #==================
     
-    def setHandlers(self):
-        debug('setHandlers')
+    def set_handlers(self):
+        debug('set_handlers')
         @self.p2p.on_connect
-        def onConnectHandler(node):
-            debug('onConnectHandler')
-            myIntro = Intro.make(topblock=self.chain.head.get_hash())
+        def on_connect_handler(node):
+            debug('on_connect_handler')
+            myIntro = Intro.make(top_block=self.chain.head.get_hash())
             node.send('intro', myIntro.serialize())
             
             
         @self.p2p.handler('intro')
-        def introHandler(node, payload):
-            debug('introHandler')
+        def intro_handler(node, payload):
+            debug('intro_handler')
             try:
-                theirIntro = Intro.make(payload)
+                their_intro = Intro.make(payload)
             except ValidationError:
                 node.misbehaving()
                 return
-            if config['networkdebug'] or True:
-                debug('MSG intro : %064x' % theirIntro.get_hash())
+            if config['network_debug'] or True:
+                debug('MSG intro : %064x' % their_intro.get_hash())
             if node in self.intros:
                 return None
-            self.intros[node] = theirIntro
-            if not self.chain.hasBlock(theirIntro.topblock):
-                debug('introhand', theirIntro.topblock)
-                self.seekNBuild.seekHash(theirIntro.topblock)
+            self.intros[node] = their_intro
+            if not self.chain.has_block(their_intro.top_block):
+                debug('introhand', their_intro.top_block)
+                self.seek_n_build.seek_hash(their_intro.top_block)
             
 
         @self.p2p.handler('blocks')
-        def blocksHandler(node, payload):
-            blocklist = BytesList.make(payload)
-            if config['networkdebug'] or True:
-                debug('MSG blocks : %064x' % blocklist.get_hash())
-            for serializedBlock in blocklist:
+        def blocks_handler(node, payload):
+            block_list = BytesList.make(payload)
+            if config['network_debug'] or True:
+                debug('MSG blocks : %064x' % block_list.get_hash())
+            for serialized_block in block_list:
                 try:
-                    potentialBlock = self._Block().make(serializedBlock)
-                    potentialBlock.assertInternalConsistency()
+                    potential_block = self._Block().make(serialized_block)
+                    potential_block.assert_internal_consistency()
                 except ValidationError as e:
-                    debug('blocksHandler error', e)
+                    debug('blocks_handler error', e)
                     #node.misbehaving()
                     continue
-                self.seekNBuild.addBlock(potentialBlock)
-                self.seekNBuild.seekManyWithPriority(potentialBlock.relatedBlocks())
+                self.seek_n_build.add_block(potential_block)
+                self.seek_n_build.seek_many_with_priority(potential_block.relatedBlocks())
                         
             
-        @self.p2p.handler('requestblocks')
-        def requestblocksHandler(node, payload):
+        @self.p2p.handler('request_blocks')
+        def request_blocks_handler(node, payload):
             requests = HashList.make(payload)
-            if config['networkdebug'] or True:
-                debug('MSG requestblocks : %064x' % requests.get_hash())
+            if config['network_debug'] or True:
+                debug('MSG request_blocks : %064x' % requests.get_hash())
             ret = BytesList.make()
             for bh in requests:
-                if self.chain.hasBlockhash(bh):
-                    ret.append(self.chain.getBlock(bh).serialize())
+                if self.chain.has_block_hash(bh):
+                    ret.append(self.chain.get_block(bh).serialize())
             if ret.len() > 0:
                 node.send('blocks', ret.serialize())
             

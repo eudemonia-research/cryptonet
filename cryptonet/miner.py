@@ -9,7 +9,7 @@ class Miner:
         self._restart = False
         self.threads = [threading.Thread(target=self.mine)]
         self.chain = chain
-        self.chain.setMiner(self)
+        self.chain.set_miner(self)
         self.seeknbuild = seeknbuild
         
     def run(self):
@@ -46,6 +46,6 @@ class Miner:
                 continue
             debug('Miner: Found Soln : %064x' % block.get_hash())
             debug('Miner: ser\'d block: ', block.serialize())
-            self.seeknbuild.addBlock(block)
-            while not self.chain.hasBlockhash(block.get_hash()) and not self._shutdown:
+            self.seeknbuild.add_block(block)
+            while not self.chain.has_block_hash(block.get_hash()) and not self._shutdown:
                 time.sleep(0.1)

@@ -9,14 +9,14 @@ from cryptonet.datastructs import MerkleTree
 from cryptonet.errors import ValidationError
 from cryptonet.gpdht import Chain, ghash
 
-chainVars = ChainVars()
+chain_vars = ChainVars()
 
-chainVars.seeds = []
-chainVars.genesisBinary = b'\x01\x01\x00'
-chainVars.mine = True
-chainVars.address = ('',0)
+chain_vars.seeds = []
+chain_vars.genesisBinary = b'\x01\x01\x00'
+chain_vars.mine = True
+chain_vars.address = ('',0)
 
-m = Cryptonet(chainVars)
+m = Cryptonet(chain_vars)
 
 @m.block
 class MinBlock(Field):
@@ -27,12 +27,12 @@ class MinBlock(Field):
     def fields():
         prevblock = Integer(length=32)
     
-    def assertInternalConsistency(self):
+    def assert_internal_consistency(self):
         assert self.prevblock < 2**256
         assert self.prevblock >= 0
     
     def assertValidity(self, chain):
-        self.assertInternalConsistency()
+        self.assert_internal_consistency()
         
     def __hash__(self):
         return self.getHash()
@@ -58,5 +58,5 @@ m.run()
 
 def makeGenesis():
     genB = MinBlock.make(prevblock=0)
-    miner = Miner(m.chain, m.seekNBuild)
+    miner = Miner(m.chain, m.seek_n_build)
     miner.mine(genB)

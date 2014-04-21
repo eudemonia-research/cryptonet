@@ -1,4 +1,5 @@
 from cryptonet.datastructs import MerkleLeavesToRoot
+import cryptonet
 
 ''' dapp.py
 
@@ -56,7 +57,7 @@ class Dapp(object):
         '''
         self.set_state(self.state.prune_to_or_beyond(height))
 
-class StateDelta(object):
+class StateDelta(cryptonet.database.Database):
     
     def __init__(self, parent=None, height=0):
         self.key_value_store = {}

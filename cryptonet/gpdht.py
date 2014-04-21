@@ -67,7 +67,7 @@ class Chain(object):
     ''' Holds a PoW chain and can answer queries '''
     # initial conditions must be updated when Chaindata structure updated
     
-    def __init__(self, chainVars, genesisBlock=None, db=None, cryptonet=cryptonet):
+    def __init__(self, chain_vars, genesisBlock=None, db=None, cryptonet=cryptonet):
         self.initialized = False
         self.cryptonet = cryptonet
         self._Block = self.cryptonet._Block
@@ -75,16 +75,16 @@ class Chain(object):
         self.db = db
         self.miner = None
         self.blocks = set()
-        self.blockhashes = set()
+        self.block_hashes = set()
         
         self.genesisBlock = None
         if genesisBlock != None: self.setGenesis(genesisBlock)
         
-    def restartMiner(self):
+    def restart_miner(self):
         if self.miner != None:
             self.miner.restart()
         
-    def setMiner(self, miner):
+    def set_miner(self, miner):
         self.miner = miner
     
     def hash(self, message):
@@ -97,14 +97,14 @@ class Chain(object):
             self.genesisBlock = block
             self.head = block
             
-            self.addBlock(block)
+            self.add_block(block)
         else:
             raise ChainError('genesis block already known: %s' % self.genesisBlock)
         
     # added sigmadiff stuff, need to test
-    def addBlock(self, block):
+    def add_block(self, block):
         ''' returns True on success '''
-        if self.hasBlock(block): return
+        if self.has_block(block): return
         
         if block.betterThan(self.head):
             self.head = block
@@ -113,7 +113,7 @@ class Chain(object):
         self.db.setEntry(block.get_hash(), block)
         self.db.setAncestors(block)
         self.blocks.add(block)
-        self.blockhashes.add(block.get_hash())
+        self.block_hashes.add(block.get_hash())
         
         
         if self.initialized == False:
@@ -121,18 +121,18 @@ class Chain(object):
         
         debug('added block %d, hash: %064x' % (block.height, block.get_hash()))
         
-        self.restartMiner()
+        self.restart_miner()
         
         return True
         
-    def getBlock(self, blockhash):
-        return self.db.getEntry(blockhash)
+    def get_block(self, block_hash):
+        return self.db.get_entry(block_hash)
         
-    def hasBlock(self, block):
+    def has_block(self, block):
         return block in self.blocks
           
-    def hasBlockhash(self, blockhash):
-        return blockhash in self.blockhashes
+    def has_block_hash(self, block_hash):
+        return block_hash in self.block_hashes
     
     def validAlert(self, alert):
         # TODO : not in PoC, probably not in GPDHTChain either
@@ -147,7 +147,7 @@ class Chain(object):
         #return [self.db.getSuccessors(b) for b in blocks]
         pass
         
-    def getHeight(self):
+    def get_height(self):
         return self.head.height
         
     def getTopBlock(self):

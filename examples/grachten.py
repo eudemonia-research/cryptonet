@@ -11,13 +11,13 @@ from cryptonet.gpdht import *
 
 from encodium import *
 
-chainVars = ChainVars()
+chain_vars = ChainVars()
 
 
 config = {
     'host': '0.0.0.0',
     'port': 32555,
-    'networkdebug': False
+    'network_debug': False
 }
 
 parser = argparse.ArgumentParser()
@@ -25,7 +25,7 @@ parser.add_argument('-port', nargs=1, default=32555, type=int, help='port for no
 parser.add_argument('-addnode', nargs=1, default=b'', type=str, help='node to connect to non-exclusively. Format xx.xx.xx.xx:yyyy')
 parser.add_argument('-genesis', nargs=1, default=b'', type=bytes, help='genesis block in hex')
 parser.add_argument('-mine', action='store_true')
-parser.add_argument('-networkdebug', action='store_true')
+parser.add_argument('-network_debug', action='store_true')
 args = parser.parse_args()
 
 config['port'] = args.port
@@ -39,14 +39,14 @@ if isinstance(args.addnode, list) and args.addnode[0] != '':
 #seeds.append(('xk.io',32555))
 
 
-chainVars.seeds = seeds
-chainVars.genesisBinary = None
-chainVars.genesisBinary = b'\x01O\x01!\x00\xd7gm\xa06{\xa2\xa6\xa3{\x0b\xd6\xb6\xc2\x80\xfc\x19\xca\xf5WD\x8am\xae\xe1+\xaf\xaa\x86\x9b\xfbB!\x00\xd7gm\xa06{\xa2\xa6\xa3{\x0b\xd6\xb6\xc2\x80\xfc\x19\xca\xf5WD\x8am\xae\xe1+\xaf\xaa\x86\x9b\xfbB\t\x00\xabT\xa9\x8c\xdcgs\xf46\x01\x01\x01\x01\x00 \x00\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\x02\x01\x00\x04SG\x9c\x93\x01\x00\x01\x00\x03\x01\x01\x00\x01\x01'
-chainVars.address = (config['host'], config['port'])
-chainVars.mine = args.mine
+chain_vars.seeds = seeds
+chain_vars.genesisBinary = None
+chain_vars.genesisBinary = b'\x01O\x01!\x00\xd7gm\xa06{\xa2\xa6\xa3{\x0b\xd6\xb6\xc2\x80\xfc\x19\xca\xf5WD\x8am\xae\xe1+\xaf\xaa\x86\x9b\xfbB!\x00\xd7gm\xa06{\xa2\xa6\xa3{\x0b\xd6\xb6\xc2\x80\xfc\x19\xca\xf5WD\x8am\xae\xe1+\xaf\xaa\x86\x9b\xfbB\t\x00\xabT\xa9\x8c\xdcgs\xf46\x01\x01\x01\x01\x00 \x00\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\x02\x01\x00\x04SG\x9c\x93\x01\x00\x01\x00\x03\x01\x01\x00\x01\x01'
+chain_vars.address = (config['host'], config['port'])
+chain_vars.mine = args.mine
 
 
-gracht = Cryptonet(chainVars)
+gracht = Cryptonet(chain_vars)
 
 class GrachtUncle(Field):
     pass
@@ -89,19 +89,19 @@ class GrachtHeader(Field):
         if not condition:
             raise ValidationError(message)
         
-    def assertInternalConsistency(self):
+    def assert_internal_consistency(self):
         self.assertTrue( self.timestamp < time.time() + 60*15, 'new block cannot be more than 15 minutes ahead of present' )
         self.assertTrue( self.unclesMR == 0, 'uncles must be zeroed' )
         self.assertTrue( self.unclesMR <= 2**256-1, 'uncles must be no more than 32 bytes long' )
         self.assertTrue( self.version == 1, 'version must be equal to 1' )
         
     def assertValidity(self, chain):
-        self.assertInternalConsistency()
+        self.assert_internal_consistency()
         self.assertTrue( self.version == 1, 'version must be equal to 1' )
         if chain.initialized:
             self.assertTrue( self.prevblocks == chain.getAncestors(self.prevblocks[0]), 'prevblocks should match predicted ancestors' )
-            self.assertTrue( self.height == chain.getBlock(self.prevblocks[0]).height + 1, 'height requirement, prevheight += 1' )
-            self.assertTrue( self.sigmadiff == GrachtHeader.calcSigmadiff(self, chain.getBlock(self.prevblocks[0])), 'sigmadiff as expected' )
+            self.assertTrue( self.height == chain.get_block(self.prevblocks[0]).height + 1, 'height requirement, prevheight += 1' )
+            self.assertTrue( self.sigmadiff == GrachtHeader.calcSigmadiff(self, chain.get_block(self.prevblocks[0])), 'sigmadiff as expected' )
         else:
             self.assertTrue( self.unclesMR == 0, 'genesis requires zeroed unclesMR' )
             self.assertTrue( self.prevblocks[0] == 0, 'genesis requires zeroed prevblock' )
@@ -123,7 +123,7 @@ class GrachtHeader(Field):
         if header.prevblocks[0] == 0: return GrachtHeader.DEFAULT_TARGET
         if header.height % GrachtHeader.RETARGET_PERIOD != 0: return prevblock.header.target
         
-        oldAncestor = chain.getBlock(header.prevblocks[(GrachtHeader.RETARGET_PERIOD-1).bit_length()])
+        oldAncestor = chain.get_block(header.prevblocks[(GrachtHeader.RETARGET_PERIOD-1).bit_length()])
         timedelta = header.timestamp - oldAncestor.header.timestamp
         expectedTimedelta = 60 * 60 * 24 * GrachtHeader.RETARGET_PERIOD // GrachtHeader.BLOCKS_PER_DAY
         
@@ -172,19 +172,19 @@ class GrachtBlock(Field):
         if not condition:
             raise ValidationError(message)
             
-    def assertInternalConsistency(self):
+    def assert_internal_consistency(self):
         ''' This should fail if the block could never be valid - no reference to chain possible '''
-        self.header.assertInternalConsistency()
+        self.header.assert_internal_consistency()
         self.assertTrue( self.validPoW(), 'PoW must validate against header: %064x' % self.get_hash() )
         #debug('block: AssertInternalConsistency', self.tree.leaves)
         self.assertTrue( self.header.get_hash() == self.leaves[1], 'GrachtHeader hash must be in pos 1 of tree, %s %064x' % (self.leaves, self.header.get_hash()))
         
     def assertValidity(self, chain):
         ''' This should fail only when the block cannot be fully validated against our chain. '''
-        self.assertInternalConsistency()
+        self.assert_internal_consistency()
         self.header.assertValidity(chain)
         if chain.initialized:
-            self.assertTrue( chain.hasBlockhash(self.parenthash), 'parent must exist' )
+            self.assertTrue( chain.hasblock_hash(self.parenthash), 'parent must exist' )
             self.assertTrue( chain.genesisBlock.header.get_hash() == self.merkletree.leaves[0], 'genesis block hash location requirement' )        
         else:
             self.assertTrue( self.parenthash == 0, 'parent must be zeroed' )
@@ -195,7 +195,7 @@ class GrachtBlock(Field):
         
     def relatedBlocks(self):
         ''' if any block hashes known and should seek, add here.
-        Should be in list of tuples of (height, blockhash) '''
+        Should be in list of tuples of (height, block_hash) '''
         return self.header.prevblocksWithHeight
         
     def incrementNonce(self):
@@ -213,7 +213,7 @@ class GrachtBlock(Field):
 def makeGenesis():
     genH = GrachtHeader.make()
     genB = GrachtBlock.make(leaves=[genH.get_hash(), genH.get_hash(), int.from_bytes(b'some message', 'big')], header=genH)
-    m = Miner(gracht.chain, gracht.seekNBuild)
+    m = Miner(gracht.chain, gracht.seek_n_build)
     m.mine(genB)
 
 gracht.run()

@@ -156,7 +156,7 @@ class Intro(Field):
         services = Integer(default=1, width=4)
         timestamp = Integer(default=1, width=5)
         user_agent = String(default='cryptonet/0.0.1/', max_length=32)
-        topblock = Integer(length=32)
+        top_block = Integer(length=32)
         relay = Integer(default=0, length=1)
         leaflets = List(Bytes(length=32), default=[])
         
