@@ -86,7 +86,7 @@ class Cryptonet(object):
             self.intros[node] = their_intro
             if not self.chain.has_block(their_intro.top_block):
                 debug('introhand', their_intro.top_block)
-                self.seek_n_build.seek_hash(their_intro.top_block)
+                self.seek_n_build.seek_hash_now(their_intro.top_block)
             
 
         @self.p2p.handler('blocks')

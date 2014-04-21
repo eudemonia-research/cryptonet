@@ -55,35 +55,17 @@ class SeekNBuild:
         self._shutdown = True
         for t in self.threads:
             t.join()
-        
-    def add_block(self, block):
-        # blocks should be internally consistent at this point
-        bh = block.get_hash()
-        toPut = (block.height, self.nonces.get_next(), block)
-        
-        if bh in self.done: return
-        if bh in self.past: return
-        
-        if bh not in self.all:
-            self.all.add(bh)
-        
-        with self.present_lock:
-            try:
-                self.present.remove(bh)
-            except KeyError:
-                pass
-        
-        with self.past_lock:
-            self.past.add(bh)
-            self.past_queue.put(toPut)
             
-    def seek_hash(self, bh):
-        with self.future_lock:
-            self.future_queue.put((-1, bh))
-            self.future.add(bh)
+    def seek_hash_now(self, block_hash):
+        if block_hash == 0: return
+        if block_hash not in self.all:
+            with self.future_lock:
+                self.future_queue.put((-1, block_hash))
+                self.future.add(block_hash)
         
     def seek_with_priority(self, block_hash_with_height):
         height, block_hash = block_hash_with_height
+        if block_hash == 0: return
         if block_hash not in self.all:
             self.all.add(block_hash)
             with self.future_lock:
@@ -103,12 +85,13 @@ class SeekNBuild:
             
             try:
                 with self.present_lock:
-                    oldestTS, oldestBH = self.present_queue.get_nowait()
-                    while oldestTS + 10 < time.time(): # requested >10s ago
-                        if oldestBH in self.present:
-                            requesting.append(oldestBH)
-                        oldestTS, oldestBH = self.present_queue.get_nowait()
-                    self.present_queue.put((oldestTS, oldestBH))
+                    oldest_timestamp, oldest_block_hash = self.present_queue.get_nowait()
+                    while oldest_timestamp + 10 < time.time(): # requested >10s ago
+                        debug('seeker, block re-request: ', oldest_block_hash)
+                        if oldest_block_hash in self.present:
+                            requesting.append(oldest_block_hash)
+                        oldest_timestamp, oldest_block_hash = self.present_queue.get_nowait()
+                    self.present_queue.put((oldest_timestamp, oldest_block_hash))
             except queue.Empty:
                 pass
             
@@ -153,6 +136,27 @@ class SeekNBuild:
         t = threading.Thread(target=real_broadcast, args=(self, to_send))
         t.start()
         self.threads.append(t)
+
+    def add_block(self, block):
+        # blocks should be internally consistent at this point
+        block_hash = block.get_hash()
+        to_put = (block.height, self.nonces.get_next(), block)
+
+        if block_hash in self.done: return
+        if block_hash in self.past: return
+
+        if block_hash not in self.all:
+            self.all.add(block_hash)
+
+        with self.present_lock:
+            try:
+                self.present.remove(block_hash)
+            except KeyError:
+                pass
+
+        with self.past_lock:
+            self.past.add(block_hash)
+            self.past_queue.put(to_put)
         
     def chain_builder(self):
         ''' This should find all blocks in s.past with a height <= chain_height + 1 and

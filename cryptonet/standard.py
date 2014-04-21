@@ -133,6 +133,7 @@ class Block(Field):
         ''' Inherit StateMaker, SuperState, etc from other_block.
         Remove other_block's access to StateMaker, etc.
         '''
+        # TODO: This needs to be completed to test state on the blockchain.
         pass
         
     def get_hash(self):
