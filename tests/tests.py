@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
 
 import unittest
-from cryptonet.datastructs import *
-#from examples.gracht import Header, Uncles
 
-class TestGracht(unittest.TestCase):
-    pass
-    #def test_header(self):
-        #genesisHeader = Header([BANT("0001", True), BANT("00000000", True), BANT("ffffff01", True), BANT("0100", True), BANT("0000534133e0", True), BANT("00000001", True), BANT("0000000000000000000000000000000000000000000000000000000000000000", True), BANT("0000000000000000000000000000000000000000000000000000000000000000", True)], Uncles([]))
-        #self.assertTrue(genesisHeader.getHash() == BANT("5428e1798a6e841a9cd81a30ec8e8e68a579fa7e5f4b81152b957052d73ddd98", True))
-    
+from cryptonet.datastructs import *
+
+
 class TestStructs(unittest.TestCase):
+    
     def test_IntList(self):
         cases = [
             [0,1,2,3,4,5,6,7,8,9],
@@ -19,13 +15,13 @@ class TestStructs(unittest.TestCase):
         for case in cases:
             caseField = IntList.make(contents=case)
             self.assertEqual(len(caseField), len(case))
-            self.assertEqual(caseField.__iter__(), case)
             for i in range(len(case)):
                 self.assertEqual(caseField[i], case[i])
             for c in (case, caseField):
                 c.append(23)
             self.assertEqual(caseField, case)
-    
+
+
 class TestCryptonet(unittest.TestCase):
     
     def test_MerkleTree(self):

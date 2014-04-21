@@ -78,6 +78,8 @@ class StateDelta(cryptonet.database.Database):
         
     def __getitem__(self, key):
         ''' return value if known else ask next StateDelta '''
+        if key < 0:
+            raise KeyError('Negative entries not allowed')
         if key in self.deleted_keys:
             pass
         elif key in self.key_value_store:

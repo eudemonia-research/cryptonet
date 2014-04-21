@@ -92,10 +92,16 @@ class IntList(ListFieldPrimative):
         self.contents[index] = value
         
     def len(self):
-        return len(self.contents)  
+        return len(self.contents)
+
+    def __len__(self):
+        return len(self.contents)
         
     def __iter__(self):
         return self.contents.__iter__()
+
+    def __eq__(self, other):
+        return self.contents == other
         
     def get_hash(self):
         return global_hash(self.serialize())

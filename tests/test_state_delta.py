@@ -15,8 +15,6 @@ class TestStateDelta(unittest.TestCase):
     * after 100 checkpoints everything is as expected
     '''
     
-    # TODO : Test `del state_delta[item]`
-    
     def setUp(self):
         self.genesis_state_delta = StateDelta()
         self.genesis_state_delta[0] = 0
@@ -56,6 +54,7 @@ class TestStateDelta(unittest.TestCase):
         for i in range(len(expected_k_vs)):
             self.assertEqual(cur.ancestors()[i].key_value_store, expected_k_vs[i])
         self.assertEqual(cur[0], 0)
+        self.assertEqual(cur[9841354354], 0)
         with self.assertRaises(KeyError):
             a = cur[-1]
             
