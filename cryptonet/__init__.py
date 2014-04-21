@@ -1,12 +1,13 @@
 from spore import Spore
 #from . import defaultStructures
 from cryptonet.seeknbuild import SeekNBuild
-from cryptonet.gpdht import *
+from cryptonet.chain import Chain
+from cryptonet.utilities import global_hash
 from cryptonet.database import Database
-from cryptonet.errors import *
+from cryptonet.errors import ValidationError
 from cryptonet.datastructs import *
 from cryptonet.miner import Miner
-from cryptonet.debug import *
+from cryptonet.debug import debug
 import cryptonet.standard
 
 config = {'network_debug':True}
@@ -36,10 +37,12 @@ class Cryptonet(object):
         self.intros = {}
         
     def run(self):
+
         if self.miner != None: self.miner.run()
         self.p2p.run()
         self.seek_n_build.shutdown()
         if self.miner != None: self.miner.shutdown()
+
         
         
     #=================

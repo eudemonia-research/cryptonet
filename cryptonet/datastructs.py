@@ -1,4 +1,4 @@
-from cryptonet.gpdht import global_hash
+from cryptonet.utilities import global_hash
 from cryptonet.debug import debug
 from encodium import *
 import math

@@ -2,15 +2,16 @@
 
 import time, argparse
 
+from encodium import *
+
 from cryptonet import Cryptonet
 from cryptonet.miner import Miner
 from cryptonet.datastructs import ChainVars
 from cryptonet.datastructs import MerkleTree
 from cryptonet.errors import ValidationError
-from cryptonet.gpdht import global_hash
+from cryptonet.utilities import global_hash
 from cryptonet.debug import debug
 
-from encodium import *
 
 chain_vars = ChainVars()
 

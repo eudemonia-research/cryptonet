@@ -1,4 +1,4 @@
-from cryptonet.debug import *
+from cryptonet.debug import debug
 
 class Database:
     ''' An in-memory key value store for testing cryptonet '''

@@ -1,4 +1,4 @@
-from cryptonet import global_hash
+from cryptonet.utilities import global_hash
 from cryptonet.dapp import Dapp, TxPrism
 from cryptonet.errors import ValidationError
 

@@ -1,7 +1,7 @@
 from encodium import *
 #import nacl.signing
 
-from cryptonet.gpdht import global_hash
+from cryptonet.utilities import global_hash
 
 class Signature(Field):
 
