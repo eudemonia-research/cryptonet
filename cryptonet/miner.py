@@ -4,13 +4,13 @@ import time
 from cryptonet.debug import *
 
 class Miner:
-    def __init__(self, chain, seeknbuild):
+    def __init__(self, chain, seek_n_build):
         self._shutdown = False
         self._restart = False
         self.threads = [threading.Thread(target=self.mine)]
         self.chain = chain
         self.chain.set_miner(self)
-        self.seeknbuild = seeknbuild
+        self.seek_n_build = seek_n_build
         
     def run(self):
         for t in self.threads:
@@ -24,12 +24,12 @@ class Miner:
     def restart(self):
         self._restart = True
         
-    def mine(self, providedBlock=None):
+    def mine(self, provided_block=None):
         while not self._shutdown:
-            if providedBlock == None: block = self.chain.head.get_candidate(self.chain)
+            if provided_block == None: block = self.chain.head.get_candidate(self.chain)
             else: 
-                block = providedBlock
-                providedBlock = None
+                block = provided_block
+                provided_block = None
             count = 0
             print('miner restarting')
             while not self._shutdown and not self._restart:
@@ -45,7 +45,8 @@ class Miner:
                 time.sleep(0.01)
                 continue
             debug('Miner: Found Soln : %064x' % block.get_hash())
-            debug('Miner: ser\'d block: ', block.serialize())
-            self.seeknbuild.add_block(block)
+            if block.height == 0:
+                debug('Miner: ser\'d block: ', block.serialize())
+            self.seek_n_build.add_block(block)
             while not self.chain.has_block_hash(block.get_hash()) and not self._shutdown:
                 time.sleep(0.1)

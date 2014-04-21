@@ -7,6 +7,7 @@ from cryptonet.errors import *
 from cryptonet.datastructs import *
 from cryptonet.miner import Miner
 from cryptonet.debug import *
+import cryptonet.standard
 
 config = {'network_debug':True}
 
@@ -22,7 +23,7 @@ class Cryptonet(object):
         debug('cryptonet init, peers: ', self.p2p.peers)
         
         self.db = Database()
-        self.chain = Chain(chain_vars, db=self.db, cryptonet=self)
+        self.chain = Chain(chain_vars, db=self.db)
         self.seek_n_build = SeekNBuild(self.p2p, self.chain)
         self.miner = None
         if chain_vars.mine:
@@ -45,13 +46,13 @@ class Cryptonet(object):
     # Decorators
     #=================
         
-    def block(self, blockObject):
-        self._Block = blockObject
+    def block(self, block_object):
+        self._Block = block_object
         if self.mine_genesis:
             pass
         else:
             self.chain.set_genesis(self._Block().make(self.genesis_binary))
-        return blockObject
+        return block_object
         
         
     #==================
@@ -99,7 +100,7 @@ class Cryptonet(object):
                     #node.misbehaving()
                     continue
                 self.seek_n_build.add_block(potential_block)
-                self.seek_n_build.seek_many_with_priority(potential_block.relatedBlocks())
+                self.seek_n_build.seek_many_with_priority(potential_block.related_blocks())
                         
             
         @self.p2p.handler('request_blocks')

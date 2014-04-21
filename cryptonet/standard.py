@@ -1,13 +1,14 @@
 from encodium import *
+#import nacl.signing
 
 from cryptonet.gpdht import global_hash
 
 class Signature(Field):
 
     def fields():
-        v = Integer(width=1)
-        r = Integer(width=32)
-        s = Integer(width=32)
+        v = Integer(length=1)
+        r = Integer(length=32)
+        s = Integer(length=32)
 
     def to_bytes(self):
         return b''.join([
@@ -16,6 +17,9 @@ class Signature(Field):
             self.s.to_bytes(32, 'big'),
         ])
 
+    def check_valid_signature(self):
+        pass
+
     def get_hash(self):
         return global_hash(self.to_bytes())
 
@@ -23,8 +27,8 @@ class Tx(Field):
     
     def fields():
         dapp = Bytes()
-        value = Integer(width=8)
-        fee = Integer(width=4)
+        value = Integer(length=8)
+        fee = Integer(length=4)
         data = List(Bytes(), default=[])
     
     def to_bytes(self):
@@ -42,7 +46,7 @@ class Tx(Field):
 class SuperTx(Field):
     
     def fields():
-        nonce = Integer(width=4)
+        nonce = Integer(length=4)
         txs = List(Tx())
         signature = Signature()
         
@@ -133,8 +137,8 @@ class Block(Field):
         
     def get_hash(self):
         return self.header.get_hash()
-        
-    def add_super_txs(list_of_super_txs):
+
+    def add_super_txs(self, list_of_super_txs):
         self.state_maker.add_super_txs(list_of_super_txs)
         
     def assert_internal_consistency(self):

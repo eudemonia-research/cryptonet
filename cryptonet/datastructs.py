@@ -13,8 +13,12 @@ class MerkleLeavesToRoot(Field):
         
     def init(self):
         self.update()
-        
+
+    def check_leaves(self):
+        assert len(self.leaves) > 0
+
     def update(self):
+        #debug('MerkleTree update, leaves :', self.leaves)
         t = self.leaves[:]
         while len(t) > 1: 
             if len(t) % 2 != 0: t.append(int.from_bytes(b'\x00'*32, 'big'))

@@ -119,13 +119,13 @@ class GrachtenHeader(Field):
         else: prevsigma_diff = previous_block.header.sigma_diff
         return prevsigma_diff + GrachtenHeader.target_to_diff(header.target)
         
-    def calcExpectedTarget(header, previous_block, chain):
+    def calc_expected_target(header, previous_block, chain):
         ''' given a header and previous_block, calculate the expected target '''
         if header.previous_blocks[0] == 0: return GrachtenHeader.DEFAULT_TARGET
         if header.height % GrachtenHeader.RETARGET_PERIOD != 0: return previous_block.header.target
         
-        oldAncestor = chain.get_block(header.previous_blocks[(GrachtenHeader.RETARGET_PERIOD-1).bit_length()])
-        timedelta = header.timestamp - oldAncestor.header.timestamp
+        old_ancestor = chain.get_block(header.previous_blocks[(GrachtenHeader.RETARGET_PERIOD-1).bit_length()])
+        timedelta = header.timestamp - old_ancestor.header.timestamp
         expected_timedelta = 60 * 60 * 24 * GrachtenHeader.RETARGET_PERIOD // GrachtenHeader.BLOCKS_PER_DAY
         
         if timedelta < expected_timedelta // 4: timedelta = expected_timedelta // 4
@@ -138,7 +138,7 @@ class GrachtenHeader(Field):
     @staticmethod
     def header_template(chain, previous_block):
         new_grachten_header = GrachtenHeader.make(height = chain.head.height + 1, previous_blocks = chain.db.get_ancestors(chain.head.get_hash()))
-        new_grachten_header.target = GrachtenHeader.calcExpectedTarget(new_grachten_header, previous_block, chain)
+        new_grachten_header.target = GrachtenHeader.calc_expected_target(new_grachten_header, previous_block, chain)
         new_grachten_header.sigma_diff = GrachtenHeader.calc_sigma_diff(new_grachten_header, previous_block)
         return new_grachten_header
         
@@ -189,7 +189,7 @@ class GrachtenBlock(Field):
         self.header.assert_validity(chain)
         if chain.initialized:
             self.assert_true( chain.has_block_hash(self.parent_hash), 'parent must exist' )
-            self.assert_true( chain.genesis_block.header.get_hash() == self.merkle_tree.leaves[0], 'genesis block hash location requirement' )        
+            self.assert_true( chain.genesis_block.header.get_hash() == self.merkle_tree.leaves[0], 'genesis block hash location requirement' )
         else:
             self.assert_true( self.parent_hash == 0, 'parent must be zeroed' )
             self.assert_true( self.merkle_tree.leaves[0] == self.merkle_tree.leaves[1] and self.merkle_tree.leaves[0] == self.header.get_hash(), 'genesis header hash requirement' )

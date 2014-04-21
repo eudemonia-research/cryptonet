@@ -147,6 +147,13 @@ class SeekNBuild:
     
     def get_chain_height(self):
         return self._funcs['height']()
+
+    def broadcast_block(self, to_send):
+        def real_broadcast(self, to_send):
+            self.p2p.broadcast('blocks', to_send.serialize())
+        t = threading.Thread(target=real_broadcast, args=(self, to_send))
+        t.start()
+        self.threads.append(t)
         
     def chain_builder(self):
         ''' This should find all blocks in s.past with a height <= chain_height + 1 and
@@ -162,7 +169,7 @@ class SeekNBuild:
                 continue
             bh = block.get_hash()
             #print('chain_builder: checking %d' % block.height)
-            
+            debug('builder: checkpoint 1')
             # TODO : handle orphans intelligently
             if block.height > self.get_chain_height() + 1:
                 #print('chain_builder: chain height: %d' % self.get_chain_height())
@@ -183,8 +190,8 @@ class SeekNBuild:
                     continue
                 # TODO : handle orphans intelligently
                 if not self.chain.has_block_hash(block.parent_hash):
-                    #print('chain_builder: dont have parent')
-                    #print('chain_builder: head and curr', self.chain.head.get_hash().hex(), block.parent_hash.hex())
+                    print('chain_builder: dont have parent')
+                    print('chain_builder: head and curr', self.chain.head.get_hash(), block.parent_hash)
                     self.past_queue_no_parent.put((height, nonce, block))
                     continue
                 try:
@@ -196,7 +203,10 @@ class SeekNBuild:
                 self.chain.add_block(block)
                 self.past.remove(bh)
                 self.done.add(bh)
+                debug('builder to send : %064x' % block.get_hash())
                 toSend = BytesList.make(contents = [block.serialize()])
-                self.p2p.broadcast('blocks', toSend.serialize())
+                debug('builder sending...')
+                self.broadcast_block(block)
+                debug('builder success : %064x' % block.get_hash())
         
             

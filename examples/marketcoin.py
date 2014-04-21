@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+from cryptonet import Cryptonet
+import cryptonet.template
 
 
 marketcoin = Cryptonet()
@@ -11,25 +13,24 @@ marketcoin = Cryptonet()
 class BitcoinChainheaders(cryptonet.template.Dapp):
     ''' Chainheaders will track all provided chain headers and keep track of the
     longest chain.
-    Initial state should have genesis block hash for bitcoin network'''
-    
-    @staticmethod
-    def on_block(workingState, block, chain):
-        return workingState
-        
-    @staticmethod
-    def on_transaction(workingState, tx, chain):
+    Initial state should have ~genesis block hash~ some recent checkpoint for Bitcoin network.
+    '''
+
+    def on_block(self, block, chain):
+        pass
+
+    def on_transaction(self, tx, block, chain):
         # should accept a list of block headers and validate to store the longest chain
         assert len(tx.data) > 0
         for rawHeader in tx.data:
             header = cryptonet.Chainheaders.Bitcoin(workingState, rawHeader) # pass in working state so things like previous_block and sigmadiff can be set
             header.assert_validity(workingState)
-            BitcoinChainheaders.addHeaderToState(workingState, header)
+            BitcoinChainheaders.add_header_to_state(workingState, header)
             
         return workingState
             
     @staticmethod
-    def addHeaderToState(workingState, header):
+    def add_header_to_state(workingState, header):
         bh = header.get_hash()
         if workingState[bh] != 0:
             raise ValidationError('BitcoinChainheaders: blockheader already added')

@@ -7,6 +7,9 @@ setup(name='Cryptonet',
       description='Blockchain and Cryptonet Framework',
       author='Max Kaye',
       author_email='max@eudemonia.io',
-      packages=['cryptonet'], requires=['spore'],
+      packages=['cryptonet'],
+      requires=['spore'],
+      requires=['pynacl'],
+      requires=['encodium'],
      )
 
