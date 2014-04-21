@@ -91,10 +91,10 @@ class GrachtenHeader(Field):
             raise ValidationError(message)
         
     def assert_internal_consistency(self):
-        self.assert_true( self.timestamp < time.time() + 60*15, 'new block cannot be more than 15 minutes ahead of present' )
-        self.assert_true( self.uncles_mr == 0, 'uncles must be zeroed' )
-        self.assert_true( self.uncles_mr <= 2**256-1, 'uncles must be no more than 32 bytes long' )
-        self.assert_true( self.version == 1, 'version must be equal to 1' )
+        self.assert_true(self.timestamp < time.time() + 60*15, 'new block cannot be more than 15 minutes ahead of present')
+        self.assert_true(self.uncles_mr == 0, 'uncles must be zeroed')
+        self.assert_true(self.uncles_mr <= 2**256-1, 'uncles must be no more than 32 bytes long')
+        self.assert_true(self.version == 1, 'version must be equal to 1, is %x' % self.version)
         
     def assert_validity(self, chain):
         self.assert_internal_consistency()

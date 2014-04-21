@@ -15,15 +15,18 @@ class MerkleLeavesToRoot(Field):
         self.update()
 
     def check_leaves(self):
+        debug('checking leaves')
         assert len(self.leaves) > 0
 
     def update(self):
-        #debug('MerkleTree update, leaves :', self.leaves)
-        t = self.leaves[:]
-        while len(t) > 1: 
-            if len(t) % 2 != 0: t.append(int.from_bytes(b'\x00'*32, 'big'))
-            t = [global_hash(t[i].to_bytes(32,'big') + t[i+1].to_bytes(32,'big')) for i in range(0,len(t),2)]
-        self.root = t[0]
+        try:
+            t = self.leaves[:]
+            while len(t) > 1:
+                if len(t) % 2 != 0: t.append(int.from_bytes(b'\x00'*32, 'big'))
+                t = [global_hash(t[i].to_bytes(32,'big') + t[i+1].to_bytes(32,'big')) for i in range(0,len(t),2)]
+            self.root = t[0]
+        except:
+            debug('MerkleTree update, leaves :', self.leaves)
         
     def get_hash(self):
         return self.root

@@ -96,6 +96,7 @@ class Cryptonet(object):
                     potential_block = self._Block().make(serialized_block)
                     potential_block.assert_internal_consistency()
                 except ValidationError as e:
+                    debug('blocks_handler: serialized_block:', serialized_block)
                     debug('blocks_handler error', e)
                     #node.misbehaving()
                     continue

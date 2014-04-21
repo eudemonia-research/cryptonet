@@ -204,6 +204,7 @@ class SeekNBuild:
                 self.past.remove(bh)
                 self.done.add(bh)
                 debug('builder to send : %064x' % block.get_hash())
+                debug('builder to send full : %s' % block.serialize())
                 toSend = BytesList.make(contents = [block.serialize()])
                 debug('builder sending...')
                 self.broadcast_block(block)
