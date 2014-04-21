@@ -69,5 +69,6 @@ def make_genesis():
     miner = Miner(min_net.chain, min_net.seek_n_build)
     miner.mine(genesis_block)
 
-#make_genesis()
-min_net.run()
+if __name__ == "__main__":
+    #make_genesis()
+    min_net.run()

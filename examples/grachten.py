@@ -221,4 +221,6 @@ def make_genesis():
     m = Miner(grachten.chain, grachten.seek_n_build)
     m.mine(genesis_block)
 
-grachten.run()
+
+if __name__ == "__main__":
+    grachten.run()
