@@ -30,7 +30,7 @@ class Dapp(object):
         self.synchronize_state()
         
     def on_block(self, subtx, block, chain):
-        ''' This is called when a new block arrives. Since most dapps won't 
+        ''' This is called when a new block arrives. Since many dapps won't
         use this event, raising NotImplemented here is unnecessary.
         '''
         #raise NotImplemented('on_block has not been implemented')
@@ -84,7 +84,7 @@ class StateDelta(cryptonet.database.Database):
             return self.key_value_store[key]
         elif self.parent != None:
             return self.parent[key]
-        raise KeyError('Unknown key, %x' % key)
+        return 0
         
         
     def __setitem__(self, key, value):
@@ -209,8 +209,8 @@ class TxPrism(Dapp):
         '''
         assert tx.value > 0
         assert tx.fee >= 0
-        assert workingState[tx.sender] >= tx.value + tx.fee
-        workingState[tx.sender] -= tx.value + tx.fee
+        assert self.state[tx.sender] >= tx.value + tx.fee
+        self.state[tx.sender] -= tx.value + tx.fee
         
         if tx.dapp == b'':
             assert len(tx.data) == 1

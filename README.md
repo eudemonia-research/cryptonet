@@ -1,27 +1,36 @@
 Cryptonet
 =========
 
-A generic library to build structures based on a blockchain with a P2P network.
+A generic library to build blockchains with arbitrary properties.
 
 
 ## Dependancies
 
 * python3
 * Spore
+* encodium
 * pysha3 (maybe)
 
+## Examples
+
+try:
+
+```
+python3 examples/minblock.py
+python3 examples/grachten.py -mine
+```
 
 ## Standards
 
-These will be reviewed before the beta. Currently designed for Gracht.
+This are some of the possibilities for 'default' structures.
 
 ### Block
 
 ```
 [
-	hashtree,
-	chaindata,
-	uncleslist
+	header,
+	uncles,
+	transactions
 ]
 ```
 
@@ -35,79 +44,50 @@ These will be reviewed before the beta. Currently designed for Gracht.
 H: MerkleRoot( [i1, i2, i3, ...] )
 ```
 
-### Chain Data
+### Headers
 
 ```
 [
 	version,
 	height,
 	target,
-	sigmadiff,
+	sigma_diff,
 	timestamp,
-	votes,
-	uncles,
+	uncles_mr,
+	state_mr,
+	transaction_mr,
 	prevblock1,
 	prevblock2,
 	prevblock4,
 	prevblock8,
 	...
 ]
-
-H: h(RLP_SERIALIZE( chaindata ))
 ```
 
 ### Uncles List
 
 ```
 [
-	[hashtree, chaindata],
-	[hashtree, chaindata],
+	header,
+	header,
 	...
 ]
-
-Remember each hashtree in the list above is a valid PoW in and of itself.
-
-H: MerkleRoot( [ht1, ht2, ht3, ...] )
 ```
 
 ## Architecture
 
 ### SeekNBuild - find new blocks and ensure longest chain is being used.
 
-SeekNBuild
+SeekNBuild uses a few queues:
 
 * future - set of hashes to seek out in the future (of potential blocks)
 * present - set of hashes which are currently being sought (have been requested)
 * past - set of hashes which have been found (full blocks then added to db)
-* chain - set of hashes which have been added to the chain
 * all - union of the above sets.
 
-future, present, past, and chain are MUTUALY EXCLUSIVE => hashes should be in only one of them.
+Hashes move between the three queues to track where they are.
 
-#### BlockSeeker
+The seeker broadcasts request_blocks messages.
 
-Takes random hashes from r_future and requests them from peers.
-Adds hashes to r_present.
-
-If there are no hashes in r_future and enough time has passed, re-request hashes in r_present from new peers.
-
-loop
-
-#### Blockhandler (EXTERNAL - P2P)
-
-This is not part of the R class but interacts with it. This is the method called when a 'block' msg is recieved.
-
-validate block as much as possible
-remove block from r_pres and add to r_past
-add block to db (but not chain)
-
-#### ChainBuilder
-
-This finds blocks that we know of but are as-yet unconnected to the main chain (which is really a tree). If the prevblock is in the chain then fully validate the block and add to the chain, re-organising if needed.
-
-Remove block from r_past and add to r_chain
-
-easy optimise: index r_past by height and only check <= topheight + 1
-
-loop
+The builder takes blocks, adds them to the chain, then broadcasts.
 
