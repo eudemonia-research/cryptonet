@@ -2,7 +2,6 @@
 
 import unittest
 from cryptonet.datastructs import *
-from cryptonet.gpdht import *
 #from examples.gracht import Header, Uncles
 
 class TestGracht(unittest.TestCase):
