@@ -7,7 +7,8 @@ from cryptonet.miner import Miner
 from cryptonet.datastructs import ChainVars
 from cryptonet.datastructs import MerkleTree
 from cryptonet.errors import ValidationError
-from cryptonet.gpdht import Chain, global_hash
+from cryptonet.utilities import global_hash
+from cryptonet.chain import Chain
 
 chain_vars = ChainVars()
 
