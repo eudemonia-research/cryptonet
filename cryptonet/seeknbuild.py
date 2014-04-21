@@ -83,17 +83,16 @@ class SeekNBuild:
             self.future.add(bh)
         
     def seek_with_priority(self, block_hash_with_height):
-        h = block_hash_with_height[0]
-        bh = block_hash_with_height[1]
-        if bh not in self.all:
-            self.all.add(bh)
+        height, block_hash = block_hash_with_height
+        if block_hash not in self.all:
+            self.all.add(block_hash)
             with self.future_lock:
-                self.future_queue.put((h, bh))
-                self.future.add(bh)
+                self.future_queue.put((height, block_hash))
+                self.future.add(block_hash)
                     
     def seek_many_with_priority(self, block_hashes_with_height):
-        for h, bh in block_hashes_with_height:
-            self.seek_with_priority((h, bh))
+        for height, block_hash in block_hashes_with_height:
+            self.seek_with_priority((height, block_hash))
         
     def block_seeker(self):
         while not self._shutdown and not self.chain.initialized: 
@@ -198,16 +197,16 @@ class SeekNBuild:
                     block.assert_validity(self.chain)
                 except ValidationError as e:
                     # invalid block
-                    print('chainbuidler validation error: ', e)
+                    print('buidler validation error: ', e)
                     continue
                 self.chain.add_block(block)
                 self.past.remove(bh)
                 self.done.add(bh)
                 debug('builder to send : %064x' % block.get_hash())
-                debug('builder to send full : %s' % block.serialize())
-                toSend = BytesList.make(contents = [block.serialize()])
+                to_send = BlocksMessage.make(contents = [block.serialize()])
                 debug('builder sending...')
-                self.broadcast_block(block)
+                debug('builder to send full : %s' % to_send.serialize())
+                self.broadcast_block(to_send)
                 debug('builder success : %064x' % block.get_hash())
         
             
