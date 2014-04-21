@@ -28,8 +28,12 @@ class Dapp(object):
         self.state = new_state
         self.synchronize_state()
         
-    def on_block(subtx, block, chain):
-        raise NotImplemented('on_block has not been implemented')
+    def on_block(self, subtx, block, chain):
+        ''' This is called when a new block arrives. Since most dapps won't 
+        use this event, raising NotImplemented here is unnecessary.
+        '''
+        #raise NotImplemented('on_block has not been implemented')
+        pass
         
     def on_transaction(subtx, block, chain):
         raise NotImplemented('on_transaction has not been implemented')
@@ -186,6 +190,11 @@ class StateDelta(object):
                 height -= 2**i
         return r
         
+
+#===============================================================================
+# Common Dapps
+#===============================================================================
+
         
 class TxPrism(Dapp):
     

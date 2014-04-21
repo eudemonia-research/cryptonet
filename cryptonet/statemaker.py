@@ -8,11 +8,14 @@ Contains
     SuperState: holds all states
 '''
 
+ROOT_DAPP = b''
+
 class StateMaker(object):
     
     def __init__(self):
         self.dapps = {}
         self.most_recent_block = None
+        self.register_dapp(TxPrism())
         
     def register_dapp(self, new_dapp):
         self.dapps[new_dapp.name] = new_dapp
@@ -35,10 +38,12 @@ class StateMaker(object):
         return True
         
     def _process_tx(self, tx):
-        ''' Pass tx to dapp. Does not 'try,except' so shouldn't be used outside
-        of this class.
+        ''' Pass tx to root dapp. Does not 'try,except' so shouldn't be used 
+        outside of this class.
+        The root dapp should act as a TxPrism and allocate transactions to other
+        dapps as needed.
         '''
-        self.dapps[tx.dapp].on_transaction(tx, self.most_recent_block, self.chain)
+        self.dapps[ROOT_DAPP].on_transaction(tx, self.most_recent_block, self.chain)
             
     def checkpoint(self, hard_checkpoint=True):
         ''' Checkpoint all dapp states. '''

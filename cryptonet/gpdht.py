@@ -14,6 +14,7 @@ from cryptonet.debug import *
 # GENERAL CRYPTONET FUNCTIONS
 #==============================================================================
     
+i2b = lambda x : x.to_bytes((x.bit_length() // 8) + 1, 'big')
 
 def num2bits(n, minlen=0):
     n = int(n)

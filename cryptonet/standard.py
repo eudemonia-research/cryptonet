@@ -50,6 +50,7 @@ class Header(Field):
         nonce = Integer(length=8) # nonce second to increase work needed for PoW
         timestamp = Integer(length=5)
         target = Integer(length=32)
+        sigmadiff = Integer(length=32)
         state_mr = Integer(length=32)
         transaction_mr = Integer(length=32)
         uncles_mr = Integer(length=32, default=0)
@@ -61,11 +62,15 @@ class Header(Field):
             self.nonce.to_bytes(8, 'big'),
             self.timestamp.to_bytes(5, 'big'),
             self.target.to_bytes(32, 'big'),
+            self.sigmadiff.to_bytes(32, 'big'),
             self.state_mr.to_bytes(32, 'big'),
             self.transaction_mr.to_bytes(32, 'big'),
             self.uncles_mr.to_bytes(32, 'big'),
             b''.join([i.to_bytes(32, 'big') for i in self.previous_blocks]),
         ])
+        
+    def init(self):
+        
         
     def get_hash(self):
         return global_hash(self.to_bytes())
