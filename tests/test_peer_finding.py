@@ -15,10 +15,13 @@ class TestPeerFinding(unittest.TestCase):
     '''
 
     def setUp(self):
-        start = 32555
-        end = 32560
+        ''' Create (end-start) clients and have them connect to one other node (the preceding node in this case).
+
+        '''
+        self.start = 32555
+        self.end = 32560
         chain_vars = []
-        for i in range(start, end):
+        for i in range(self.start, self.end):
             chain_vars.append(cryptonet.datastructs.ChainVars())
             chain_vars[-1].mine = False
             chain_vars[-1].address = ('127.0.0.1', i)
@@ -39,10 +42,11 @@ class TestPeerFinding(unittest.TestCase):
 
     def test_peer_finding(self):
         print('starting!', self.networks)
-        print(self.networks[0].p2p.peers)
+        print('calling p2p.all_connected_peers()')
+        print('peers 1/2', self.networks[0].p2p.all_connected_peers())
         print('p2p.num_connected_peers() hangs here')
-        self.assertGreaterEqual(self.networks[0].p2p.num_connected_peers(), start-end)
-        print(self.networks[0].p2p.peers)
+        self.assertGreaterEqual(self.networks[0].p2p.num_connected_peers(), self.end-self.start)
+        print('peers 2/2', self.networks[0].p2p.all_connected_peers())
         time.sleep(2)
 
         for n in self.networks:

@@ -152,12 +152,15 @@ class SeekNBuild:
 
     def broadcast_block(self, to_send):
         ''' Forks off to avoid hang if p2p playing up. This should not be needed.
+        Thread my be commented out; broadcast may be as normal. (debug)
         '''
-        def real_broadcast(self, to_send):
+        self.p2p.broadcast('blocks', to_send.serialize())
+        '''def real_broadcast(self, to_send):
             self.p2p.broadcast('blocks', to_send.serialize())
         t = threading.Thread(target=real_broadcast, args=(self, to_send))
         t.start()
         self.threads.append(t)
+        '''
 
     def add_block(self, block):
         '''
