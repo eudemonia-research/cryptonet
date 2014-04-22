@@ -49,7 +49,7 @@ class TestMessage(unittest.TestCase):
 
         network_order = (0,0,1,1,0,10)
         for i in range(len(blocks)):
-            self.networks[i].p2p.broadcast('blocks',blocks[i])
+            self.networks[i % 2].p2p.broadcast('blocks',blocks[i])
             time.sleep(0.5)
         self.assertTrue(self.networks[0].chain.head.height == 7)
         self.assertTrue(self.networks[1].chain.head.height == 7)
