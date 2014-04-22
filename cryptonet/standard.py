@@ -128,13 +128,25 @@ class Block(Field):
         
     def init(self):
         self.parent_hash = 0
+        self.state_maker = None
+        self.super_state = None
+
+    def __eq__(self, other):
+        if isinstance(other, Block) and other.get_hash() == self.get_hash():
+            return True
+        return False
         
-    def daisy_chain(other_block):
+    def daisy_chain(self, other_block):
         ''' Inherit StateMaker, SuperState, etc from other_block.
         Remove other_block's access to StateMaker, etc.
         '''
         # TODO: This needs to be completed to test state on the blockchain.
-        pass
+        self.state_maker = other_block.state_maker
+        other_block.state_maker = None
+        self.super_state = other_block.super_state
+        other_block.super_state = None
+
+        self.state_maker.on_block(self, chain)
         
     def get_hash(self):
         return self.header.get_hash()

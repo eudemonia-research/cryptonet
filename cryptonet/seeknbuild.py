@@ -17,7 +17,10 @@ class AtomicIncrementor:
 
 class SeekNBuild:
     ''' The SeekNBuild class is responsible for attempting to acquire all known
-    blocks, and facilitate the Chain object finding the longest PoW chain possible. '''
+    blocks, and facilitate the Chain object finding the longest PoW chain possible.
+
+    See the block_seeker and chain_builder functions for more info.
+    '''
     def __init__(self, p2p, chain):
         self.p2p = p2p
         self.chain = chain
@@ -49,6 +52,7 @@ class SeekNBuild:
         
         
     def max_blocks_at_once(self):
+        # no reason for special values besides
         return int(max(5, min(500, self.get_chain_height()) // 3))
         
     def shutdown(self):
@@ -57,6 +61,8 @@ class SeekNBuild:
             t.join()
             
     def seek_hash_now(self, block_hash):
+        ''' Add block_hash to queue with priority -1 (will be pulled next).
+        '''
         if block_hash == 0: return
         if block_hash not in self.all:
             with self.future_lock:
@@ -64,6 +70,8 @@ class SeekNBuild:
                 self.future.add(block_hash)
         
     def seek_with_priority(self, block_hash_with_height):
+        ''' Add block_hash to future queue with its priority.
+        '''
         height, block_hash = block_hash_with_height
         if block_hash == 0: return
         if block_hash not in self.all:
@@ -73,10 +81,22 @@ class SeekNBuild:
                 self.future.add(block_hash)
                     
     def seek_many_with_priority(self, block_hashes_with_height):
+        ''' Applies each in list to seek_with_priority()
+        '''
         for height, block_hash in block_hashes_with_height:
             self.seek_with_priority((height, block_hash))
         
     def block_seeker(self):
+        ''' block_seeker() should be in its own thread.
+        block_seeker will run in a loop and:
+        1. Are there any blocks that were requested more than X seconds ago
+            1.1 for each block that was, add it to requesting
+            1.2 throw it away if it is no longer in the self.preset set
+        2. Find the number of blocks to send
+            2.1 get that many from the future_queue
+        3. For each block_hash to request, add it to the present_queue with the time it was requested.
+        4. Pick a random peer and send the request to it.
+        '''
         while not self._shutdown and not self.chain.initialized: 
             time.sleep(0.1)
         while not self._shutdown:
@@ -96,10 +116,10 @@ class SeekNBuild:
                 pass
             
             with self.future_lock:
-                toGet = min(len(self.future), self.max_blocks_at_once()) - requesting.len()
-                if toGet > 0: 
+                to_get = min(len(self.future), self.max_blocks_at_once()) - requesting.len()
+                if to_get > 0: 
                     # pick some blocks to request
-                    for i in range(toGet):
+                    for i in range(to_get):
                         _, h = self.future_queue.get()
                         #print('block_seeker: asking for height: ',_)
                         self.future.remove(h)
@@ -131,6 +151,8 @@ class SeekNBuild:
         return self._funcs['height']()
 
     def broadcast_block(self, to_send):
+        ''' Forks off to avoid hang if p2p playing up. This should not be needed.
+        '''
         def real_broadcast(self, to_send):
             self.p2p.broadcast('blocks', to_send.serialize())
         t = threading.Thread(target=real_broadcast, args=(self, to_send))
@@ -138,6 +160,9 @@ class SeekNBuild:
         self.threads.append(t)
 
     def add_block(self, block):
+        '''
+        Add a block to the past_queue (ready for chain_builder) if we don't have it already.
+        '''
         # blocks should be internally consistent at this point
         block_hash = block.get_hash()
         to_put = (block.height, self.nonces.get_next(), block)
@@ -159,9 +184,16 @@ class SeekNBuild:
             self.past_queue.put(to_put)
         
     def chain_builder(self):
-        ''' This should find all blocks in s.past with a height <= chain_height + 1 and
-        add them to the main chain '''
-        while not self._shutdown and not self.chain.initialized: time.sleep(0.1)
+        '''
+        1. Get the next block.
+        2. If the block is potentially the next block (or older that the chain head)
+            2.1 Check we don't already have it
+            2.2 Ensure it's valid
+            2.3 Add it to the Chain
+            2.4 Broadcast to peers
+        '''
+        while not self._shutdown and not self.chain.initialized:
+            time.sleep(0.1)
         while not self._shutdown:
             try:
                 height, nonce, block = self.past_queue.get(timeout=0.1)
@@ -169,6 +201,8 @@ class SeekNBuild:
             except queue.Empty:
                 continue
             if block.height == 0:
+                self.past.remove(block.get_hash())
+                self.done.add(block.get_hash())
                 continue
             bh = block.get_hash()
             #print('chain_builder: checking %d' % block.height)
