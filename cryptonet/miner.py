@@ -26,6 +26,7 @@ class Miner:
         
     def mine(self, provided_block=None):
         while not self._shutdown:
+            # TODO: Temporary
             time.sleep(1)
             if provided_block == None: block = self.chain.head.get_candidate(self.chain)
             else: 
