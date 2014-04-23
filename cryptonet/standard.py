@@ -1,6 +1,8 @@
 from encodium import *
 #import nacl.signing
 
+import cryptonet
+import cryptonet.chain
 from cryptonet.utilities import global_hash
 
 class Signature(Field):
@@ -135,8 +137,9 @@ class Block(Field):
         if isinstance(other, Block) and other.get_hash() == self.get_hash():
             return True
         return False
-        
-    def daisy_chain(self, other_block):
+
+    # TODO: should probably replace this method - use self.reorganisation instead
+    def daisy_chain(self, other_block, chain):
         ''' Inherit StateMaker, SuperState, etc from other_block.
         Remove other_block's access to StateMaker, etc.
         '''
@@ -147,6 +150,25 @@ class Block(Field):
         other_block.super_state = None
 
         self.state_maker.on_block(self, chain)
+
+    def reorganisation(self, new_head, chain):
+        ''' self.reorganisation() should be called on current head, where other_block is
+        to become the new head of the chain.
+        This should be called for _every_ block: adding to the head is just a trivial re-org.
+
+        Steps:
+        10. Find lowest common ancestor (LCA).
+        20. Get prune level from the StateMaker (Will be lower or equal to the LCA in terms of depth).
+        30. Prune to that point.
+        40. Re-evaluate state from that point to new head.
+        '''
+        minimum_prune = chain.find_lca(self, new_head)
+        prune_point = self.state_maker.find_prune_point(minimum_prune)
+        new_chain_path = chain.construct_chain_path(prune_point, new_head)
+        chain.apply_chain_path(new_chain_path)
+        # TODO : set new head to prune_point
+        # TODO : wind state back to prune_point
+
         
     def get_hash(self):
         return self.header.get_hash()
@@ -169,6 +191,11 @@ class Block(Field):
         * self.header.state_mr equals root of self.super_state
         '''
         pass
+
+    def better_than(self, other):
+        if other == None:
+            return True
+        return self.header.sigma_diff > other.header.sigma_diff
         
     
         

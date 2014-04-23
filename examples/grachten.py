@@ -214,8 +214,12 @@ class GrachtenBlock(Field):
         new_tree_list = [self.merkle_tree.leaves[0], new_grachten_header.get_hash(), global_hash(b'some_message'), global_hash(b'another_message?')]
         return GrachtenBlock.make(leaves=new_tree_list, header=new_grachten_header, uncles=[])
 
+    def reorganisation(self, new_head, chain):
+        pass
+
 
 def make_genesis():
+    """ General way to make a genesis block. """
     genesis_header = GrachtenHeader.make()
     genesis_block = GrachtenBlock.make(leaves=[genesis_header.get_hash(), genesis_header.get_hash(), int.from_bytes(b'some message', 'big')], header=genesis_header)
     m = Miner(grachten.chain, grachten.seek_n_build)
