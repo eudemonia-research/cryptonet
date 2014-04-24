@@ -27,7 +27,7 @@ class Miner:
     def mine(self, provided_block=None):
         while not self._shutdown:
             # TODO: Temporary
-            time.sleep(1)
+            time.sleep(0.1)
             if provided_block == None: block = self.chain.head.get_candidate(self.chain)
             else: 
                 block = provided_block
@@ -47,7 +47,7 @@ class Miner:
                 time.sleep(0.01)
                 continue
             debug('Miner: Found Soln : %064x' % block.get_hash())
-            if block.height == 0:
+            if block.height == 0 or True:
                 debug('Miner: ser\'d block: ', block.serialize())
             self.seek_n_build.add_block(block)
             while not self.chain.has_block_hash(block.get_hash()) and not self._shutdown:

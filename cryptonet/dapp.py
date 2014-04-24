@@ -150,6 +150,15 @@ class StateDelta(cryptonet.database.Database):
     def last_checkpoint(self):
         ''' Return last checkpoint, which is self.parent. '''
         return self.parent
+
+    def find_prune_point(self, max_prune_height):
+        ''' This simply finds the best point to prune the chain taking into consideration the StateDeltas
+        we have. Greatest height of checkpoints at or below max_prune_height.
+        '''
+        assert max_prune_height >= 0
+        if self.height <= max_prune_height:
+            return self.height
+        return self.parent.find_prune_point(max_prune_height)
         
     def prune_to_or_beyond(self, height):
         ''' If this StateDelta is less than height, it is an acceptable prune,
@@ -157,6 +166,7 @@ class StateDelta(cryptonet.database.Database):
         '''
         assert height >= 0
         if self.height <= height:
+            self.child = None
             return self
         return self.parent.prune_to_or_beyond(height)
             
@@ -202,6 +212,7 @@ class StateDelta(cryptonet.database.Database):
 class TxPrism(Dapp):
     
     def on_block(self, tx, block, chain):
+        # coinbase stuff?
         pass
         
     def on_transaction(self, tx, block, chain):

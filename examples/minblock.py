@@ -5,10 +5,7 @@ import encodium
 from cryptonet import Cryptonet
 from cryptonet.miner import Miner
 from cryptonet.datastructs import ChainVars
-from cryptonet.datastructs import MerkleTree
-from cryptonet.errors import ValidationError
 from cryptonet.utilities import global_hash
-from cryptonet.chain import Chain
 
 chain_vars = ChainVars()
 
@@ -21,10 +18,16 @@ min_net = Cryptonet(chain_vars)
 
 @min_net.block
 class MinBlock(encodium.Field):
-    
+    ''' Minimum specification needed for functional Chain.
+    See cryptonet.skeleton for unencumbered examples.
+    '''
+
     def fields():
         parent_hash = encodium.Integer(length=32)
         height = encodium.Integer(length=4, default=0)
+
+    def init(self):
+        self.priority = self.height
         
     def __hash__(self):
         return self.get_hash()
@@ -63,6 +66,10 @@ class MinBlock(encodium.Field):
         
     def better_than(self, other):
         return self.height > other.height
+
+    def reorganisation(self, new_head, chain):
+        # min block has no state, reorgs matter not.
+        pass
         
 
 def make_genesis():

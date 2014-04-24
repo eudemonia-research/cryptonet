@@ -22,6 +22,8 @@ class Chain(object):
         self.miner = None
         self.blocks = set()
         self.block_hashes = set()
+        self.invalid_block_hashes = set()
+        self.block_hashes_with_priority = set()      # (sigma_diff, block_hash)
 
         self.genesis_block = None
         if genesis_block != None: self.set_genesis(genesis_block)
@@ -32,9 +34,6 @@ class Chain(object):
 
     def set_miner(self, miner):
         self.miner = miner
-
-    def hash(self, message):
-        return global_hash(message)
 
     def set_genesis(self, block):
         if self.genesis_block == None:
@@ -47,14 +46,15 @@ class Chain(object):
         else:
             raise ChainError('genesis block already known: %s' % self.genesis_block)
 
-    def set_new_head(self, new_head):
+    def apply_block(self, new_head):
+        ''' This applies the block to the head (which is checked).
+        '''
         if self.initialized:
+            assert new_head.parent_hash == self.head.get_hash()
             self.head.reorganisation(new_head, self)
         self.head = new_head
         debug('chain: new head %d, hash: %064x' % (new_head.height, new_head.get_hash()))
 
-
-    # added sigmadiff stuff, need to test
     def add_block(self, block):
         ''' returns True on success
         '''
@@ -65,9 +65,10 @@ class Chain(object):
         self.db.set_ancestors(block)
         self.blocks.add(block)
         self.block_hashes.add(block.get_hash())
+        self.block_hashes_with_priority.add((block.priority, block.get_hash()))
 
         if block.better_than(self.head):
-            self.set_new_head(block)
+            self.apply_block(block)
 
         if self.initialized == False:
             self.initialized = True
@@ -132,3 +133,59 @@ class Chain(object):
     def apply_chain_path(self, path_to_apply):
         ''' path_to_apply is a list of blocks to apply sequentially.
         '''
+        pass
+
+    def prune_to_height(self, height):
+        ''' Set head to self.head's child at specified height.
+        '''
+        assert height <= self.head.height
+
+    def _construct_best_chain(self):
+        ''' Find best block not in invalid_block_hashes.
+        Run a reorg from head to that block.
+        '''
+        priority, best_block = max(self.block_hashes_with_priority)
+        self.head.reorganisation(best_block, self)
+
+
+    def _mark_invalid(self, invalid_block_hash):
+        debug('Chain: Marking %064x as invalid' % invalid_block_hash)
+        self.invalid_block_hashes.add(invalid_block_hash)
+        if invalid_block_hash in self.block_hashes:
+            invalid_block = self.get_block(invalid_block_hash)
+            self.block_hashes.remove(invalid_block_hash)
+            self.blocks.remove(invalid_block)
+            self.block_hashes_with_priority.remove((invalid_block.priority, invalid_block_hash))
+
+    def _recursively_mark_invalid(self, invalid_block_hash):
+        children = self.get_children(invalid_block_hash)
+        if children != None:
+            for child in children[::-1]:
+                self._recursively_mark_invalid(child)
+        self._mark_invalid(invalid_block_hash)
+
+    def recursively_mark_invalid(self, invalid_block_hash):
+        ''' Mark invalid_block as invalid within the chain and recursively mark all children invalid.
+        Wraps _recursively_mark_invalid() so _check_head_not_invalid() is only called once.
+        '''
+        self._recursively_mark_invalid(invalid_block_hash)
+        self._make_head_not_invalid()
+        self._construct_best_chain()
+
+    def get_children(self, invalid_block_hash):
+        ''' Find any children of block with hash invalid_block_hash.
+        Returns a list.
+        '''
+        return self.db.get_children(invalid_block_hash)
+
+    def _make_head_not_invalid(self):
+        ''' If the head is invalid, set the head to head.parent until the head is valid.
+        At which point call the reorganisation.
+        '''
+        modified_head = False
+        old_head = self.head
+        while self.head.get_hash() in self.invalid_block_hashes:
+            self.head = self.get_block(self.head.parent_hash)
+            modified_head = True
+        if modified_head:
+            old_head.reorganisation(self.head, self)

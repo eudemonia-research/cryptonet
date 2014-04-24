@@ -43,7 +43,8 @@ class Cryptonet(object):
         self.seek_n_build.shutdown()
         if self.miner != None: self.miner.shutdown()
 
-        
+    def shutdown(self):
+        self.p2p.shutdown()
         
     #=================
     # Decorators

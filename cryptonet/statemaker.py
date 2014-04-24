@@ -1,6 +1,7 @@
 from cryptonet.utilities import global_hash
 from cryptonet.dapp import Dapp, TxPrism
 from cryptonet.errors import ValidationError
+from cryptonet.dapp import StateDelta
 
 ''' statemaker.py
 Contains 
@@ -18,15 +19,22 @@ class StateMaker(object):
         self.register_dapp(TxPrism())
         
     def register_dapp(self, new_dapp):
+        assert isinstance(new_dapp, Dapp)
         self.dapps[new_dapp.name] = new_dapp
-        
+
+    def find_prune_point(self, max_prune_height):
+        self.dapps[ROOT_DAPP].find_prune_point(max_prune_height)
+
     def prune_to_or_beyond(self, height):
         ''' Prune states to at least height. '''
         for d in self.dapps:
             self.dapps[d].prune_to_or_beyond(height)
+
+    def apply_block(self, block):
+        self._add_super_txs(block.super_txs)
         
-    def add_super_txs(self, list_of_super_txs):
-        ''' Process a list of transactions, passing each to the respective dapp.
+    def _add_super_txs(self, list_of_super_txs):
+        ''' Process a list of transactions, typically passes each to the ROOT_DAPP in sequence.
         '''
         try:
             for super_tx in list_of_super_txs:

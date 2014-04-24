@@ -156,6 +156,7 @@ class GrachtenBlock(Field):
         self.merkle_tree = MerkleTree.make(leaves = self.leaves)
         self.parent_hash = self.header.previous_blocks[0]
         self.height = self.header.height
+        self.priority = self.header.sigma_diff
          
     def fields():
         leaves = List(Integer(default=0, length=32), default=[])

@@ -162,8 +162,10 @@ class Block(Field):
         30. Prune to that point.
         40. Re-evaluate state from that point to new head.
         '''
-        minimum_prune = chain.find_lca(self, new_head)
-        prune_point = self.state_maker.find_prune_point(minimum_prune)
+        max_prune_height = chain.find_lca(self, new_head)
+        prune_point = self.state_maker.find_prune_point(max_prune_height)
+        self.state_maker.prune_to_or_beyond(prune_point)
+        chain.prune_to_height(prune_point)
         new_chain_path = chain.construct_chain_path(prune_point, new_head)
         chain.apply_chain_path(new_chain_path)
         # TODO : set new head to prune_point

@@ -23,6 +23,7 @@ class Database:
             self.key_value_store[key].append(val)
         
     def link_ancestor(self, young, old, diff):
+        debug('link_ancestor: diff:', diff, 'old: %064x' % old, 'young: %064x' % young)
         self.rpush(old + diff, young)
         self.rpush(young - diff, old)
         
@@ -51,3 +52,9 @@ class Database:
             index += 1
             ret.append(cur)
         return ret
+
+    def get_children(self, block_hash):
+        ''' block_hash + delta gives all blocks at (height of block_hash) + delta
+        '''
+        if (block_hash + 1) in self.key_value_store:
+            return self.get_entry(block_hash + 1)
