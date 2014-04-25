@@ -3,7 +3,7 @@ import queue
 #import threading
 
 from cryptonet.datastructs import *
-
+from cryptonet.errors import ValidationError
 
 class AtomicIncrementor:
     def __init__(self):
@@ -24,6 +24,7 @@ class SeekNBuild:
     def __init__(self, p2p, chain):
         self.p2p = p2p
         self.chain = chain
+        self.chain.learn_of_seek_n_build(self)
         
         self.nonces = AtomicIncrementor()
         
@@ -134,16 +135,16 @@ class SeekNBuild:
             if requesting.len() > 0:
                 # TODO : don't broadcast to all nodes, just one
                 #self.p2p.broadcast('request_blocks', ALL_BYTES(requesting.hashlist))
-                somepeer = self.p2p.random_peer()
+                some_peer = self.p2p.random_peer()
                 while True:
                     # ordered carefully
-                    if somepeer == None:
+                    if some_peer == None:
                         time.sleep(0.01)
-                        somepeer = self.p2p.random_peer()
+                        some_peer = self.p2p.random_peer()
                     else:
                         break
-                somepeer.send('request_blocks', requesting.serialize())
-                somepeer.data['lastmessage'] = time.time()
+                some_peer.send('request_blocks', requesting.serialize())
+                some_peer.data['lastmessage'] = time.time()
             else:
                 time.sleep(0.1)
     
@@ -164,27 +165,25 @@ class SeekNBuild:
 
     def add_block(self, block):
         '''
-        Add a block to the past_queue (ready for chain_builder) if we don't have it already.
+        Add a block to the past_queue (ready for chain_builder) if we haven't done so before.
         '''
         # blocks should be internally consistent at this point
         block_hash = block.get_hash()
         to_put = (block.height, self.nonces.get_next(), block)
 
-        if block_hash in self.done: return
-        if block_hash in self.past: return
+        with self.past_lock:
+            if block_hash in self.past or block_hash in self.done:
+                return
+            self.past.add(block_hash)
+            self.past_queue.put(to_put)
 
-        if block_hash not in self.all:
-            self.all.add(block_hash)
+        self.all.add(block_hash)
 
         with self.present_lock:
             try:
                 self.present.remove(block_hash)
             except KeyError:
                 pass
-
-        with self.past_lock:
-            self.past.add(block_hash)
-            self.past_queue.put(to_put)
         
     def chain_builder(self):
         '''
@@ -230,7 +229,7 @@ class SeekNBuild:
                     continue
                 # TODO : handle orphans intelligently
                 if not self.chain.has_block_hash(block.parent_hash):
-                    print('chain_builder: dont have parent')
+                    print('chain_builder: don\'t have parent')
                     print('chain_builder: head and curr', self.chain.head.get_hash(), block.parent_hash)
                     self.past_queue_no_parent.put((height, nonce, block))
                     continue

@@ -1,7 +1,8 @@
 import threading
 import time
 
-from cryptonet.debug import *
+from cryptonet.debug import debug
+from cryptonet.errors import ValidationError
 
 class Miner:
     def __init__(self, chain, seek_n_build):
@@ -38,7 +39,12 @@ class Miner:
                 count += 1
                 block.increment_nonce()
                 if block.valid_proof_of_work():
-                    break
+                    try:
+                        block.assert_internal_consistency()
+                        break
+                    except ValidationError as e:
+                        debug('Miner: invalid block generated: %s' % block.serialize())
+                        continue
                 if count % 100000 == 0:
                     self._restart = True
             if self._shutdown: break

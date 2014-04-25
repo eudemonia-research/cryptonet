@@ -12,6 +12,7 @@ import cryptonet.standard
 
 config = {'network_debug':True}
 
+# TODO: STATE
 # TODO: ECDSA
 # TODO: Alerts
 

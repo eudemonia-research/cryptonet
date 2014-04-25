@@ -23,7 +23,6 @@ class Database:
             self.key_value_store[key].append(val)
         
     def link_ancestor(self, young, old, diff):
-        debug('link_ancestor: diff:', diff, 'old: %064x' % old, 'young: %064x' % young)
         self.rpush(old + diff, young)
         self.rpush(young - diff, old)
         

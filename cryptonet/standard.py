@@ -138,19 +138,6 @@ class Block(Field):
             return True
         return False
 
-    # TODO: should probably replace this method - use self.reorganisation instead
-    def daisy_chain(self, other_block, chain):
-        ''' Inherit StateMaker, SuperState, etc from other_block.
-        Remove other_block's access to StateMaker, etc.
-        '''
-        # TODO: This needs to be completed to test state on the blockchain.
-        self.state_maker = other_block.state_maker
-        other_block.state_maker = None
-        self.super_state = other_block.super_state
-        other_block.super_state = None
-
-        self.state_maker.on_block(self, chain)
-
     def reorganisation(self, new_head, chain):
         ''' self.reorganisation() should be called on current head, where other_block is
         to become the new head of the chain.
@@ -162,14 +149,24 @@ class Block(Field):
         30. Prune to that point.
         40. Re-evaluate state from that point to new head.
         '''
-        max_prune_height = chain.find_lca(self, new_head)
+        max_prune_height = chain.find_lca(self.get_hash(), new_head.get_hash()).height
         prune_point = self.state_maker.find_prune_point(max_prune_height)
         self.state_maker.prune_to_or_beyond(prune_point)
         chain.prune_to_height(prune_point)
-        new_chain_path = chain.construct_chain_path(prune_point, new_head)
+        new_chain_path = chain.construct_chain_path(chain.head, new_head)
         chain.apply_chain_path(new_chain_path)
-        # TODO : set new head to prune_point
-        # TODO : wind state back to prune_point
+
+        ''' Inherit StateMaker, SuperState, etc from other_block.
+        Remove other_block's access to StateMaker, etc.
+        '''
+        # TODO: This needs to be completed to test state on the blockchain.
+        new_head.state_maker = self.state_maker
+        self.state_maker = None
+        new_head.super_state = self.super_state
+        self.super_state = None
+
+        new_head.state_maker.on_block(self, chain)
+
 
         
     def get_hash(self):

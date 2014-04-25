@@ -29,14 +29,14 @@ class Dapp(object):
         self.state = new_state
         self.synchronize_state()
         
-    def on_block(self, subtx, block, chain):
+    def on_block(self, block, chain):
         ''' This is called when a new block arrives. Since many dapps won't
         use this event, raising NotImplemented here is unnecessary.
         '''
         #raise NotImplemented('on_block has not been implemented')
         pass
         
-    def on_transaction(subtx, block, chain):
+    def on_transaction(self, subtx, block, chain):
         raise NotImplemented('on_transaction has not been implemented')
         
     def checkpoint(self, hard_checkpoint=True):

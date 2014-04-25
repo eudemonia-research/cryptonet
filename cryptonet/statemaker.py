@@ -30,7 +30,12 @@ class StateMaker(object):
         for d in self.dapps:
             self.dapps[d].prune_to_or_beyond(height)
 
+    def apply_chain_path(self, chain_path):
+        for block in chain_path:
+            self.apply_block(block)
+
     def apply_block(self, block):
+        self.checkpoint()
         self._add_super_txs(block.super_txs)
         
     def _add_super_txs(self, list_of_super_txs):
@@ -40,9 +45,9 @@ class StateMaker(object):
             for super_tx in list_of_super_txs:
                 for tx in super_tx.txs:
                     self._process_tx(tx)
-        except AssertionError:
+        except AssertionError or ValidationError as e:
             self.reset_to_last_checkpoint()
-            return False
+            raise e
         return True
         
     def _process_tx(self, tx):

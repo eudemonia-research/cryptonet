@@ -12,14 +12,14 @@ from cryptonet.debug import debug
 chain_vars = ChainVars()
 
 chain_vars.seeds = []
-chain_vars.genesis_binary = b'\x01\x01\x00\x01\x00\x01\x00'
+chain_vars.genesis_binary = b'\x01\x01\x00\x01\x00\x01\x00\x01\x00'
 chain_vars.mine = True
 chain_vars.address = ('',0)
 
 min_net = Cryptonet(chain_vars)
 
 @min_net.block
-class MinBlock(encodium.Field):
+class MinBlockWithState(encodium.Field):
     ''' Minimum specification needed for functional Chain.
     See cryptonet.skeleton for unencumbered examples.
     '''
@@ -28,6 +28,7 @@ class MinBlock(encodium.Field):
         parent_hash = encodium.Integer(length=32)
         height = encodium.Integer(length=4, default=0)
         nonce = encodium.Integer(length=1, default=0)
+        state_root = encodium.Integer(length=32, default=0)
 
     def init(self):
         self.priority = self.height
@@ -38,8 +39,6 @@ class MinBlock(encodium.Field):
     def assert_internal_consistency(self):
         self.assert_true(self.parent_hash >= 0 and self.parent_hash < 2**256, 'Parent hash in valid range')
         self.assert_true(self.nonce >= 0 and self.nonce < 256, 'Nonce within valid range')
-        # for test generation
-        #self.assert_true(self.get_hash() != 0x92c12a94806f7dc52b88b0f6cd6f177f67377339c388365984acf9317c002854, 'Blacklisted hash')
     
     def assert_validity(self, chain):
         self.assert_internal_consistency()
@@ -47,6 +46,13 @@ class MinBlock(encodium.Field):
             #debug('assert_validity: parent_hash : %064x' % self.parent_hash)
             assert chain.has_block_hash(self.parent_hash)
             assert chain.get_block(self.parent_hash).height + 1 == self.height
+            old_head = chain.head
+            # this is possibly the stupidest way to check validity, but must be done, I suppose
+            try:
+                old_head.reorganisation(self, chain)
+            except ValidationError as e:
+                pass
+            chain.head.reorganisation(old_head, chain)
         else:
             assert self.height == 0
             assert self.parent_hash == 0
@@ -62,7 +68,8 @@ class MinBlock(encodium.Field):
         return global_hash(self.to_bytes())
         
     def get_candidate(self, chain):
-        return MinBlock.make(parent_hash=self.get_hash(), height=self.height+1)
+        candidate = MinBlockWithState.make(parent_hash=self.get_hash(), height=self.height+1)
+        return candidate
         
     def increment_nonce(self):
         self.nonce += 1
@@ -74,8 +81,31 @@ class MinBlock(encodium.Field):
         return self.height > other.height
 
     def reorganisation(self, new_head, chain):
-        # min block has no state, reorgs matter not.
-        pass
+        ''' self.reorganisation() should be called on current head, where other_block is
+        to become the new head of the chain.
+        This should be called for _every_ block: adding to the head is just a trivial re-org.
+
+        Steps:
+        10. Find lowest common ancestor (LCA).
+        20. Get prune level from the StateMaker (Will be lower or equal to the LCA in terms of depth).
+        30. Prune to that point.
+        40. Re-evaluate state from that point to new head.
+        '''
+        max_prune_height = chain.find_lca(self.get_hash(), new_head.get_hash()).height
+        prune_point = self.state_maker.find_prune_point(max_prune_height)
+        self.state_maker.prune_to_or_beyond(prune_point)
+        chain.prune_to_height(prune_point)
+        new_chain_path = chain.construct_chain_path(chain.head, new_head)
+        chain.apply_chain_path(new_chain_path)
+        self.state_maker.apply_chain_path(new_chain_path)
+
+        ''' Inherit StateMaker, SuperState, etc from other_block.
+        Remove other_block's access to StateMaker, etc.
+        '''
+        new_head.state_maker = self.state_maker
+        self.state_maker = None
+        new_head.super_state = self.super_state
+        self.super_state = None
 
     def assert_true(self, condition, message):
         if not condition:
