@@ -9,6 +9,7 @@ from cryptonet.utilities import global_hash
 from cryptonet.errors import ValidationError
 from cryptonet.debug import debug
 from cryptonet.statemaker import StateMaker
+from cryptonet.dapp import Dapp
 
 chain_vars = ChainVars()
 
@@ -18,8 +19,6 @@ chain_vars.mine = True
 chain_vars.address = ('',0)
 
 min_net = Cryptonet(chain_vars)
-
-
 
 @min_net.block
 class MinBlockWithState(encodium.Field):
@@ -36,6 +35,8 @@ class MinBlockWithState(encodium.Field):
     def init(self):
         self.priority = self.height
         self.state_maker = None
+        self.super_state = None
+        self.super_txs = []
         
     def __hash__(self):
         return self.get_hash()
@@ -50,17 +51,26 @@ class MinBlockWithState(encodium.Field):
             #debug('assert_validity: parent_hash : %064x' % self.parent_hash)
             assert chain.has_block_hash(self.parent_hash)
             assert chain.get_block(self.parent_hash).height + 1 == self.height
-            # use chain head to do a non-permanent trial.
-            valid = self.chain.head.state_maker.trail_chain_path_non_permanent()
+            # TODO : should we test a re-org?
+            # Since reorganising will mark blocks invalid if something breaks, we don't need to waste the work
+            # checking full validity.
         else:
             assert self.height == 0
             assert self.parent_hash == 0
+        cur = self.state_maker.super_state[b'']
+        while cur.height > 0:
+            debug('Block.assert_validity: all states', cur.key_value_store)
+            print(cur, cur.height)
+            cur = cur.parent
+        debug('Block.assert_validity: state: %s' % self.state_maker.super_state[b''].key_value_store, self.height)
+        self.assert_true(self.state_maker.super_state[b''][0] == self.height, 'State records height')
         
     def to_bytes(self):
         return b''.join([
             self.parent_hash.to_bytes(32, 'big'),
             self.height.to_bytes(4, 'big'),
             self.nonce.to_bytes(1, 'big'),
+            self.state_root.to_bytes(32, 'big')
         ])
         
     def get_hash(self):
@@ -80,8 +90,19 @@ class MinBlockWithState(encodium.Field):
         return self.height > other.height
 
     def reorganisation(self, chain, from_block, around_block, to_block, is_test=False):
-        ''' self.reorganisation() should be called on current head, where to_block is
+        ''' self.reorganisation() should be called only on the current head, where to_block is
         to become the new head of the chain.
+
+                 #3--#4--
+        -#1--#2<     ^-----from
+                 #3a-#4a-#5a-
+              ^-- around  ^---to
+
+        If #4 is the head, and #5a arrives, all else being equal, the following will be called:
+        from_block = #4
+        around_block = #2
+        to_block = #5a
+
 
         Steps:
         10. From around_block find the prune point
@@ -91,21 +112,39 @@ class MinBlockWithState(encodium.Field):
 
         if is_test == True then no permanent changes are made.
         '''
+        assert self.state_maker != None
         success = self.state_maker.reorganisation(chain, from_block, around_block, to_block, is_test)
         if success:
-            ''' Inherit StateMaker, SuperState, etc from other_block.
-            Remove other_block's access to StateMaker, etc.
-            '''
-            to_block.state_maker = self.state_maker
-            self.state_maker = None
-            to_block.super_state = self.super_state
-            self.super_state = None
+            to_block.set_state_maker(self.state_maker)
         return success
 
     def assert_true(self, condition, message):
         if not condition:
             raise ValidationError('MinBlock: ValidationError: %s' % message)
-        
+
+    def on_genesis(self, chain):
+        assert not chain.initialized
+        self.state_maker = StateMaker(chain)
+        self.super_state = self.state_maker.super_state
+
+        class Counter(Dapp):
+
+            def on_block(self, block, chain):
+                if block.height > 0:
+                    debug('Counter: on_block, parent state:', self.state.parent.key_value_store)
+                    debug('Counter: on_block called.', self.state.key_value_store)
+                    self.state[0] = self.state[0] + 1
+                    debug('Counter: on_block called.', self.state.key_value_store)
+
+            def on_transaction(self, subtx, block, chain):
+                pass
+
+        self.state_maker.register_dapp(Counter(b'', self.state_maker))
+
+    def set_state_maker(self, state_maker):
+        self.state_maker = state_maker
+        self.super_state = state_maker.super_state
+
 
 def make_genesis():
     genesis_block = MinBlock.make(parent_hash=0,height=0)

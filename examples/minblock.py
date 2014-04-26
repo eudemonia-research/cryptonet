@@ -80,6 +80,9 @@ class MinBlock(encodium.Field):
     def assert_true(self, condition, message):
         if not condition:
             raise ValidationError('MinBlock: ValidationError: %s' % message)
+
+    def on_genesis(self, chain):
+        pass
         
 
 def make_genesis():

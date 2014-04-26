@@ -1,5 +1,6 @@
 from cryptonet.datastructs import MerkleLeavesToRoot
 import cryptonet
+from cryptonet.debug import debug
 
 ''' dapp.py
 
@@ -50,7 +51,7 @@ class Dapp(object):
     def make_last_checkpoint_hard(self):
         ''' Harden last checkpoint. '''
         self.state.parent.harden(self.state)
-        
+
     def prune_to_or_beyond(self, height):
         ''' Set self.state to the best known state at a height equal to or less
         than the height provided.
@@ -59,14 +60,14 @@ class Dapp(object):
 
     def start_trial(self, from_height):
         self.remembered_state = self.state
-        self.state = self.state.child_at_or_before(from_height).checkpoint(hard_checkpoint=False)
+        self.set_state(self.state.child_at_or_before(from_height).checkpoint(hard_checkpoint=False))
 
     def end_trial(self, harden):
         assert self.remembered_state != None # did you forget to start_trial()? have you already end_trial()'d?
         if harden:
             self.state.harden(None)
         else:
-            self.state = self.remembered_state
+            self.set_state(self.remembered_state)
         self.remembered_state = None
 
 class StateDelta(cryptonet.database.Database):
@@ -90,6 +91,7 @@ class StateDelta(cryptonet.database.Database):
         
     def __getitem__(self, key):
         ''' return value if known else ask next StateDelta '''
+        assert isinstance(key, int)
         if key < 0:
             raise KeyError('Negative entries not allowed')
         if key in self.deleted_keys:
@@ -144,20 +146,21 @@ class StateDelta(cryptonet.database.Database):
         Some ancestors may be merged.
         Return a new StateDelta.
         '''
-        if self.child != None: 
-            raise ValueError('StateDelta: this SD already checkpointed')
         new_state_delta = StateDelta(self, self.height + 1)
+        debug('StateDelta.checkpoint, new_state_delta %s' % new_state_delta, new_state_delta.height)
         if hard_checkpoint:
             self.harden(new_state_delta)
         return new_state_delta
         
     def harden(self, new_child, heights_to_keep=None):
+        debug('StateDelta.harden(%s), height' % new_child, self.height)
         ''' Merge any state deltas that can be merged and set child. '''
         if heights_to_keep == None:
             heights_to_keep = self.gen_checkpoint_heights(self.height + 1)
 
-        self.child = new_child
-        new_child.parent = self
+        if new_child != None:
+            self.child = new_child
+            new_child.parent = self
         if self.height not in heights_to_keep:
             self.merge_with_child()
             self.parent.harden(self.child, heights_to_keep)
@@ -174,9 +177,17 @@ class StateDelta(cryptonet.database.Database):
         '''
         assert max_prune_height >= 0
         if self.height <= max_prune_height:
+            debug('StateDelta: find_prune_point: returning %d' % self.height)
             return self.height
         return self.parent.find_prune_point(max_prune_height)
-        
+
+    def child_at_or_before(self, height):
+        assert height >= 0
+        if height >= self.height:
+            return self
+        return self.parent.child_at_or_before(height)
+
+
     def prune_to_or_beyond(self, height):
         ''' If this StateDelta is less than height, it is an acceptable prune,
         so return. If not, do what self.parent says.
@@ -228,7 +239,7 @@ class StateDelta(cryptonet.database.Database):
         
 class TxPrism(Dapp):
     
-    def on_block(self, tx, block, chain):
+    def on_block(self, block, chain):
         # coinbase stuff?
         pass
         
@@ -245,7 +256,7 @@ class TxPrism(Dapp):
         if tx.dapp == b'':
             assert len(tx.data) == 1
             recipient = tx.data[0]
-            workingState[recipient] += tx.value
+            self.state[recipient] += tx.value
         else:
             assert tx.dapp in self.state_maker.dapps
             self.state[tx.dapp] += tx.value

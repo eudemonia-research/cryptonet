@@ -60,11 +60,10 @@ class Chain(object):
 
     def set_genesis(self, block):
         if self.genesis_block == None:
+            block.on_genesis(self)
             block.assert_validity(self)
-
             self.genesis_block = block
             self.head = block
-
             self.add_block(block)
         else:
             raise ChainError('genesis block already known: %s' % self.genesis_block)
@@ -73,6 +72,7 @@ class Chain(object):
         success = True
         if self.initialized:
             lca_of_head_and_new_head = self.find_lca(self.head.get_hash(), new_head.get_hash())
+            debug('set_head: lca: %064x, %s' % (lca_of_head_and_new_head.get_hash(), lca_of_head_and_new_head))
             # send blocks: from, around, to
             success = self.head.reorganisation(self, self.head, lca_of_head_and_new_head, new_head)
         if success:
@@ -85,6 +85,10 @@ class Chain(object):
         ''' returns True on success
         '''
         if self.has_block(block):
+            return
+        if block.get_hash() in self.invalid_block_hashes or block.parent_hash in self.invalid_block_hashes:
+            debug('Chain: add_block: invalid block: #%d, %064x' % (block.height, block.get_hash()))
+            self.invalid_block_hashes.add(block.get_hash())
             return
 
         self.db.set_entry(block.get_hash(), block)

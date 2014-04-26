@@ -233,12 +233,6 @@ class SeekNBuild:
                     print('chain_builder: head and curr', self.chain.head.get_hash(), block.parent_hash)
                     self.past_queue_no_parent.put((height, nonce, block))
                     continue
-                try:
-                    block.assert_validity(self.chain)
-                except ValidationError as e:
-                    # invalid block
-                    print('buidler validation error: ', e)
-                    continue
                 self.chain.add_block(block)
                 self.past.remove(bh)
                 self.done.add(bh)

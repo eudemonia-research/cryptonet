@@ -26,6 +26,10 @@ class _DappHolder(object):
     def __contains__(self, item):
         return item in self.dapps
 
+    def on_block(self, block, chain):
+        for d in self.dapps:
+            self.dapps[d].on_block(block, chain)
+
     def prune_to_or_beyond(self, height):
         for d in self.dapps:
             self.dapps[d].prune_to_or_beyond(height)
@@ -55,17 +59,20 @@ class _DappHolder(object):
 
 class StateMaker(object):
     
-    def __init__(self):
+    def __init__(self, chain):
         self.dapps = _DappHolder()
+        self.chain = chain
         self.most_recent_block = None
-        self.register_dapp(TxPrism())
+        self.super_state = SuperState()
+
+        self.register_dapp(TxPrism(ROOT_DAPP, self))
         
     def register_dapp(self, new_dapp):
         assert isinstance(new_dapp, Dapp)
         self.dapps[new_dapp.name] = new_dapp
 
     def find_prune_point(self, max_prune_height):
-        self.dapps[ROOT_DAPP].find_prune_point(max_prune_height)
+        return self.dapps[ROOT_DAPP].state.find_prune_point(max_prune_height)
 
     def prune_to_or_beyond(self, height):
         ''' Prune states to at least height. '''
@@ -76,8 +83,19 @@ class StateMaker(object):
             self.apply_block(block, hard_checkpoint)
 
     def apply_block(self, block, hard_checkpoint=True):
-        self.checkpoint(hard_checkpoint)
+        block.set_state_maker(self)
+
+        cur = self.super_state[b'']
+        while cur.height > 0:
+            debug('StateMaker.apply_block: all states', cur.key_value_store)
+            print('> ', cur, cur.height)
+            cur = cur.parent
+
+        self.dapps.on_block(block, self.chain)
         self._add_super_txs(block.super_txs)
+        block.assert_validity(self.chain)
+        if block.height != 0:
+            self.checkpoint(hard_checkpoint)
         
     def _add_super_txs(self, list_of_super_txs):
         ''' Process a list of transactions, typically passes each to the ROOT_DAPP in sequence.
@@ -123,7 +141,9 @@ class StateMaker(object):
         40. Mark trial head as invalid if the trial failed.
         '''
         assert isinstance(chain, Chain)
+        debug('StateMaker.reorg: around_block.get_hash(): %064x' % around_block.get_hash())
         around_state_height = self.find_prune_point(around_block.height)
+        debug('StateMaker.reorganisation: around_state_height: %d' % around_state_height)
         chain_path_to_trial = chain.construct_chain_path(around_block.get_hash(), to_block.get_hash())
         if is_test:
             success = self.trial_chain_path_non_permanent(around_state_height, chain_path_to_trial)
@@ -148,7 +168,7 @@ class StateMaker(object):
         ''' Warning: alters state permanently on success.
         '''
         self.start_trial(around_state_height)
-        success = self._trial_chain_path(self, around_state_height, chain_path_to_trial)
+        success = self._trial_chain_path(around_state_height, chain_path_to_trial)
         self.end_trial(harden=success)
         return success
 
@@ -159,10 +179,13 @@ class StateMaker(object):
         return success
 
     def start_trial(self, from_height):
-        self.dapps.start_trial(around_height)
+        self.dapps.start_trial(from_height)
 
     def end_trial(self, harden=False):
         self.dapps.end_trial(harden=harden)
+        if harden:
+            debug('StateMaker.end_trial: Hardened checkpoints to state:')
+            debug(self.dapps[ROOT_DAPP].state.key_value_store)
 
 
 class SuperState(object):
@@ -180,6 +203,7 @@ class SuperState(object):
         return self.state_dict[key]
         
     def register_dapp(self, name, state):
+        debug('SuperState.register_dapp: name, state: %s, %s' % (name, state))
         self.state_dict[name] = state
         
     def get_hash(self):
