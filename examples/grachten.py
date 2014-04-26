@@ -215,8 +215,8 @@ class GrachtenBlock(Field):
         new_tree_list = [self.merkle_tree.leaves[0], new_grachten_header.get_hash(), global_hash(b'some_message'), global_hash(b'another_message?')]
         return GrachtenBlock.make(leaves=new_tree_list, header=new_grachten_header, uncles=[])
 
-    def reorganisation(self, new_head, chain):
-        pass
+    def reorganisation(self, chain, from_block, around_block, to_block):
+        return True
 
 
 def make_genesis():

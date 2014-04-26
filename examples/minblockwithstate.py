@@ -8,6 +8,7 @@ from cryptonet.datastructs import ChainVars
 from cryptonet.utilities import global_hash
 from cryptonet.errors import ValidationError
 from cryptonet.debug import debug
+from cryptonet.statemaker import StateMaker
 
 chain_vars = ChainVars()
 
@@ -17,6 +18,8 @@ chain_vars.mine = True
 chain_vars.address = ('',0)
 
 min_net = Cryptonet(chain_vars)
+
+
 
 @min_net.block
 class MinBlockWithState(encodium.Field):
@@ -32,6 +35,7 @@ class MinBlockWithState(encodium.Field):
 
     def init(self):
         self.priority = self.height
+        self.state_maker = None
         
     def __hash__(self):
         return self.get_hash()
@@ -46,13 +50,8 @@ class MinBlockWithState(encodium.Field):
             #debug('assert_validity: parent_hash : %064x' % self.parent_hash)
             assert chain.has_block_hash(self.parent_hash)
             assert chain.get_block(self.parent_hash).height + 1 == self.height
-            old_head = chain.head
-            # this is possibly the stupidest way to check validity, but must be done, I suppose
-            try:
-                old_head.reorganisation(self, chain)
-            except ValidationError as e:
-                pass
-            chain.head.reorganisation(old_head, chain)
+            # use chain head to do a non-permanent trial.
+            valid = self.chain.head.state_maker.trail_chain_path_non_permanent()
         else:
             assert self.height == 0
             assert self.parent_hash == 0
@@ -80,32 +79,28 @@ class MinBlockWithState(encodium.Field):
     def better_than(self, other):
         return self.height > other.height
 
-    def reorganisation(self, new_head, chain):
-        ''' self.reorganisation() should be called on current head, where other_block is
+    def reorganisation(self, chain, from_block, around_block, to_block, is_test=False):
+        ''' self.reorganisation() should be called on current head, where to_block is
         to become the new head of the chain.
-        This should be called for _every_ block: adding to the head is just a trivial re-org.
 
         Steps:
-        10. Find lowest common ancestor (LCA).
+        10. From around_block find the prune point
         20. Get prune level from the StateMaker (Will be lower or equal to the LCA in terms of depth).
         30. Prune to that point.
         40. Re-evaluate state from that point to new head.
-        '''
-        max_prune_height = chain.find_lca(self.get_hash(), new_head.get_hash()).height
-        prune_point = self.state_maker.find_prune_point(max_prune_height)
-        self.state_maker.prune_to_or_beyond(prune_point)
-        chain.prune_to_height(prune_point)
-        new_chain_path = chain.construct_chain_path(chain.head, new_head)
-        chain.apply_chain_path(new_chain_path)
-        self.state_maker.apply_chain_path(new_chain_path)
 
-        ''' Inherit StateMaker, SuperState, etc from other_block.
-        Remove other_block's access to StateMaker, etc.
+        if is_test == True then no permanent changes are made.
         '''
-        new_head.state_maker = self.state_maker
-        self.state_maker = None
-        new_head.super_state = self.super_state
-        self.super_state = None
+        success = self.state_maker.reorganisation(chain, from_block, around_block, to_block, is_test)
+        if success:
+            ''' Inherit StateMaker, SuperState, etc from other_block.
+            Remove other_block's access to StateMaker, etc.
+            '''
+            to_block.state_maker = self.state_maker
+            self.state_maker = None
+            to_block.super_state = self.super_state
+            self.super_state = None
+        return success
 
     def assert_true(self, condition, message):
         if not condition:

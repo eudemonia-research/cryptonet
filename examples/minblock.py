@@ -73,9 +73,9 @@ class MinBlock(encodium.Field):
     def better_than(self, other):
         return self.height > other.height
 
-    def reorganisation(self, new_head, chain):
+    def reorganisation(self, chain, from_block, around_block, to_block):
         # min block has no state, reorgs matter not.
-        pass
+        return True
 
     def assert_true(self, condition, message):
         if not condition:

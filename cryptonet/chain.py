@@ -33,6 +33,24 @@ class Chain(object):
     def learn_of_seek_n_build(self, seek_n_build):
         self.seek_n_build = seek_n_build
 
+    def get_block(self, block_hash):
+        return self.db.get_entry(block_hash)
+
+    def has_block(self, block):
+        return block in self.blocks
+
+    def has_block_hash(self, block_hash):
+        return block_hash in self.block_hashes
+
+    def get_height(self):
+        return self.head.height
+
+    def get_top_block(self):
+        return self.head
+
+    def get_ancestors(self, start):
+        return self.db.get_ancestors(start)
+
     def restart_miner(self):
         if self.miner != None:
             self.miner.restart()
@@ -51,18 +69,17 @@ class Chain(object):
         else:
             raise ChainError('genesis block already known: %s' % self.genesis_block)
 
-    def apply_block_to_head(self, new_head):
-        ''' This applies the block to the head (which is checked).
-        '''
+    def set_head(self, new_head):
+        success = True
         if self.initialized:
-            assert new_head.parent_hash == self.head.get_hash()
-        self.set_head(new_head)
-
-    def set_head(self, new_head, no_reorg=False):
-        if self.initialized and not no_reorg:
-            self.head.reorganisation(new_head, self)
-        self.head = new_head
-        debug('chain: new head %d, hash: %064x' % (new_head.height, new_head.get_hash()))
+            lca_of_head_and_new_head = self.find_lca(self.head.get_hash(), new_head.get_hash())
+            # send blocks: from, around, to
+            success = self.head.reorganisation(self, self.head, lca_of_head_and_new_head, new_head)
+        if success:
+            self.head = new_head
+            debug('chain: new head %d, hash: %064x' % (new_head.height, new_head.get_hash()))
+        else:
+            debug('chain: set_head failed: #%d, H: %064x' % (new_head.height, new_head.get_hash()))
 
     def add_block(self, block):
         ''' returns True on success
@@ -77,7 +94,7 @@ class Chain(object):
         self.block_hashes_with_priority.add((block.priority, block.get_hash()))
 
         if block.better_than(self.head):
-            self.apply_block_to_head(block)
+            self.set_head(block)
 
         if self.initialized == False:
             self.initialized = True
@@ -87,24 +104,6 @@ class Chain(object):
         self.restart_miner()
 
         return True
-
-    def get_block(self, block_hash):
-        return self.db.get_entry(block_hash)
-
-    def has_block(self, block):
-        return block in self.blocks
-
-    def has_block_hash(self, block_hash):
-        return block_hash in self.block_hashes
-
-    def get_height(self):
-        return self.head.height
-
-    def get_top_block(self):
-        return self.head
-
-    def get_ancestors(self, start):
-        return self.db.get_ancestors(start)
 
     def load_chain(self):
         # TODO : load chainstate from database
@@ -153,8 +152,7 @@ class Chain(object):
     def apply_chain_path(self, path_to_apply):
         ''' path_to_apply is a list of blocks to apply sequentially.
         '''
-        for block in path_to_apply:
-            self.apply_block_to_head(block)
+        self.set_head(path_to_apply[-1])
 
     def prune_to_height(self, height):
         ''' Set head to self.head's ancestor at specified height.
@@ -167,14 +165,15 @@ class Chain(object):
         self.set_head(current_block)
 
 
-    def _construct_best_chain(self):
+    def construct_best_chain(self):
         ''' Find best block not in invalid_block_hashes.
         Run a reorg from head to that block.
         '''
-        priority, block_hash = max(self.block_hashes_with_priority)
-        debug('_construct_best_chain: priority, best_block: %d, %064x' % (priority, block_hash))
-        best_chain_path = self.construct_chain_path(self.head.get_hash(), block_hash)
-        self.apply_chain_path(best_chain_path)
+        block_hash = None
+        while self.head.get_hash() != block_hash:
+            priority, block_hash = max(self.block_hashes_with_priority)
+            debug('_construct_best_chain: priority, best_block: %d, %064x' % (priority, block_hash))
+            self.set_head(self.get_block(block_hash))
 
     def _mark_invalid(self, invalid_block_hash):
         debug('Chain: Marking %064x as invalid' % invalid_block_hash)
@@ -194,11 +193,12 @@ class Chain(object):
 
     def recursively_mark_invalid(self, invalid_block_hash):
         ''' Mark invalid_block as invalid within the chain and recursively mark all children invalid.
-        Wraps _recursively_mark_invalid() so _check_head_not_invalid() is only called once.
+        Wraps _recursively_mark_invalid() ~~so _check_head_not_invalid() is only called once.~~
+        Now just calls _recursivley_mark_invalid()
         '''
         self._recursively_mark_invalid(invalid_block_hash)
-        self._make_head_not_invalid()
-        self._construct_best_chain()
+        #self._make_head_not_invalid()
+        #self._construct_best_chain()
 
     def get_children(self, invalid_block_hash):
         ''' Find any children of block with hash invalid_block_hash.
@@ -206,14 +206,14 @@ class Chain(object):
         '''
         return self.db.get_children(invalid_block_hash)
 
-    def _make_head_not_invalid(self):
+    """def _make_head_not_invalid(self):
         ''' If the head is invalid, set the head to head.parent until the head is valid.
         At which point call the reorganisation.
         '''
         old_head = self.head
         while self.head.get_hash() in self.invalid_block_hashes:
             self.set_head(self.get_block(self.head.parent_hash), no_reorg=True)
-        old_head.reorganisation(self.head, self)
+        old_head.reorganisation(self.head, self)"""
 
     def assert_true(self, condition, message):
         if not condition:

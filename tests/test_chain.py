@@ -52,6 +52,7 @@ class TestChain(unittest.TestCase):
         self.assertEqual(self.chain.head.get_hash(), 0x8bb92b9bcbae734a534616ee2a5377dd20cc647547db3af02e82787776117159)
 
         self.chain.recursively_mark_invalid(now_invalid)
+        self.chain.construct_best_chain()
 
         self.assertEqual(self.chain.head.get_hash(), now_invalid_parent)
 
@@ -89,6 +90,7 @@ class TestChain(unittest.TestCase):
 
         now_invalid = 0x92c12a94806f7dc52b88b0f6cd6f177f67377339c388365984acf9317c002854
         self.chain.recursively_mark_invalid(now_invalid)
+        self.chain.construct_best_chain()
 
         time.sleep(0.5)
 

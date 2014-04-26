@@ -8,6 +8,6 @@ setup(name='Cryptonet',
       author='Max Kaye',
       author_email='max@eudemonia.io',
       packages=['cryptonet'],
-      requires=['spore', 'encodium', 'pynacl', 'python3-protobuf', 'pysha3'],
+      requires=['spore', 'encodium', 'pynacl', 'pysha3'],
      )
 

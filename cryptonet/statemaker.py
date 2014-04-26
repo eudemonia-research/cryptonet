@@ -2,6 +2,8 @@ from cryptonet.utilities import global_hash
 from cryptonet.dapp import Dapp, TxPrism
 from cryptonet.errors import ValidationError
 from cryptonet.dapp import StateDelta
+from cryptonet.chain import Chain
+from cryptonet.debug import debug
 
 ''' statemaker.py
 Contains 
@@ -11,10 +13,50 @@ Contains
 
 ROOT_DAPP = b''
 
+class _DappHolder(object):
+    def __init__(self):
+        self.dapps = {}
+
+    def __getitem__(self, item):
+        return self.dapps[item]
+
+    def __setitem__(self, key, value):
+        self.dapps[key] = value
+
+    def __contains__(self, item):
+        return item in self.dapps
+
+    def prune_to_or_beyond(self, height):
+        for d in self.dapps:
+            self.dapps[d].prune_to_or_beyond(height)
+
+    def checkpoint(self, hard_checkpoint=True):
+        ''' Checkpoint all dapp states. '''
+        for d in self.dapps:
+            self.dapps[d].checkpoint(hard_checkpoint)
+
+    def reset_to_last_hardened_checkpoint(self):
+        ''' Apply to all dapp states. '''
+        for d in self.dapps:
+            self.dapps[d].reset_to_last_hardened_checkpoint()
+
+    def make_last_checkpoint_hard(self):
+        ''' Apply to all dapps. '''
+        for d in self.dapps:
+            self.dapps[d].make_last_checkpoint_hard()
+
+    def start_trial(self, from_height):
+        for d in self.dapps:
+            self.dapps[d].start_trial(from_height)
+
+    def end_trial(self, harden=False):
+        for d in self.dapps:
+            self.dapps[d].end_trial(harden)
+
 class StateMaker(object):
     
     def __init__(self):
-        self.dapps = {}
+        self.dapps = _DappHolder()
         self.most_recent_block = None
         self.register_dapp(TxPrism())
         
@@ -27,15 +69,14 @@ class StateMaker(object):
 
     def prune_to_or_beyond(self, height):
         ''' Prune states to at least height. '''
-        for d in self.dapps:
-            self.dapps[d].prune_to_or_beyond(height)
+        self.dapps.prune_to_or_beyond(height)
 
-    def apply_chain_path(self, chain_path):
+    def apply_chain_path(self, chain_path, hard_checkpoint=True):
         for block in chain_path:
-            self.apply_block(block)
+            self.apply_block(block, hard_checkpoint)
 
-    def apply_block(self, block):
-        self.checkpoint()
+    def apply_block(self, block, hard_checkpoint=True):
+        self.checkpoint(hard_checkpoint)
         self._add_super_txs(block.super_txs)
         
     def _add_super_txs(self, list_of_super_txs):
@@ -46,7 +87,7 @@ class StateMaker(object):
                 for tx in super_tx.txs:
                     self._process_tx(tx)
         except AssertionError or ValidationError as e:
-            self.reset_to_last_checkpoint()
+            self.reset_to_last_hardened_checkpoint()
             raise e
         return True
         
@@ -60,20 +101,69 @@ class StateMaker(object):
             
     def checkpoint(self, hard_checkpoint=True):
         ''' Checkpoint all dapp states. '''
-        for d in self.dapps:
-            self.dapps[d].checkpoint(hard_checkpoint)
+        self.dapps.checkpoint(hard_checkpoint)
     
-    def reset_to_last_checkpoint(self):
+    def reset_to_last_hardened_checkpoint(self):
         ''' Apply to all dapp states. '''
-        for d in self.dapps:
-            self.dapps[d].reset_to_last_checkpoint()
+        self.dapps.reset_to_last_hardened_checkpoint()
             
     def make_last_checkpoint_hard(self):
         ''' Apply to all dapps. '''
-        for d in self.dapps:
-            self.dapps[d].make_last_checkpoint_hard()
-            
-        
+        self.dapps.make_last_checkpoint_hard()
+
+    def reorganisation(self, chain, from_block, around_block, to_block, is_test=False):
+        ''' self.reorganisation() should be called on current head, where to_block is
+        to become the new head of the chain.
+
+        Steps:
+        10. From around_block find the prune point
+        15. Generate the chain_path_to_trial
+        20. Conduct Trial
+        30. Return result
+        40. Mark trial head as invalid if the trial failed.
+        '''
+        assert isinstance(chain, Chain)
+        around_state_height = self.find_prune_point(around_block.height)
+        chain_path_to_trial = chain.construct_chain_path(around_block.get_hash(), to_block.get_hash())
+        if is_test:
+            success = self.trial_chain_path_non_permanent(around_state_height, chain_path_to_trial)
+        else:
+            success = self.trial_chain_path(around_state_height, chain_path_to_trial)
+        if not success and not is_test:
+            chain.recursively_mark_invalid(chain_path_to_trial[-1])
+        return success
+
+    def _trial_chain_path(self, around_state_height, chain_path_to_trial):
+        success = True
+        try:
+            self.apply_chain_path(chain_path_to_trial, hard_checkpoint=False)
+        except AssertionError or ValidationError as e:
+            success = False
+            debug(e)
+            debug('StateMaker: trial failed, around: %d, proposed head: %064x' %
+                  (around_state_height, chain_path_to_trial[-1].get_hash()))
+        return success
+
+    def trial_chain_path(self, around_state_height, chain_path_to_trial):
+        ''' Warning: alters state permanently on success.
+        '''
+        self.start_trial(around_state_height)
+        success = self._trial_chain_path(self, around_state_height, chain_path_to_trial)
+        self.end_trial(harden=success)
+        return success
+
+    def trial_chain_path_non_permanent(self, around_state_height, chain_path_to_trial):
+        self.start_trial(around_state_height)
+        success = self._trial_chain_path(around_state_height, chain_path_to_trial)
+        self.end_trial(harden=False)
+        return success
+
+    def start_trial(self, from_height):
+        self.dapps.start_trial(around_height)
+
+    def end_trial(self, harden=False):
+        self.dapps.end_trial(harden=harden)
+
 
 class SuperState(object):
     ''' SuperState()

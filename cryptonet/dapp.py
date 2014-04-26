@@ -57,6 +57,18 @@ class Dapp(object):
         '''
         self.set_state(self.state.prune_to_or_beyond(height))
 
+    def start_trial(self, from_height):
+        self.remembered_state = self.state
+        self.state = self.state.child_at_or_before(from_height).checkpoint(hard_checkpoint=False)
+
+    def end_trial(self, harden):
+        assert self.remembered_state != None # did you forget to start_trial()? have you already end_trial()'d?
+        if harden:
+            self.state.harden(None)
+        else:
+            self.state = self.remembered_state
+        self.remembered_state = None
+
 class StateDelta(cryptonet.database.Database):
     
     def __init__(self, parent=None, height=0):
@@ -139,14 +151,19 @@ class StateDelta(cryptonet.database.Database):
             self.harden(new_state_delta)
         return new_state_delta
         
-    def harden(self, new_child):
+    def harden(self, new_child, heights_to_keep=None):
         ''' Merge any state deltas that can be merged and set child. '''
-        heights_to_keep = self.gen_checkpoint_heights(self.height + 1)
-        for ancestor in self.ancestors():
-            if ancestor.height not in heights_to_keep: 
-                ancestor.merge_with_child()
+        if heights_to_keep == None:
+            heights_to_keep = self.gen_checkpoint_heights(self.height + 1)
+
         self.child = new_child
-        
+        new_child.parent = self
+        if self.height not in heights_to_keep:
+            self.merge_with_child()
+            self.parent.harden(self.child, heights_to_keep)
+        elif self.parent != None:
+            self.parent.harden(self, heights_to_keep)
+
     def last_checkpoint(self):
         ''' Return last checkpoint, which is self.parent. '''
         return self.parent
