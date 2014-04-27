@@ -53,6 +53,7 @@ class Cryptonet(object):
         
     def block(self, block_object):
         self._Block = block_object
+        self.chain._Block = block_object
         if self.mine_genesis:
             pass
         else:
