@@ -2,13 +2,15 @@ import cryptonet
 from cryptonet.debug import debug
 from cryptonet.errors import ChainError
 from cryptonet.utilities import global_hash
+import cryptonet.standard
+
 
 
 class Chain(object):
     ''' A blockchain.
     '''
 
-    def __init__(self, chain_vars, genesis_block=None, db=None):
+    def __init__(self, chain_vars, genesis_block=None, db=None, block_class=cryptonet.standard.Block):
         """
         :param chain_vars: arbitrary ChainVars object
         :param genesis_block: serialized genesis block
@@ -16,7 +18,7 @@ class Chain(object):
         :param cryptonet:
         """
         self.initialized = False
-        self._Block = cryptonet.standard.Block
+        self._Block = block_class
         self.head = None
         self.db = db
         self.miner = None
@@ -63,7 +65,7 @@ class Chain(object):
             block.on_genesis(self)
             block.assert_validity(self)
             self.genesis_block = block
-            self.head = block
+            self.set_head(block)
             self.add_block(block)
         else:
             raise ChainError('genesis block already known: %s' % self.genesis_block)
@@ -75,6 +77,8 @@ class Chain(object):
             debug('set_head: lca: %064x, %s' % (lca_of_head_and_new_head.get_hash(), lca_of_head_and_new_head))
             # send blocks: from, around, to
             success = self.head.reorganisation(self, self.head, lca_of_head_and_new_head, new_head)
+        else:
+            success = new_head.reorganisation(self, new_head, new_head, new_head)
         if success:
             self.head = new_head
             debug('chain: new head %d, hash: %064x' % (new_head.height, new_head.get_hash()))
