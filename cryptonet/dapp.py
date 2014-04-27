@@ -1,5 +1,8 @@
-from cryptonet.datastructs import MerkleLeavesToRoot
+from encodium import *
+
 import cryptonet
+from cryptonet.utilities import global_hash
+from cryptonet.datastructs import MerkleLeavesToRoot
 from cryptonet.debug import debug
 
 ''' dapp.py
@@ -119,21 +122,27 @@ class StateDelta(cryptonet.database.Database):
         Returns a set. '''
         keys = set(self.key_value_store.keys())
         if self.parent != None:
-            keys.add(self.parent.all_keys())
-        return keys
+            keys = keys.union(self.parent.all_keys())
+        return keys - self.deleted_keys
         
     def get_hash(self):
         if self.my_hash == None:
             keys = list(self.all_keys())
+            debug('StateDelta: get_hash: keys', keys)
             # TODO: keys.sort() definition unknown ATM, needs to be specific so
             # identical states generate identical hashes (ints and bytes may be
             # being used as keys, not checked currently).
             keys.sort()
             leaves = []
             for k in keys:
-                leaves.extend([k, self.key_value_store[k]])
-            merkle_tree = MerkleLeavesToRoot(leaves)
+                if isinstance(self.key_value_store[k], Field):
+                    leaves.extend([global_hash(k), self.key_value_store[k].get_hash()])
+                else:
+                    leaves.extend([global_hash(k), global_hash(self.key_value_store[k])])
+            debug('StateDelta.get_hash: leaves', leaves)
+            merkle_tree = MerkleLeavesToRoot.make(leaves=leaves)
             self.my_hash = merkle_tree.get_hash()
+            debug('StateDelta.get_hash, my_hash', self.my_hash)
         return self.my_hash
         
     def ancestors(self):
@@ -147,13 +156,11 @@ class StateDelta(cryptonet.database.Database):
         Return a new StateDelta.
         '''
         new_state_delta = StateDelta(self, self.height + 1)
-        debug('StateDelta.checkpoint, new_state_delta %s' % new_state_delta, new_state_delta.height)
         if hard_checkpoint:
             self.harden(new_state_delta)
         return new_state_delta
         
     def harden(self, new_child, heights_to_keep=None):
-        debug('StateDelta.harden(%s), height' % new_child, self.height)
         ''' Merge any state deltas that can be merged and set child. '''
         if heights_to_keep == None:
             heights_to_keep = self.gen_checkpoint_heights(self.height + 1)
