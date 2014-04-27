@@ -10,7 +10,7 @@ import math
 class MerkleLeavesToRoot(Field):
     def fields():
         leaves = List(Integer(width=32))
-        
+
     def init(self):
         self.update()
 
@@ -19,6 +19,8 @@ class MerkleLeavesToRoot(Field):
         assert len(self.leaves) > 0
 
     def update(self):
+        if len(self.leaves) == 0:
+            self.root = 0
         try:
             t = self.leaves[:]
             while len(t) > 1:
