@@ -4,6 +4,7 @@ from cryptonet.errors import ValidationError
 from cryptonet.dapp import StateDelta
 from cryptonet.chain import Chain
 from cryptonet.debug import debug
+from cryptonet.datastructs import MerkleLeavesToRoot
 
 ''' statemaker.py
 Contains 
@@ -57,15 +58,25 @@ class _DappHolder(object):
         for d in self.dapps:
             self.dapps[d].end_trial(harden)
 
+    def generate_super_state(self):
+        super_state = SuperState()
+        for d in self.dapps:
+            dapp = self.dapps[d]
+            super_state.register_dapp(dapp.name, dapp.state)
+        return super_state
+
 class StateMaker(object):
     
-    def __init__(self, chain):
+    def __init__(self, chain, block_class, is_future=False):
         self.dapps = _DappHolder()
         self.chain = chain
         self.most_recent_block = None
         self.super_state = SuperState()
-
         self.register_dapp(TxPrism(ROOT_DAPP, self))
+        self.is_future = is_future
+        self.future_state_maker = None
+        self.future_block = None
+        self._Block = block_class
         
     def register_dapp(self, new_dapp):
         assert isinstance(new_dapp, Dapp)
@@ -83,19 +94,19 @@ class StateMaker(object):
             self.apply_block(block, hard_checkpoint)
 
     def apply_block(self, block, hard_checkpoint=True):
-        block.set_state_maker(self)
-
-        cur = self.super_state[b'']
-        while cur.height > 0:
-            debug('StateMaker.apply_block: all states', cur.key_value_store)
-            print('> ', cur, cur.height)
-            cur = cur.parent
-
-        self.dapps.on_block(block, self.chain)
-        self._add_super_txs(block.super_txs)
+        debug('StateMaker.apply_block, heights:', block.height, self.dapps[ROOT_DAPP].state.height)
+        assert block.height == self.dapps[ROOT_DAPP].state.height
+        self.block_events(block)
         block.assert_validity(self.chain)
         if block.height != 0:
             self.checkpoint(hard_checkpoint)
+
+    def block_events(self, block):
+        block.set_state_maker(self)
+        self.dapps.on_block(block, self.chain)
+        self._add_super_txs(block.super_txs)
+        block.update_state_root()
+        block.update_tx_root()
         
     def _add_super_txs(self, list_of_super_txs):
         ''' Process a list of transactions, typically passes each to the ROOT_DAPP in sequence.
@@ -141,6 +152,7 @@ class StateMaker(object):
         40. Mark trial head as invalid if the trial failed.
         '''
         assert isinstance(chain, Chain)
+        assert not self.is_future
         debug('StateMaker.reorg: around_block.get_hash(): %064x' % around_block.get_hash())
         around_state_height = self.find_prune_point(around_block.height)
         debug('StateMaker.reorganisation: around_state_height: %d' % around_state_height)
@@ -150,14 +162,32 @@ class StateMaker(object):
         else:
             success = self.trial_chain_path(around_state_height, chain_path_to_trial)
         if not success and not is_test:
-            chain.recursively_mark_invalid(chain_path_to_trial[-1])
+            chain.recursively_mark_invalid(chain_path_to_trial[-1].get_hash())
+        if not is_test and success:
+            self._refresh_future_block(to_block)
         return success
+
+    def _refresh_future_block(self, new_head):
+        ''' Should be called on .reorganisation() to ensure unconfirmed transactions are remembered (if still legit).
+        Will create an unvalidated block to store keep track of future state and the rest of it. Everything within
+        future_block will be temporary and discarded and recalculated on the arrival of every new block.
+        '''
+        self.future_block = new_head.get_pre_candidate(self.chain)
+        self.start_trial(new_head.height)
+        # calc tx_root and state_root
+        # do stuff like update state here
+        # and only add txs not included in last block, etc
+        self.block_events(self.future_block)
+        # This will hold a copy of the future states of dapps; forgotten on next refresh.
+        self.future_super_state = self.dapps.generate_super_state()
+        self.end_trial(harden=False)
+
 
     def _trial_chain_path(self, around_state_height, chain_path_to_trial):
         success = True
         try:
             self.apply_chain_path(chain_path_to_trial, hard_checkpoint=False)
-        except AssertionError or ValidationError as e:
+        except (ValidationError) as e:
             success = False
             debug(e)
             debug('StateMaker: trial failed, around: %d, proposed head: %064x' %
@@ -180,9 +210,11 @@ class StateMaker(object):
 
     def start_trial(self, from_height):
         self.dapps.start_trial(from_height)
+        debug('StateMaker: starting trial')
 
     def end_trial(self, harden=False):
         self.dapps.end_trial(harden=harden)
+        debug('StateMaker: ending trial')
         if harden:
             debug('StateMaker.end_trial: Hardened checkpoints to state:')
             debug(self.dapps[ROOT_DAPP].state.key_value_store)
@@ -208,8 +240,10 @@ class SuperState(object):
         
     def get_hash(self):
         leaves = []
-        names = self.state_dict.keys()
+        names = list(self.state_dict.keys())
         # all names are bytes, need to investigate exactly how these are sorted.
         names.sort()
         for n in names:
             leaves.extend([global_hash(n), self.state_dict[n].get_hash()])
+        merkle_root = MerkleLeavesToRoot.make(leaves=leaves)
+        return merkle_root.get_hash()
