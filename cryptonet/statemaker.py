@@ -198,7 +198,7 @@ class StateMaker(object):
         self.future_block = new_head.get_pre_candidate(self.chain)
         with self.future_state():
             # calc tx_root and state_root
-            # do stuff like update state here
+            # do stuff like update state here with any as yet excluded txs
             # and only add txs not included in last block, etc
             self._block_events(self.future_block)
             # This will hold a copy of the future states of dapps; forgotten on next refresh.

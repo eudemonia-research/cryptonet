@@ -50,9 +50,8 @@ class MinBlockWithState(encodium.Field):
     def assert_validity(self, chain):
         self.assert_internal_consistency()
         if chain.initialized:
-            #debug('assert_validity: parent_hash : %064x' % self.parent_hash)
-            assert chain.has_block_hash(self.parent_hash)
-            assert chain.get_block(self.parent_hash).height + 1 == self.height
+            self.assert_true(chain.has_block_hash(self.parent_hash), 'Parent unknown')
+            self.assert_true(chain.get_block(self.parent_hash).height + 1 == self.height, 'Height requirement')
         else:
             assert self.height == 0
             assert self.parent_hash == 0
