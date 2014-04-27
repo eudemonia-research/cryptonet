@@ -10,11 +10,12 @@ from cryptonet.errors import ValidationError
 from cryptonet.debug import debug
 from cryptonet.statemaker import StateMaker
 from cryptonet.dapp import Dapp
+from cryptonet.datastructs import MerkleLeavesToRoot
 
 chain_vars = ChainVars()
 
 chain_vars.seeds = []
-chain_vars.genesis_binary = b'\x01\x01\x00\x01\x00\x01\x00\x01\x00'
+chain_vars.genesis_binary = b'\x01\x01\x00\x01\x00\x01\x01 h\x17\x0b\xf1\xa6$p\xde\xfen\x81\x8d\xablbf\x93\xc0\x96\xd2Qy\x02\x00\x19\xd7\xa7\xb2\x01\x14\xd23\x01\x00'
 chain_vars.mine = True
 chain_vars.address = ('',0)
 
@@ -31,6 +32,7 @@ class MinBlockWithState(encodium.Field):
         height = encodium.Integer(length=4, default=0)
         nonce = encodium.Integer(length=1, default=0)
         state_root = encodium.Integer(length=32, default=0)
+        tx_root = encodium.Integer(length=32, default=0)
 
     def init(self):
         self.priority = self.height
@@ -51,38 +53,38 @@ class MinBlockWithState(encodium.Field):
             #debug('assert_validity: parent_hash : %064x' % self.parent_hash)
             assert chain.has_block_hash(self.parent_hash)
             assert chain.get_block(self.parent_hash).height + 1 == self.height
-            # TODO : should we test a re-org?
-            # Since reorganising will mark blocks invalid if something breaks, we don't need to waste the work
-            # checking full validity.
         else:
             assert self.height == 0
             assert self.parent_hash == 0
-        cur = self.state_maker.super_state[b'']
-        while cur.height > 0:
-            debug('Block.assert_validity: all states', cur.key_value_store)
-            print(cur, cur.height)
-            cur = cur.parent
-        debug('Block.assert_validity: state: %s' % self.state_maker.super_state[b''].key_value_store, self.height)
         self.assert_true(self.state_maker.super_state[b''][0] == self.height, 'State records height')
+        self.assert_true(self.super_state.get_hash() == self.state_root, 'State root must match expected')
         
     def to_bytes(self):
         return b''.join([
             self.parent_hash.to_bytes(32, 'big'),
             self.height.to_bytes(4, 'big'),
             self.nonce.to_bytes(1, 'big'),
-            self.state_root.to_bytes(32, 'big')
+            self.state_root.to_bytes(32, 'big'),
+            self.tx_root.to_bytes(32, 'big')
         ])
         
     def get_hash(self):
         return global_hash(self.to_bytes())
         
     def get_candidate(self, chain):
-        candidate = MinBlockWithState.make(parent_hash=self.get_hash(), height=self.height+1)
+        # todo : fix so state_root matches expected
+        #candidate = MinBlockWithState.make(parent_hash=self.get_hash(), height=self.height+1)
+        #return candidate
+        return self.state_maker.future_block
+
+    def get_pre_candidate(self, chain):
+        # fill in basic info here, state_root and tx_root will come later
+        candidate = chain._Block.make(parent_hash=self.get_hash(), height=self.height+1)
         return candidate
-        
+
     def increment_nonce(self):
         self.nonce += 1
-        
+
     def valid_proof_of_work(self):
         return True
         
@@ -120,11 +122,11 @@ class MinBlockWithState(encodium.Field):
 
     def assert_true(self, condition, message):
         if not condition:
-            raise ValidationError('MinBlock: ValidationError: %s' % message)
+            raise ValidationError('MinBlock: %s' % message)
 
     def on_genesis(self, chain):
         assert not chain.initialized
-        self.state_maker = StateMaker(chain)
+        self.state_maker = StateMaker(chain, self.__class__)
         self.super_state = self.state_maker.super_state
 
         class Counter(Dapp):
@@ -145,11 +147,22 @@ class MinBlockWithState(encodium.Field):
         self.state_maker = state_maker
         self.super_state = state_maker.super_state
 
+    def update_state_root(self):
+        self.state_root = self.state_maker.super_state.get_hash()
+        debug('Block: state_root: %064x' % self.state_root)
+
+    def update_tx_root(self):
+        self.tx_root = MerkleLeavesToRoot.make(leaves=self.super_txs).get_hash()
+        debug('Block: tx_root: %064x' % self.tx_root)
+
 
 def make_genesis():
-    genesis_block = MinBlock.make(parent_hash=0,height=0)
+    genesis_block = MinBlockWithState.make(parent_hash=0,height=0)
+    genesis_block.set_state_maker(StateMaker(min_net.chain, MinBlockWithState))
+    genesis_block.update_state_root()
     miner = Miner(min_net.chain, min_net.seek_n_build)
     miner.mine(genesis_block)
+    debug('Genesis Block: ', genesis_block.serialize())
 
 if __name__ == "__main__":
     #make_genesis()
