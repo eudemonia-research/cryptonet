@@ -55,7 +55,6 @@ class MinBlockWithState(encodium.Field):
         else:
             assert self.height == 0
             assert self.parent_hash == 0
-        self.assert_true(self.state_maker.super_state[b''][0] == self.height, 'State records height')
         self.assert_true(self.super_state.get_hash() == self.state_root, 'State root must match expected')
         
     def to_bytes(self):
@@ -121,7 +120,7 @@ class MinBlockWithState(encodium.Field):
 
     def assert_true(self, condition, message):
         if not condition:
-            raise ValidationError('MinBlock: %s' % message)
+            raise ValidationError('Block Failed Validation: %s' % message)
 
     def on_genesis(self, chain):
         assert not chain.initialized
@@ -133,9 +132,15 @@ class MinBlockWithState(encodium.Field):
 
             def on_block(self, block, chain):
                 if block.height > 0:
-                    debug('Counter: on_block, parent state:', self.state.parent.key_value_store)
-                    debug('Counter: on_block called.', self.state.key_value_store)
-                    self.state[0] = self.state[0] + 1
+                    debug('Counter: all state keys:', self.state.all_keys())
+                    last_value = self.state[block.height - 1]
+                    if last_value > 1:
+                        if last_value % 2 == 0:
+                            self.state[block.height] = last_value // 2
+                        else:
+                            self.state[block.height] = 3 * last_value + 1
+                    else:
+                        self.state[block.height] = block.height
                     debug('Counter: on_block called.', self.state.key_value_store)
 
             def on_transaction(self, subtx, block, chain):

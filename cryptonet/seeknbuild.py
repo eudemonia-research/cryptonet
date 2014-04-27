@@ -233,6 +233,7 @@ class SeekNBuild:
                     print('chain_builder: head and curr', self.chain.head.get_hash(), block.parent_hash)
                     self.past_queue_no_parent.put((height, nonce, block))
                     continue
+                # todo: only broadcast block on success
                 self.chain.add_block(block)
                 self.past.remove(bh)
                 self.done.add(bh)

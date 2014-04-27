@@ -147,14 +147,12 @@ class StateDelta(cryptonet.database.Database):
             keys.sort()
             leaves = []
             for k in keys:
-                if isinstance(self.key_value_store[k], Field):
-                    leaves.extend([global_hash(k), self.key_value_store[k].get_hash()])
+                if isinstance(self[k], Field):
+                    leaves.extend([global_hash(k), self[k].get_hash()])
                 else:
-                    leaves.extend([global_hash(k), global_hash(self.key_value_store[k])])
-            debug('StateDelta.get_hash: leaves', leaves)
+                    leaves.extend([global_hash(k), global_hash(self[k])])
             merkle_tree = MerkleLeavesToRoot.make(leaves=leaves)
             self.my_hash = merkle_tree.get_hash()
-            debug('StateDelta.get_hash, my_hash', self.my_hash)
         return self.my_hash
         
     def ancestors(self):
