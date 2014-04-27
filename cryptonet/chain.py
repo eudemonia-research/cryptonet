@@ -45,7 +45,9 @@ class Chain(object):
         return block_hash in self.block_hashes
 
     def get_height(self):
-        return self.head.height
+        if self.initialized:
+            return self.head.height
+        return 0
 
     def get_top_block(self):
         return self.head

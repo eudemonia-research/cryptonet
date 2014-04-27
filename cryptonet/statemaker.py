@@ -31,6 +31,9 @@ class _DappHolder(object):
         for d in self.dapps:
             self.dapps[d].on_block(block, chain)
 
+    def get_height(self):
+        return self.dapps[ROOT_DAPP].get_height()
+
     def prune_to_or_beyond(self, height):
         for d in self.dapps:
             self.dapps[d].prune_to_or_beyond(height)
@@ -50,13 +53,19 @@ class _DappHolder(object):
         for d in self.dapps:
             self.dapps[d].make_last_checkpoint_hard()
 
-    def start_trial(self, from_height):
+    # todo: refactor to checkout_alt
+    def start_alt(self, state_tag, from_height):
         for d in self.dapps:
-            self.dapps[d].start_trial(from_height)
+            self.dapps[d].start_alt(state_tag, from_height)
 
-    def end_trial(self, harden=False):
+    # todo: refactor to commit_alt
+    def end_alt(self, state_tag, harden=False):
         for d in self.dapps:
-            self.dapps[d].end_trial(harden)
+            self.dapps[d].end_alt(state_tag, harden)
+
+    def forget_alt(self, state_tag):
+        for d in self.dapps:
+            self.dapps[d].forget_alt(state_tag)
 
     def generate_super_state(self):
         super_state = SuperState()
@@ -65,9 +74,10 @@ class _DappHolder(object):
             super_state.register_dapp(dapp.name, dapp.state)
         return super_state
 
+
 class StateMaker(object):
-    
-    def __init__(self, chain, block_class, is_future=False):
+
+    def __init__(self, chain, is_future=False):
         self.dapps = _DappHolder()
         self.chain = chain
         self.most_recent_block = None
@@ -76,11 +86,14 @@ class StateMaker(object):
         self.is_future = is_future
         self.future_state_maker = None
         self.future_block = None
-        self._Block = block_class
+        self._Block = chain._Block
         
     def register_dapp(self, new_dapp):
         assert isinstance(new_dapp, Dapp)
         self.dapps[new_dapp.name] = new_dapp
+
+    def get_height(self):
+        return self.dapps.get_height()
 
     def find_prune_point(self, max_prune_height):
         return self.dapps[ROOT_DAPP].state.find_prune_point(max_prune_height)
@@ -96,17 +109,26 @@ class StateMaker(object):
     def apply_block(self, block, hard_checkpoint=True):
         debug('StateMaker.apply_block, heights:', block.height, self.dapps[ROOT_DAPP].state.height)
         assert block.height == self.dapps[ROOT_DAPP].state.height
-        self.block_events(block)
+        self._block_events(block)
         block.assert_validity(self.chain)
         if block.height != 0:
             self.checkpoint(hard_checkpoint)
 
-    def block_events(self, block):
+    def _block_events(self, block):
+        ''' What is done every time a block is received - operates directly on current state.
+        '''
         block.set_state_maker(self)
         self.dapps.on_block(block, self.chain)
         self._add_super_txs(block.super_txs)
-        block.update_state_root()
-        block.update_tx_root()
+        block.update_roots()
+
+    def apply_transaction_to_future(self, tx):
+        ''' This applies a transaction to future_block.
+         The state will be updated and a new block available when pushed to the miner.
+        '''
+        with self.future_state():
+            self._process_tx(tx)
+            self.future_block.update_roots()
         
     def _add_super_txs(self, list_of_super_txs):
         ''' Process a list of transactions, typically passes each to the ROOT_DAPP in sequence.
@@ -172,15 +194,15 @@ class StateMaker(object):
         Will create an unvalidated block to store keep track of future state and the rest of it. Everything within
         future_block will be temporary and discarded and recalculated on the arrival of every new block.
         '''
+        self.forget_future_state()
         self.future_block = new_head.get_pre_candidate(self.chain)
-        self.start_trial(new_head.height)
-        # calc tx_root and state_root
-        # do stuff like update state here
-        # and only add txs not included in last block, etc
-        self.block_events(self.future_block)
-        # This will hold a copy of the future states of dapps; forgotten on next refresh.
-        self.future_super_state = self.dapps.generate_super_state()
-        self.end_trial(harden=False)
+        with self.future_state():
+            # calc tx_root and state_root
+            # do stuff like update state here
+            # and only add txs not included in last block, etc
+            self._block_events(self.future_block)
+            # This will hold a copy of the future states of dapps; forgotten on next refresh.
+            self.future_super_state = self.dapps.generate_super_state()
 
 
     def _trial_chain_path(self, around_state_height, chain_path_to_trial):
@@ -197,27 +219,51 @@ class StateMaker(object):
     def trial_chain_path(self, around_state_height, chain_path_to_trial):
         ''' Warning: alters state permanently on success.
         '''
-        self.start_trial(around_state_height)
-        success = self._trial_chain_path(around_state_height, chain_path_to_trial)
-        self.end_trial(harden=success)
+        with self.trial_state(around_state_height) as temporary_state:
+            success = self._trial_chain_path(around_state_height, chain_path_to_trial)
+            if success:
+                temporary_state.make_permanent()
         return success
 
     def trial_chain_path_non_permanent(self, around_state_height, chain_path_to_trial):
-        self.start_trial(around_state_height)
-        success = self._trial_chain_path(around_state_height, chain_path_to_trial)
-        self.end_trial(harden=False)
+        with self.trial_state(around_state_height) as temporary_state:
+            success = self._trial_chain_path(around_state_height, chain_path_to_trial)
         return success
 
-    def start_trial(self, from_height):
-        self.dapps.start_trial(from_height)
-        debug('StateMaker: starting trial')
+    def _alt_state_gateway(self, state_tag, from_height, amnesia=False):
 
-    def end_trial(self, harden=False):
-        self.dapps.end_trial(harden=harden)
-        debug('StateMaker: ending trial')
-        if harden:
-            debug('StateMaker.end_trial: Hardened checkpoints to state:')
-            debug(self.dapps[ROOT_DAPP].state.key_value_store)
+        class AltStateGateway(object):
+
+            def __init__(self, state_maker, state_tag, from_height, amnesia=False):
+                self.state_maker = state_maker
+                self.from_height = from_height
+                self.state_tag = state_tag
+                self.amnesia = amnesia
+                self.harden = False
+
+            def __enter__(self):
+                self.state_maker.dapps.start_alt(self.state_tag, self.from_height)
+                return self
+
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                self.state_maker.dapps.end_alt(self.state_tag, harden=self.harden)
+                if self.amnesia:
+                    self.state_maker.dapps.forget_alt(self.state_tag)
+
+            def make_permanent(self):
+                self.harden = True
+
+        return AltStateGateway(self, state_tag, from_height, amnesia=amnesia)
+
+    def future_state(self):
+        return self._alt_state_gateway(b'future', self.get_height())
+
+    def forget_future_state(self):
+        self.dapps.forget_alt(b'future')
+
+    def trial_state(self, from_height):
+        return self._alt_state_gateway(b'trial', from_height, amnesia=True)
+
 
 
 class SuperState(object):

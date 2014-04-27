@@ -7,7 +7,7 @@ from cryptonet.miner import Miner
 from cryptonet.datastructs import ChainVars
 from cryptonet.utilities import global_hash
 from cryptonet.errors import ValidationError
-from cryptonet.debug import debug
+from cryptonet.debug import debug, print_traceback
 from cryptonet.statemaker import StateMaker
 from cryptonet.dapp import Dapp
 from cryptonet.datastructs import MerkleLeavesToRoot
@@ -126,8 +126,9 @@ class MinBlockWithState(encodium.Field):
 
     def on_genesis(self, chain):
         assert not chain.initialized
-        self.state_maker = StateMaker(chain, self.__class__)
+        self.state_maker = StateMaker(chain)
         self.super_state = self.state_maker.super_state
+        debug('Block.on_genesis called')
 
         class Counter(Dapp):
 
@@ -147,13 +148,9 @@ class MinBlockWithState(encodium.Field):
         self.state_maker = state_maker
         self.super_state = state_maker.super_state
 
-    def update_state_root(self):
+    def update_roots(self):
         self.state_root = self.state_maker.super_state.get_hash()
-        debug('Block: state_root: %064x' % self.state_root)
-
-    def update_tx_root(self):
         self.tx_root = MerkleLeavesToRoot.make(leaves=self.super_txs).get_hash()
-        debug('Block: tx_root: %064x' % self.tx_root)
 
 
 def make_genesis():

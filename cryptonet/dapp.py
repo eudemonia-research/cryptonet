@@ -23,7 +23,9 @@ class Dapp(object):
         self.state_maker = state_maker
         self.state_maker.register_dapp(self)
         self.super_state = state_maker.super_state
+        self.state_bank = {}
         self.set_state(StateDelta())
+
         
     def synchronize_state(self):
         ''' Needed when self.state is set to a new object. '''
@@ -61,17 +63,27 @@ class Dapp(object):
         '''
         self.set_state(self.state.prune_to_or_beyond(height))
 
-    def start_trial(self, from_height):
-        self.remembered_state = self.state
-        self.set_state(self.state.child_at_or_before(from_height).checkpoint(hard_checkpoint=False))
+    def start_alt(self, state_tag, from_height):
+        self.state_bank[b''] = self.state
+        if state_tag not in self.state_bank:
+            self.state_bank[state_tag] = self.state.child_at_or_before(from_height).checkpoint(hard_checkpoint=False)
+        self.set_state(self.state_bank[state_tag])
 
-    def end_trial(self, harden):
-        assert self.remembered_state != None # did you forget to start_trial()? have you already end_trial()'d?
+    def end_alt(self, name, harden=False):
+        assert name in self.state_bank
         if harden:
             self.state.harden(None)
         else:
-            self.set_state(self.remembered_state)
-        self.remembered_state = None
+            self.state_bank[name] = self.state
+            self.set_state(self.state_bank[b''])
+
+    def forget_alt(self, name):
+        if name in self.state_bank:
+            del self.state_bank[name]
+
+    def get_height(self):
+        return self.state.height
+
 
 class StateDelta(cryptonet.database.Database):
     
