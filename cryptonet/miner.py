@@ -27,12 +27,12 @@ class Miner:
         
     def mine(self, provided_block=None):
         while not self._shutdown:
-            # TODO: Temporary
+            self._restart = False
+            # TODO: remove this sleep
             time.sleep(0.1)
             if provided_block == None: block = self.chain.head.get_candidate(self.chain)
             else: 
                 block = provided_block
-                provided_block = None
             count = 0
             print('miner restarting')
             while not self._shutdown and not self._restart:
@@ -53,8 +53,8 @@ class Miner:
                 time.sleep(0.01)
                 continue
             debug('Miner: Found Soln : %064x' % block.get_hash())
-            if block.height == 0 or True:
+            if block.height == 0: # print genesis
                 debug('Miner: ser\'d block: ', block.serialize())
             self.seek_n_build.add_block(block)
-            while not self.chain.has_block_hash(block.get_hash()) and not self._shutdown:
-                time.sleep(0.1)
+            while not self._restart and not self._shutdown:
+                time.sleep(0.01)

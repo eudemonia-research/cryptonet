@@ -56,6 +56,7 @@ class Chain(object):
         return self.db.get_ancestors(start)
 
     def restart_miner(self):
+        print('chain: restarting miner')
         if self.miner != None:
             self.miner.restart()
 
@@ -118,7 +119,6 @@ class Chain(object):
     def load_chain(self):
         # TODO : load chainstate from database
         pass
-        #self.db.get_successors(self.genesisHash)
 
     def learn_of_db(self, db):
         self.db = db

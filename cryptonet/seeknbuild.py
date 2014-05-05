@@ -206,7 +206,7 @@ class SeekNBuild:
                 self.past.remove(block.get_hash())
                 self.done.add(block.get_hash())
                 continue
-            bh = block.get_hash()
+            block_hash = block.get_hash()
             #print('chain_builder: checking %d' % block.height)
             debug('builder: checkpoint 1')
             # TODO : handle orphans intelligently
@@ -220,28 +220,26 @@ class SeekNBuild:
                         self.past_queue.put(self.past_queue_no_parent.get())
                 time.sleep(0.05)
             else:
-                if self.chain.has_block(bh):
+                if self.chain.has_block(block_hash):
                     try:
-                        self.past.remove(bh)
+                        self.past.remove(block_hash)
                     except KeyError:
                         pass
-                    self.done.add(bh)
+                    self.done.add(block_hash)
                     continue
                 # TODO : handle orphans intelligently
                 if not self.chain.has_block_hash(block.parent_hash):
-                    print('chain_builder: don\'t have parent')
-                    print('chain_builder: head and curr', self.chain.head.get_hash(), block.parent_hash)
+                    debug('chain_builder: don\'t have parent')
+                    debug('chain_builder: head and curr', self.chain.head.get_hash(), block.parent_hash)
                     self.past_queue_no_parent.put((height, nonce, block))
                     continue
                 # todo: only broadcast block on success
+                self.past.remove(block_hash)
+                self.done.add(block_hash)
                 self.chain.add_block(block)
-                self.past.remove(bh)
-                self.done.add(bh)
                 debug('builder to send : %064x' % block.get_hash())
                 to_send = BlocksMessage.make(contents = [block.serialize()])
                 debug('builder sending...')
                 debug('builder to send full : %s' % to_send.serialize())
                 self.broadcast_block(to_send)
                 debug('builder success : %064x' % block.get_hash())
-        
-            

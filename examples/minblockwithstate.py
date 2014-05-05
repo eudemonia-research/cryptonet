@@ -166,7 +166,9 @@ class MinBlockWithState(encodium.Field):
         def getinfo(*args):
             state = self.state_maker.super_state[b'']
             keys = state.all_keys()
-            return [max(keys), state[max(keys)]]
+            return {
+                "balance": max(keys),
+            }
 
         self.rpc.run()
 
