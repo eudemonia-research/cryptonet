@@ -38,7 +38,7 @@ class Miner:
             while not self._shutdown and not self._restart:
                 count += 1
                 block.increment_nonce()
-                if block.valid_proof_of_work():
+                if block.valid_proof():
                     try:
                         block.assert_internal_consistency()
                         break

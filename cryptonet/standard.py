@@ -4,6 +4,11 @@ from encodium import *
 import cryptonet
 import cryptonet.chain
 from cryptonet.utilities import global_hash
+from cryptonet.statemaker import StateMaker
+from cryptonet.rpcserver import RPCServer
+from cryptonet.datastructs import MerkleLeavesToRoot
+from cryptonet.dapp import Dapp
+from cryptonet.debug import debug
 
 class Signature(Field):
 
@@ -120,6 +125,9 @@ class Header(Field):
         '''
         pass
 
+    def increment_nonce(self):
+        self.nonce += 1
+
 
 class Block(Field):
     
@@ -129,7 +137,7 @@ class Block(Field):
         super_txs = List(SuperTx(), default=[])
         
     def init(self):
-        self.parent_hash = 0
+        self.parent_hash = self.header.previous_blocks[0]
         self.state_maker = None
         self.super_state = None
 
@@ -138,42 +146,40 @@ class Block(Field):
             return True
         return False
 
-    def reorganisation(self, new_head, chain):
-        ''' self.reorganisation() should be called on current head, where other_block is
+    def reorganisation(self, chain, from_block, around_block, to_block, is_test=False):
+        ''' self.reorganisation() should be called only on the current head, where to_block is
         to become the new head of the chain.
-        This should be called for _every_ block: adding to the head is just a trivial re-org.
+
+                 #3--#4--
+        -#1--#2<     ^-----from
+                 #3a-#4a-#5a-
+              ^-- around  ^---to
+
+        If #4 is the head, and #5a arrives, all else being equal, the following will be called:
+        from_block = #4
+        around_block = #2
+        to_block = #5a
+
 
         Steps:
-        10. Find lowest common ancestor (LCA).
+        10. From around_block find the prune point
         20. Get prune level from the StateMaker (Will be lower or equal to the LCA in terms of depth).
         30. Prune to that point.
         40. Re-evaluate state from that point to new head.
+
+        if is_test == True then no permanent changes are made.
         '''
-        max_prune_height = chain.find_lca(self.get_hash(), new_head.get_hash()).height
-        prune_point = self.state_maker.find_prune_point(max_prune_height)
-        self.state_maker.prune_to_or_beyond(prune_point)
-        chain.prune_to_height(prune_point)
-        new_chain_path = chain.construct_chain_path(chain.head, new_head)
-        chain.apply_chain_path(new_chain_path)
-
-        ''' Inherit StateMaker, SuperState, etc from other_block.
-        Remove other_block's access to StateMaker, etc.
-        '''
-        # TODO: This needs to be completed to test state on the blockchain.
-        new_head.state_maker = self.state_maker
-        self.state_maker = None
-        new_head.super_state = self.super_state
-        self.super_state = None
-
-        new_head.state_maker.on_block(self, chain)
-
-
+        assert self.state_maker != None
+        success = self.state_maker.reorganisation(chain, from_block, around_block, to_block, is_test)
+        if success:
+            to_block.set_state_maker(self.state_maker)
+        return success
         
     def get_hash(self):
         return self.header.get_hash()
 
-    def add_super_txs(self, list_of_super_txs):
-        self.state_maker.add_super_txs(list_of_super_txs)
+    #def add_super_txs(self, list_of_super_txs):
+    #    self.state_maker.add_super_txs(list_of_super_txs)
         
     def assert_internal_consistency(self):
         ''' self.assert_internal_consistency should validate the following:
@@ -195,7 +201,56 @@ class Block(Field):
         if other == None:
             return True
         return self.header.sigma_diff > other.header.sigma_diff
-        
+
+    def assert_true(self, condition, message):
+        if not condition:
+            raise ValidationError('Block Failed Validation: %s' % message)
+
+    def get_candidate(self, chain):
+        # todo : fix so state_root matches expected
+        return self.state_maker.future_block
+
+    def get_pre_candidate(self, chain):
+        # fill in basic info here, state_root and tx_root will come later
+        # todo : probably shouldn't reference _Block from chain and just use local object
+        return chain._Block.make(parent_hash=self.get_hash(), height=self.height+1)
+
+    def increment_nonce(self):
+        self.header.increment_nonce()
+
+    def valid_proof(self):
+        return True
+
+    def on_genesis(self, chain):
+        assert not chain.initialized
+        self.set_state_maker(StateMaker(chain))
+        debug('Block.on_genesis called')
+
+        self.setup_rpc()
+
+    def set_state_maker(self, state_maker):
+        self.state_maker = state_maker
+        self.super_state = state_maker.super_state
+
+    def update_roots(self):
+        self.state_root = self.state_maker.super_state.get_hash()
+        self.tx_root = MerkleLeavesToRoot.make(leaves=self.super_txs).get_hash()
+
+    def setup_rpc(self):
+        self.rpc = RPCServer(port=32550)
+
+        @self.rpc.add_method
+        def getinfo(*args):
+            state = self.state_maker.super_state[b'']
+            keys = state.all_keys()
+            return {
+                "balance": max(keys),
+                "height": max(keys),
+            }
+
+        self.rpc.run()
+
+
     
         
     

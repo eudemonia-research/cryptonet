@@ -85,7 +85,7 @@ class Dapp(object):
         return self.state.height
 
 
-class StateDelta(cryptonet.database.Database):
+class StateDelta(object):
     
     def __init__(self, parent=None, height=0):
         self.key_value_store = {}

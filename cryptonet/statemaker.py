@@ -2,7 +2,6 @@ from cryptonet.utilities import global_hash
 from cryptonet.dapp import Dapp, TxPrism
 from cryptonet.errors import ValidationError
 from cryptonet.dapp import StateDelta
-from cryptonet.chain import Chain
 from cryptonet.debug import debug
 from cryptonet.datastructs import MerkleLeavesToRoot
 
@@ -173,7 +172,6 @@ class StateMaker(object):
         30. Return result
         40. Mark trial head as invalid if the trial failed.
         '''
-        assert isinstance(chain, Chain)
         assert not self.is_future
         debug('StateMaker.reorg: around_block.get_hash(): %064x' % around_block.get_hash())
         around_state_height = self.find_prune_point(around_block.height)

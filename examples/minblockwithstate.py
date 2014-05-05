@@ -72,8 +72,6 @@ class MinBlockWithState(encodium.Field):
         
     def get_candidate(self, chain):
         # todo : fix so state_root matches expected
-        #candidate = MinBlockWithState.make(parent_hash=self.get_hash(), height=self.height+1)
-        #return candidate
         return self.state_maker.future_block
 
     def get_pre_candidate(self, chain):
@@ -84,7 +82,7 @@ class MinBlockWithState(encodium.Field):
     def increment_nonce(self):
         self.nonce += 1
 
-    def valid_proof_of_work(self):
+    def valid_proof(self):
         return True
         
     def better_than(self, other):
@@ -168,6 +166,7 @@ class MinBlockWithState(encodium.Field):
             keys = state.all_keys()
             return {
                 "balance": max(keys),
+                "height": max(keys),
             }
 
         self.rpc.run()
