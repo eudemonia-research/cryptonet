@@ -128,6 +128,11 @@ class StateDelta(cryptonet.database.Database):
         self.deleted_keys.add(key)
         if key in self.key_value_store:
             del self.key_value_store[key]
+
+    def recursively_print_state(self):
+        debug('StateDelta: %05d, %s', (self.height, self.key_value_store))
+        if self.parent != None:
+            self.parent.recursively_print_state()
         
     def all_keys(self):
         ''' Get keys from this k_v_store and parents, parents parents, etc.

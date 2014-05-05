@@ -132,7 +132,6 @@ class MinBlockWithState(encodium.Field):
 
             def on_block(self, block, chain):
                 if block.height > 0:
-                    debug('Counter: all state keys:', self.state.all_keys())
                     last_value = self.state[block.height - 1]
                     if last_value > 1:
                         if last_value % 2 == 0:
@@ -142,6 +141,7 @@ class MinBlockWithState(encodium.Field):
                     else:
                         self.state[block.height] = block.height
                     debug('Counter: on_block called.', self.state.key_value_store)
+                    self.state.recursively_print_state()
 
             def on_transaction(self, subtx, block, chain):
                 pass
