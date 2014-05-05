@@ -11,6 +11,7 @@ from cryptonet.debug import debug, print_traceback
 from cryptonet.statemaker import StateMaker
 from cryptonet.dapp import Dapp
 from cryptonet.datastructs import MerkleLeavesToRoot
+from cryptonet.rpcserver import RPCServer
 
 chain_vars = ChainVars()
 
@@ -148,6 +149,8 @@ class MinBlockWithState(encodium.Field):
 
         self.state_maker.register_dapp(Counter(b'', self.state_maker))
 
+        self.setup_rpc()
+
     def set_state_maker(self, state_maker):
         self.state_maker = state_maker
         self.super_state = state_maker.super_state
@@ -156,6 +159,16 @@ class MinBlockWithState(encodium.Field):
         self.state_root = self.state_maker.super_state.get_hash()
         self.tx_root = MerkleLeavesToRoot.make(leaves=self.super_txs).get_hash()
 
+    def setup_rpc(self):
+        self.rpc = RPCServer(port=32550)
+
+        @self.rpc.add_method
+        def getinfo(*args):
+            state = self.state_maker.super_state[b'']
+            keys = state.all_keys()
+            return [max(keys), state[max(keys)]]
+
+        self.rpc.run()
 
 def make_genesis():
     genesis_block = MinBlockWithState.make(parent_hash=0,height=0)
