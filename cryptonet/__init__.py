@@ -22,7 +22,7 @@ class Cryptonet(object):
         
         self.p2p = Spore(seeds=chain_vars.seeds, address=chain_vars.address)
         self.set_handlers()
-        debug('cryptonet init, peers: ', self.p2p.peers)
+        # debug('cryptonet init, peers: ', self.p2p.peers)
         
         self.db = Database()
         self.chain = Chain(chain_vars, db=self.db)
