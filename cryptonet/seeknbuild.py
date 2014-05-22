@@ -50,8 +50,7 @@ class SeekNBuild:
         self.threads = [threading.Thread(target=self.block_seeker), threading.Thread(target=self.chain_builder)]
         for t in self.threads: 
             t.start()
-        
-        
+
     def max_blocks_at_once(self):
         # no reason for special values besides
         return int(max(5, min(500, self.get_chain_height()) // 3))
@@ -107,7 +106,7 @@ class SeekNBuild:
             try:
                 with self.present_lock:
                     oldest_timestamp, oldest_block_hash = self.present_queue.get_nowait()
-                    while oldest_timestamp + 10 < time.time(): # requested >10s ago
+                    while oldest_timestamp + 10 < time.time():  # requested >10s ago
                         debug('seeker, block re-request: ', oldest_block_hash)
                         if oldest_block_hash in self.present:
                             requesting.append(oldest_block_hash)
