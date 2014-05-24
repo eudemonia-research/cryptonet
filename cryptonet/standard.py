@@ -46,6 +46,9 @@ class Signature(Field):
         '''
         pass
 
+    def recover_pubkey(self):
+        pass
+
     def get_hash(self):
         return global_hash(self.to_bytes())
 
