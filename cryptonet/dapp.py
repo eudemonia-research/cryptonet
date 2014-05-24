@@ -103,12 +103,18 @@ class StateDelta(object):
         if self.parent == None:
             return False
         return key in self.parent
-        
-    def __getitem__(self, key):
-        ''' return value if known else ask next StateDelta '''
-        assert isinstance(key, int)
+
+    def _make_key_valid(self, key):
+        if not isinstance(key, int):
+            assert isinstance(key, bytes)
+            key = int.from_bytes(key, 'big')
         if key < 0:
             raise KeyError('Negative entries not allowed')
+        return key
+
+    def __getitem__(self, key):
+        ''' return value if known else ask next StateDelta '''
+        key = self._make_key_valid(key)
         if key in self.deleted_keys:
             pass
         elif key in self.key_value_store:
@@ -119,6 +125,7 @@ class StateDelta(object):
         
         
     def __setitem__(self, key, value):
+        key = self._make_key_valid(key)
         if key in self.deleted_keys:
             self.deleted_keys.remove(key)
         self.my_hash = None

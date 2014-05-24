@@ -12,6 +12,21 @@ from cryptonet.datastructs import MerkleLeavesToRoot
 from cryptonet.dapp import Dapp, TxPrism
 from cryptonet.debug import debug
 
+'''
+Hierarchy:
+BLOCK [
+    HEADER
+    UNCLES [
+        HEADERS...
+    ]
+    SUPER_TXS [
+        TXS...
+        SIG
+    ]
+]
+
+'''
+
 class Signature(Field):
 
     def fields():
@@ -41,6 +56,10 @@ class Tx(Field):
         value = Integer(length=8)
         fee = Integer(length=4)
         data = List(Bytes(), default=[])
+
+    def init(self):
+        #self.sender = self.recover_pubkey()
+        pass
     
     def to_bytes(self):
         return b''.join([
@@ -63,6 +82,11 @@ class SuperTx(Field):
         nonce = Integer(length=4)
         txs = List(Tx())
         signature = Signature()
+
+    def init(self):
+        self.sender = self.signature.recover_pubkey()
+        for tx in txs:
+            tx.sender = self.sender
         
     def to_bytes(self):
         return b''.join([
@@ -106,7 +130,7 @@ class Header(Field):
         return b''.join([
             self.version.to_bytes(2,'big'),
             self.nonce.to_bytes(8, 'big'),
-            self.height.to_bytes(4, 'big')
+            self.height.to_bytes(4, 'big'),
             self.timestamp.to_bytes(5, 'big'),
             self.target.to_bytes(32, 'big'),
             self.sigma_diff.to_bytes(32, 'big'),

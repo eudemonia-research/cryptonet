@@ -6,14 +6,14 @@ from cryptonet import Cryptonet
 from cryptonet.datastructs import ChainVars
 from cryptonet.chain import Chain
 from cryptonet.statemaker import StateMaker
+from cryptonet.standard import Tx
+from cryptonet.dapp import TxPrism
 
 class TestTransactions(unittest.TestCase):
 
     def setUp(self):
-        chainvars = ChainVars()
-        self.cryptonet = Cryptonet(chainvars)
-        self.state_maker = self.cryptonet.chain.head.state_maker
-        self.cryptonet.run()
+        self.state_maker = StateMaker(Chain(ChainVars()))
+        self.state_maker.register_dapp(TxPrism(b'', self.state_maker))
 
     def test_mine_genesis(self):
         pass
@@ -39,19 +39,23 @@ class TestTransactions(unittest.TestCase):
         '''
         with self.state_maker.trial_state():
             begin_state = {}
-
+            self.assertEqual(begin_state, self.state_maker.super_state[b''].complete_kvs())
+            self.state_maker.super_state[b''][b'MAX'] = 15
             mid_state = {
-                b'MAX': 15
+                int.from_bytes(b'MAX', 'big'): 15
             }
-
+            self.assertEqual(mid_state, self.state_maker.super_state[b''].complete_kvs())
+            tx = Tx.make(dapp=b'',value=5,fee=0,data=[b'ANDI'])
+            tx.sender = b'MAX'
+            self.state_maker._process_tx(tx)
             end_state = {
-                b'MAX': 10,
-                b'ANDI': 5
+                int.from_bytes(b'MAX', 'big'): 10,
+                int.from_bytes(b'ANDI', 'big'): 5
             }
-            self.assertEqual(end_state, self.state_maker.super_state[b''].)
+            self.assertEqual(end_state, self.state_maker.super_state[b''].complete_kvs())
 
     def tearDown(self):
-        self.cryptonet.shutdown()
+        pass
 
 if __name__ == '__main__':
     unittest.main()
