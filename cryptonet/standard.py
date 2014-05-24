@@ -30,9 +30,9 @@ BLOCK [
 class Signature(Field):
 
     def fields():
-        v = Integer(length=1)
-        r = Integer(length=32)
-        s = Integer(length=32)
+        v = Integer(length=1, default=0)
+        r = Integer(length=32, default=0)
+        s = Integer(length=32, defualt=0)
 
     def to_bytes(self):
         return b''.join([
@@ -44,10 +44,10 @@ class Signature(Field):
     def check_valid_signature(self, message):
         ''' Return true if v,r,s is valid for some `message` (in bytes)
         '''
-        pass
+        return True
 
     def recover_pubkey(self):
-        pass
+        return 0
 
     def get_hash(self):
         return global_hash(self.to_bytes())
@@ -88,7 +88,7 @@ class SuperTx(Field):
 
     def init(self):
         self.sender = self.signature.recover_pubkey()
-        for tx in txs:
+        for tx in self.txs:
             tx.sender = self.sender
         
     def to_bytes(self):
