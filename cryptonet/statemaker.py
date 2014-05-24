@@ -216,6 +216,7 @@ class StateMaker(object):
 
     def trial_chain_path(self, around_state_height, chain_path_to_trial):
         ''' Warning: alters state permanently on success.
+        Test the provided chain path and if successful alter the state.
         '''
         with self.trial_state(around_state_height) as temporary_state:
             success = self._trial_chain_path(around_state_height, chain_path_to_trial)
@@ -229,8 +230,24 @@ class StateMaker(object):
         return success
 
     def _alt_state_gateway(self, state_tag, from_height, amnesia=False):
+        '''returns an instance of AltStateGateway class.
+        When an AltStateGateway is entered the state is a non-permanent trail state.
+        Modifications may be made freely.
+        Upon exiting the AltStateGateway the value of .harden will determine if the
+        state is made permanent or not.
+
+        Use:
+        with self._alt_state_gateway(b'my_state_tag', 1000):
+            my_state[b'hi there'] = 1
+        '''
 
         class AltStateGateway(object):
+            '''Changes the state to a temp state identified by a tag.
+            Should be used with the `with` statement.
+
+            amnesia=False: if amnesia is set to True the temp state identified by state_tag will be forgotten.
+            EG: the future state will not be amnesiac, but trialing a chain-path is.
+            '''
 
             def __init__(self, state_maker, state_tag, from_height, amnesia=False):
                 self.state_maker = state_maker
@@ -259,7 +276,9 @@ class StateMaker(object):
     def forget_future_state(self):
         self.dapps.forget_alt(b'future')
 
-    def trial_state(self, from_height):
+    def trial_state(self, from_height=None):
+        if from_height == None:
+            from_height = self.get_height()
         return self._alt_state_gateway(b'trial', from_height, amnesia=True)
 
 

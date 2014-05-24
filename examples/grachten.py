@@ -138,7 +138,7 @@ class GrachtenHeader(Field):
 
     @staticmethod
     def header_template(chain, previous_block):
-        new_grachten_header = GrachtenHeader.make(height = chain.head.height + 1, previous_blocks = chain.db.get_ancestors(chain.head.get_hash()))
+        new_grachten_header = GrachtenHeader.make(height = chain.head.height + 1, previous_blocks = chain.db.get_ancestors(previous_block.get_hash()))
         new_grachten_header.target = GrachtenHeader.calc_expected_target(new_grachten_header, previous_block, chain)
         new_grachten_header.sigma_diff = GrachtenHeader.calc_sigma_diff(new_grachten_header, previous_block)
         return new_grachten_header

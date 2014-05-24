@@ -24,16 +24,16 @@ class Dapp(object):
         self.state_maker.register_dapp(self)
         self.super_state = state_maker.super_state
         self.state_bank = {}
-        self.set_state(StateDelta())
+        self._set_state(StateDelta())
 
         
-    def synchronize_state(self):
+    def _synchronize_state(self):
         ''' Needed when self.state is set to a new object. '''
         self.super_state.register_dapp(self.name, self.state)
         
-    def set_state(self, new_state):
+    def _set_state(self, new_state):
         self.state = new_state
-        self.synchronize_state()
+        self._synchronize_state()
         
     def on_block(self, block, chain):
         ''' This is called when a new block arrives. Since many dapps won't
@@ -47,11 +47,11 @@ class Dapp(object):
         
     def checkpoint(self, hard_checkpoint=True):
         ''' Checkpoint state. '''
-        self.set_state(self.state.checkpoint(hard_checkpoint))
+        self._set_state(self.state.checkpoint(hard_checkpoint))
     
     def reset_to_last_checkpoint(self):
         ''' Apply to state. '''
-        self.set_state(self.state.last_checkpoint())
+        self._set_state(self.state.last_checkpoint())
         
     def make_last_checkpoint_hard(self):
         ''' Harden last checkpoint. '''
@@ -61,13 +61,13 @@ class Dapp(object):
         ''' Set self.state to the best known state at a height equal to or less
         than the height provided.
         '''
-        self.set_state(self.state.prune_to_or_beyond(height))
+        self._set_state(self.state.prune_to_or_beyond(height))
 
     def start_alt(self, state_tag, from_height):
         self.state_bank[b''] = self.state
         if state_tag not in self.state_bank:
             self.state_bank[state_tag] = self.state.child_at_or_before(from_height).checkpoint(hard_checkpoint=False)
-        self.set_state(self.state_bank[state_tag])
+        self._set_state(self.state_bank[state_tag])
 
     def end_alt(self, name, harden=False):
         assert name in self.state_bank
@@ -75,7 +75,7 @@ class Dapp(object):
             self.state.harden(None)
         else:
             self.state_bank[name] = self.state
-            self.set_state(self.state_bank[b''])
+            self._set_state(self.state_bank[b''])
 
     def forget_alt(self, name):
         if name in self.state_bank:
@@ -141,6 +141,15 @@ class StateDelta(object):
         if self.parent != None:
             keys = keys.union(self.parent.all_keys())
         return keys - self.deleted_keys
+
+    def complete_kvs(self):
+        ''' Return flattened state as dict/k_v_store.
+        '''
+        return_key_value_store = {}
+        all_keys = self.all_keys()
+        for k in all_keys:
+            return_key_value_store[k] = self[k]
+        return return_key_value_store
         
     def get_hash(self):
         if self.my_hash == None:
