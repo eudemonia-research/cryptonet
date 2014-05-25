@@ -301,4 +301,10 @@ class TxPrism(Dapp):
             self.state_maker.dapps[tx.dapp].on_transaction(tx, block, chain)
             
             
-            
+class TxTracker(Dapp):
+
+    def on_transaction(self, super_tx, block, chain):
+        if self.state[super_tx.get_hash()] != 0:
+            raise ValidationError('SuperTx already included in chain')
+        self.state[super_tx.get_hash()] = 1
+

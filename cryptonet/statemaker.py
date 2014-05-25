@@ -1,5 +1,5 @@
 from cryptonet.utilities import global_hash
-from cryptonet.dapp import Dapp, TxPrism
+from cryptonet.dapp import Dapp, TxPrism, TxTracker
 from cryptonet.errors import ValidationError
 from cryptonet.dapp import StateDelta
 from cryptonet.debug import debug
@@ -12,6 +12,7 @@ Contains
 '''
 
 ROOT_DAPP = b''
+TX_TRACKER = b'_TX_TRACKER'
 
 class _DappHolder(object):
     def __init__(self):
@@ -82,7 +83,9 @@ class StateMaker(object):
         self.chain = chain
         self.most_recent_block = None
         self.super_state = SuperState()
+        # System Dapps
         self.register_dapp(TxPrism(ROOT_DAPP, self))
+        self.register_dapp(TxTracker(TX_TRACKER, self))
         self.is_future = is_future
         self.future_state_maker = None
         self.future_block = None
@@ -135,6 +138,7 @@ class StateMaker(object):
         '''
         try:
             for super_tx in list_of_super_txs:
+                self.dapps[TX_TRACKER].on_transaction(super_tx, self.most_recent_block, self.chain)
                 for tx in super_tx.txs:
                     self._process_tx(tx)
         except AssertionError or ValidationError as e:
@@ -311,3 +315,4 @@ class SuperState(object):
             leaves.extend([global_hash(n), self.state_dict[n].get_hash()])
         merkle_root = MerkleLeavesToRoot.make(leaves=leaves)
         return merkle_root.get_hash()
+
