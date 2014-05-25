@@ -30,27 +30,27 @@ BLOCK [
 class Signature(Field):
 
     def fields():
-        v = Integer(length=1, default=0)
-        r = Integer(length=32, default=0)
-        s = Integer(length=32, defualt=0)
+        sig_bytes = Bytes(defualt=b'')
+        pubkey = Integer(length=32, default=0)
 
     def to_bytes(self):
-        return b''.join([
-            self.v.to_bytes(1, 'big'),
-            self.r.to_bytes(32, 'big'),
-            self.s.to_bytes(32, 'big'),
-        ])
+        return self.sig_bytes + self.pubkey.to_bytes(32, 'big')
 
     def check_valid_signature(self, message):
-        ''' Return true if v,r,s is valid for some `message` (in bytes)
+        ''' Return true if self.sig_bytes is a valid signature for some `message` (in bytes)
         '''
         return True
 
     def recover_pubkey(self):
-        return 0
+        return self.pubkey
 
     def get_hash(self):
         return global_hash(self.to_bytes())
+
+    def sign(self, message, privkey):
+        ''' Should set v,r,s accordingly to
+        '''
+        self.sig_bytes = magic_signing_function(message, privkey)
 
 class Tx(Field):
     
