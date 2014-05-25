@@ -36,6 +36,7 @@ class TestTransactions(unittest.TestCase):
         pass
 
     def test_standard_signature(self):
+        # found here: https://github.com/cryptosphere/rbnacl/commit/72fabf2f978ea03b75ee25a226e27bb731a8d566
         privkey = int.from_bytes(unhexlify("b18e1d0045995ec3d010c387ccfeb984d783af8fbb0f40fa7db126d889f6dadd"), 'big')
         pubkey = int.from_bytes(unhexlify("77f48b59caeda77751ed138b0ec667ff50f8768c25d48309a8f386a2bad187fb"), 'big')
         signature = Signature.make(pubkey=pubkey)
