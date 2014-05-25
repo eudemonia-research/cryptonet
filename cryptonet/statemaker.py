@@ -44,7 +44,7 @@ class _DappHolder(object):
 
     def reset_to_last_hardened_checkpoint(self):
         ''' Apply to all dapp states. '''
-        debug('RESET TO LAST CHECKPOITN')
+        debug('RESET TO LAST CHECKPOINT')
         for d in self.dapps:
             self.dapps[d].reset_to_last_checkpoint()
 
