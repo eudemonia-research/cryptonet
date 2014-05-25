@@ -343,7 +343,7 @@ class Block(Field):
         # TxPrism is standard root dapp - allows for txs to be passed to contracts
         self.state_maker.register_dapp(TxPrism(b'', self.state_maker))
 
-        self.setup_rpc()
+        self.setup_rpc(chain)
 
     def set_state_maker(self, state_maker):
         self.state_maker = state_maker
@@ -353,7 +353,10 @@ class Block(Field):
         self.header.state_mr = self.state_maker.super_state.get_hash()
         self.header.transaction_mr = MerkleLeavesToRoot.make(leaves=self.super_txs).get_hash()
 
-    def setup_rpc(self):
+    def setup_rpc(self, chain):
+        ''' Keep in mind this runs inside the first
+        '''
+        self.chain = chain
         self.rpc = RPCServer(port=32550)
 
         @self.rpc.add_method
@@ -361,8 +364,14 @@ class Block(Field):
             state = self.state_maker.super_state[b'']
             keys = state.all_keys()
             return {
-                "balance": max(keys),
-                "height": max(keys),
+                "top_block hash": self.chain.head.get_hash(),
+                "top_block_height": self.chain.get_height(),
+            }
+
+        @self.rpc.add_method
+        def getbalance(pubkey):
+            return {
+                "balance": self.super_state[b''][pubkey]
             }
 
         @self.rpc.add_method
