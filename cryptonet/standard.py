@@ -50,6 +50,8 @@ class Signature(Field):
     def sign(self, message, privkey):
         ''' Should set v,r,s accordingly to
         '''
+        def magic_signing_function(m,p):
+            return b''
         self.sig_bytes = magic_signing_function(message, privkey)
 
 class Tx(Field):
@@ -82,19 +84,18 @@ class Tx(Field):
 class SuperTx(Field):
     
     def fields():
-        nonce = Integer(length=4)
         txs = List(Tx())
         signature = Signature()
 
     def init(self):
-        self.sender = self.signature.recover_pubkey()
+        self.sender = self.signature.pubkey
         for tx in self.txs:
             tx.sender = self.sender
+        self.txs_bytes = b''.join([tx.to_bytes() for tx in self.txs])
         
     def to_bytes(self):
         return b''.join([
-            self.nonce.to_bytes(4, 'big'),
-            b''.join([x.to_bytes for x in self.txs]),
+            b''.join([tx.to_bytes for tx in self.txs]),
             self.signature.to_bytes(),
         ])
         
@@ -106,7 +107,7 @@ class SuperTx(Field):
         '''
         for tx in self.txs:
             tx.assert_internal_consistency()
-        self.signature.assert_internal_consistency()
+        self.signature.check_valid_signature(self.txs_bytes)
 
         
 class Header(Field):
