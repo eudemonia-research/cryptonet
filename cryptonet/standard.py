@@ -30,7 +30,8 @@ BLOCK [
 class Signature(Field):
 
     def fields():
-        sig_bytes = Bytes(defualt=b'')
+        r = Integer(length=32)
+        s = Integer(length=32)
         pubkey = Integer(length=32, default=0)
 
     def to_bytes(self):
@@ -353,10 +354,12 @@ class Block(Field):
         self.header.state_mr = self.state_maker.super_state.get_hash()
         self.header.transaction_mr = MerkleLeavesToRoot.make(leaves=self.super_txs).get_hash()
 
-    def setup_rpc(self, chain):
-        ''' Keep in mind this runs inside the first
+    def setup_rpc(self, cryptonet):
+        ''' Keep in mind this runs inside the genesis block. Don't refer to things other than
+        those which are common like the chian, statemaker, etc.
         '''
-        self.chain = chain
+        chain = cryptonet.chain
+        p2p = cryptonet.p2p
         self.rpc = RPCServer(port=32550)
 
         @self.rpc.add_method
@@ -364,8 +367,8 @@ class Block(Field):
             state = self.state_maker.super_state[b'']
             keys = state.all_keys()
             return {
-                "top_block hash": self.chain.head.get_hash(),
-                "top_block_height": self.chain.get_height(),
+                "top_block hash": chain.head.get_hash(),
+                "top_block_height": chain.get_height(),
             }
 
         @self.rpc.add_method
@@ -378,8 +381,8 @@ class Block(Field):
         def pushtx(super_tx):
             if super_tx.is_valid():
                 # when we can broadcast txs, do that
-                pass
+                p2p.broadcast(b'SUPERTX', super_tx)
             else:
-                return {}
+                return {"error":"super_tx not valid"}
 
         self.rpc.run()
