@@ -5,6 +5,7 @@ from encodium import *
 
 import cryptonet
 import cryptonet.chain
+import pycoin.ecdsa
 from cryptonet.utilities import global_hash
 from cryptonet.statemaker import StateMaker
 from cryptonet.rpcserver import RPCServer
@@ -30,9 +31,8 @@ BLOCK [
 class Signature(Field):
 
     def fields():
-        r = Integer(length=32)
-        s = Integer(length=32)
-        pubkey = Integer(length=32, default=0)
+        sig_bytes = Bytes(optional=True,length=32)
+        pubkey = Bytes(max_length=65)
 
     def to_bytes(self):
         return self.sig_bytes + self.pubkey.to_bytes(32, 'big')
@@ -40,7 +40,10 @@ class Signature(Field):
     def check_valid_signature(self, message):
         ''' Return true if self.sig_bytes is a valid signature for some `message` (in bytes)
         '''
-        return True
+        return pycoin.ecdsa.verify(pycoin.ecdsa.generator_secp256k1,
+                                   self.pubkey,
+                                   hashlib.sha256(message).digest(),
+                                   self.sig_bytes)
 
     def recover_pubkey(self):
         return self.pubkey
@@ -52,7 +55,10 @@ class Signature(Field):
         ''' Should set v,r,s accordingly to
         '''
         def magic_signing_function(m,p):
-            return b''
+            # XXX check that we're doing this right.
+            return pycoin.ecdsa.sign(pycoin.ecdsa.generator_secp256k1,
+                                     privkey,
+                                     hashlib.sha256(message).digest())
         self.sig_bytes = magic_signing_function(message, privkey)
 
 class Tx(Field):
