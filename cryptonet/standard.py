@@ -28,41 +28,59 @@ BLOCK [
 
 '''
 
-class Signature(Field):
 
+class Signature(Field):
     def fields():
-        sig_bytes = Bytes(optional=True,length=32)
-        pubkey = Bytes(max_length=65)
+        r = Integer(length=32)
+        s = Integer(length=32)
+        pubkey_x = Integer(length=32)
+        pubkey_y = Integer(length=32)
+
+    def init(self):
+        self.sender = self.pubkey_x
 
     def to_bytes(self):
-        return self.sig_bytes + self.pubkey.to_bytes(32, 'big')
+        # TODO unsure if this will serialise (r,s) and (r,-s) the same, and (x,y) and (x,-y)
+        # TODO If so this needs to change before mainnet time
+        return self.r.to_bytes(32, 'big') + self.s.to_bytes(32, 'big') + \
+               self.pubkey_x.to_bytes(32, 'big') + self.pubkey_y.to_bytes(32, 'big')
 
-    def check_valid_signature(self, message):
-        ''' Return true if self.sig_bytes is a valid signature for some `message` (in bytes)
+    def assert_valid_signature(self, message):
         '''
-        return pycoin.ecdsa.verify(pycoin.ecdsa.generator_secp256k1,
-                                   self.pubkey,
-                                   hashlib.sha256(message).digest(),
-                                   self.sig_bytes)
+        '''
+        # TODO assert pubkey is valid for curve
+        if not pycoin.ecdsa.verify(pycoin.ecdsa.generator_secp256k1,
+                                   (self.pubkey_x, self.pubkey_y),
+                                   global_hash(message),
+                                   (self.r, self.s)):
+            raise ValidationError('Signature failed to verify')
+        print('Signature.assert_valid_signature', message)
 
-    def recover_pubkey(self):
-        return self.pubkey
+    def pubkey(self):
+        return (self.pubkey_x, self.pubkey_y)
+
+    def signature(self):
+        return (self.r, self.s)
 
     def get_hash(self):
         return global_hash(self.to_bytes())
 
-    def sign(self, message, privkey):
-        ''' Should set v,r,s accordingly to
+    def sign(self, secret_exponent, message):
+        ''' Set r,s according to
         '''
-        def magic_signing_function(m,p):
-            # XXX check that we're doing this right.
-            return pycoin.ecdsa.sign(pycoin.ecdsa.generator_secp256k1,
-                                     privkey,
-                                     hashlib.sha256(message).digest())
-        self.sig_bytes = magic_signing_function(message, privkey)
+        assert isinstance(message, int)
+        # TODO check that we're doing this right.
+        self.r, self.s = pycoin.ecdsa.sign(pycoin.ecdsa.generator_secp256k1,
+                                           secret_exponent,
+                                           global_hash(message))
+        self.pubkey_x, self.pubkey_y = pycoin.ecdsa.public_pair_for_secret_exponent(pycoin.ecdsa.generator_secp256k1,
+                                                                                    secret_exponent)
+        self.sender = self.pubkey_x
+        self.assert_valid_signature(message)
+        print('Signature.sign', message)
+
 
 class Tx(Field):
-    
     def fields():
         dapp = Bytes()
         value = Integer(length=8)
@@ -72,62 +90,69 @@ class Tx(Field):
     def init(self):
         #self.sender = self.recover_pubkey()
         pass
-    
+
     def to_bytes(self):
         return b''.join([
             self.dapp,
             self.value.to_bytes(8, 'big'),
             self.fee.to_bytes(4, 'big'),
-            b''.join(self.data)
+            b''.join(self.data)  # TODO unsafe; ['ab','cd'] and ['a','bcd'] are the same when put through this
         ])
-    
+
     def get_hash(self):
         return global_hash(self.to_bytes())
 
     def assert_internal_consistency(self):
-        pass # if we've got this far the tx should be well formed
-        
-        
+        pass  # if we've got this far the tx should be well formed
+
+
 class SuperTx(Field):
-    
     def fields():
         txs = List(Tx())
         signature = Signature()
 
     def init(self):
-        self.sender = self.signature.pubkey
-        for tx in self.txs:
-            tx.sender = self.sender
+        self._gen_txs_bytes()
+
+    def _gen_txs_bytes(self):
         self.txs_bytes = b''.join([tx.to_bytes() for tx in self.txs])
-        
+
     def to_bytes(self):
         return b''.join([
-            b''.join([tx.to_bytes for tx in self.txs]),
+            b''.join([tx.to_bytes() for tx in self.txs]),
             self.signature.to_bytes(),
         ])
-        
+
     def get_hash(self):
         return global_hash(self.to_bytes())
+
+    def sign(self, secret_exponent):
+        # shouldn't need to self._gen_txs_bytes() here
+        self.signature.sign(secret_exponent, int.from_bytes(self.txs_bytes, 'big'))
+        for tx in self.txs:
+            tx.sender = self.signature.pubkey_x
 
     def assert_internal_consistency(self):
         '''Should ensure signature is valid, nonce is valid, and each tx is valid
         '''
         for tx in self.txs:
             tx.assert_internal_consistency()
-        self.signature.check_valid_signature(self.txs_bytes)
+        self.signature.assert_valid_signature(int.from_bytes(self.txs_bytes, 'big'))
+        old_txs_bytes = self.txs_bytes
+        self._gen_txs_bytes()
+        assert old_txs_bytes == self.txs_bytes
 
-        
+
 class Header(Field):
-
-    DEFAULT_TARGET = 2**248-1
-    _TARGET1 = 2**256-1
+    DEFAULT_TARGET = 2 ** 248 - 1
+    _TARGET1 = 2 ** 256 - 1
     RETARGET_PERIOD = 16
     BLOCKS_PER_DAY = 1440
-    timeint = lambda : int(time.time())
-    
+    timeint = lambda: int(time.time())
+
     def fields():
         version = Integer(length=2)
-        nonce = Integer(length=8) # nonce second to increase work needed for PoW
+        nonce = Integer(length=8)  # nonce second to increase work needed for PoW
         height = Integer(length=4)
         timestamp = Integer(length=5)
         target = Integer(length=32, default=0)
@@ -136,10 +161,10 @@ class Header(Field):
         transaction_mr = Integer(length=32, default=0)
         uncles_mr = Integer(length=32, default=0)
         previous_blocks = List(Integer(length=32))
-        
+
     def to_bytes(self):
         return b''.join([
-            self.version.to_bytes(2,'big'),
+            self.version.to_bytes(2, 'big'),
             self.nonce.to_bytes(8, 'big'),
             self.height.to_bytes(4, 'big'),
             self.timestamp.to_bytes(5, 'big'),
@@ -150,35 +175,36 @@ class Header(Field):
             self.uncles_mr.to_bytes(32, 'big'),
             b''.join([i.to_bytes(32, 'big') for i in self.previous_blocks]),
         ])
-        
+
     def get_hash(self):
         return global_hash(self.to_bytes())
-    
+
     def assert_internal_consistency(self):
         # todo: finish
         ''' self.assert_internal_consistency should validate the following:
         * version as expected
-        * nonce not silly
         * timestamp not silly
-        * target not silly
-        * whatever_mr not silly
         * previous_blocks not silly
+        * PoW valid
         
         'not silly' means the data 'looks' right (length, etc) but the information
         is not validated.
         '''
-        pass
-        
+        self.assert_true(self.version == 0, 'version at 0')
+        self.assert_true(self.timestamp <= int(time.time()) + 60*15, 'timestamp too far in future')
+        self.assert_true(self.valid_proof(), 'valid PoW required')
+        self.assert_true(len(self.previous_blocks) < 30, 'reasonable number of prev_blocks')
+
     def assert_validity(self, chain):
         # todo: finish
+        # todo: timestamp validation
         ''' self.assert_validity does not validate merkle roots.
         Since the thing generating the merkle roots is stored in the block, a
         block is invlalid if its list of whatever does not produce the correct
         whatever_mr. The header is not invalid, however.
         
         self.assert_validity should validate the following:
-        * self.timestamp no more than 15 minutes in the future and >= median of 
-            last 100 blocks.
+        * self.timestamp is >= something
         * self.target is as expected based on past blocks
         * self.previous_blocks exist and are correct
         '''
@@ -186,24 +212,34 @@ class Header(Field):
         if chain.initialized:
             for block_hash in self.previous_blocks:
                 self.assert_true(chain.has_block_hash(block_hash), 'previous_blocks required to be known')
+                self.assert_true(chain.db.get_ancestors(self.parent_hash) == self.previous_blocks,
+                                 'previous blocks must match expected')
             self.assert_true(chain.get_block(self.parent_hash).height + 1 == self.height, 'Height requirement')
+            self.assert_true(self.calc_expected_target(chain, chain.get_block(self.parent_hash)) == self.target,
+                             'target must be as expected')
+            self.assert_true(self.calc_sigma_diff(chain.get_block(self.parent_hash)) == self.sigma_diff,
+                             'sigma_diff must be as expected')
+
         else:
             self.assert_true(self.height == 0, 'Genesis req.: height must be 0')
             self.assert_true(self.previous_blocks == [0], 'Genesis req.: Previous blocks must be zeroed')
-            self.assert_true(self.uncle_mr == 0, 'Genesis req.: uncleMR must be zeroed')
+            self.assert_true(self.uncle_mr == 0, 'Genesis req.: uncle_mr must be zeroed')
+
+    def valid_proof(self):
+        return self.get_hash() < self.target
 
     def increment_nonce(self):
         self.nonce += 1
 
     def get_pre_candidate(self, chain, previous_block):
         new_header = Header.make(
-            version = self.version,
-            nonce = 0,
+            version=self.version,
+            nonce=0,
             height=self.height + 1,
             timestamp=Header.timeint(),
             previous_blocks=chain.db.get_ancestors(previous_block.get_hash()),
         )
-        new_header.target = Header.calc_sigma_diff(new_header, chain, previous_block)
+        new_header.target = Header.calc_expected_target(new_header, chain, previous_block)
         new_header.sigma_diff = Header.calc_sigma_diff(new_header, previous_block)
         return new_header
 
@@ -213,7 +249,7 @@ class Header(Field):
         if self.previous_blocks[0] == 0: return Header.DEFAULT_TARGET
         if self.height % Header.RETARGET_PERIOD != 0: return previous_block.header.target
 
-        old_ancestor = chain.get_block(self.previous_blocks[(Header.RETARGET_PERIOD-1).bit_length()])
+        old_ancestor = chain.get_block(self.previous_blocks[(Header.RETARGET_PERIOD - 1).bit_length()])
         timedelta = self.timestamp - old_ancestor.header.timestamp
         expected_timedelta = 60 * 60 * 24 * Header.RETARGET_PERIOD // Header.BLOCKS_PER_DAY
 
@@ -227,21 +263,28 @@ class Header(Field):
     # need to test
     def calc_sigma_diff(self, previous_block=None):
         ''' given header, calculate the sigma_diff '''
-        if self.previous_blocks[0] == 0: prevsigma_diff = 0
-        else: prevsigma_diff = previous_block.header.sigma_diff
-        return prevsigma_diff + Header.target_to_diff(self.target)
+        if self.previous_blocks[0] == 0:
+            prevsigma_diff = 0
+        else:
+            prevsigma_diff = previous_block.header.sigma_diff
+        return prevsigma_diff + self.target_to_diff(self.target)
 
+    @staticmethod
     def target_to_diff(target):
         return Header._TARGET1 // target
 
+    @staticmethod
+    def assert_true(condition, message):
+        if not condition:
+            raise ValidationError(message)
+
 
 class Block(Field):
-    
     def fields():
         header = Header()
         uncles = List(Header(), default=[])
         super_txs = List(SuperTx(), default=[])
-        
+
     def init(self):
         self.parent_hash = self.header.previous_blocks[0]
         self.height = self.header.height
@@ -252,6 +295,9 @@ class Block(Field):
         if isinstance(other, Block) and other.get_hash() == self.get_hash():
             return True
         return False
+
+    def related_blocks(self):
+        return self.header.previous_blocks
 
     def reorganisation(self, chain, from_block, around_block, to_block, is_test=False):
         ''' self.reorganisation() should be called only on the current head, where to_block is
@@ -281,13 +327,13 @@ class Block(Field):
         if success:
             to_block.set_state_maker(self.state_maker)
         return success
-        
+
     def get_hash(self):
         return self.header.get_hash()
 
     #def add_super_txs(self, list_of_super_txs):
     #    self.state_maker.add_super_txs(list_of_super_txs)
-        
+
     def assert_internal_consistency(self):
         ''' self.assert_internal_consistency should validate the following:
         * self.header internally consistent
@@ -301,9 +347,12 @@ class Block(Field):
             uncle.assert_internal_consistency()
         for super_tx in self.super_txs:
             super_tx.assert_internal_consistency()
-        self.assert_true(self.header.transaction_mr == MerkleLeavesToRoot.make(leaves=[i.get_hash() for i in self.super_txs]).get_hash(), 'TxMR consistency')
-        self.assert_true(self.header.uncles_mr == MerkleLeavesToRoot.make(leaves=[i.get_hash() for i in self.uncles]).get_hash(), 'UnclesMR consistency')
-        
+        self.assert_true(self.header.transaction_mr == MerkleLeavesToRoot.make(
+            leaves=[i.get_hash() for i in self.super_txs]).get_hash(), 'TxMR consistency')
+        self.assert_true(
+            self.header.uncles_mr == MerkleLeavesToRoot.make(leaves=[i.get_hash() for i in self.uncles]).get_hash(),
+            'UnclesMR consistency')
+
     def assert_validity(self, chain):
         ''' self.assert_validity should validate the following:
         * self.header.state_mr equals root of self.super_state
@@ -316,6 +365,8 @@ class Block(Field):
         else:
             self.assert_true(self.height == 0, 'Genesis req.: height must be 0')
             self.assert_true(self.parent_hash == 0, 'Genesis req.: parent_hash must be zeroed')
+        # TODO The below will fail if the current block isn't at the head.
+        # TODO Policy should be to only .assert_validity() on the head.
         self.assert_true(self.super_state.get_hash() == self.header.state_root, 'State root must match expected')
 
     def better_than(self, other):
@@ -328,7 +379,7 @@ class Block(Field):
             raise ValidationError('Block Failed Validation: %s' % message)
 
     def get_candidate(self, chain):
-        # todo : fix so state_root matches expected
+        # todo : fix so state_root matches expected - should now be fixed?
         return self.state_maker.future_block
 
     def get_pre_candidate(self, chain):
@@ -340,7 +391,7 @@ class Block(Field):
         self.header.increment_nonce()
 
     def valid_proof(self):
-        return True
+        return self.header.valid_proof()
 
     def on_genesis(self, chain):
         assert not chain.initialized
@@ -389,6 +440,6 @@ class Block(Field):
                 # when we can broadcast txs, do that
                 p2p.broadcast(b'SUPERTX', super_tx)
             else:
-                return {"error":"super_tx not valid"}
+                return {"error": "super_tx not valid"}
 
         self.rpc.run()

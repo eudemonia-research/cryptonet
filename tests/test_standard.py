@@ -10,6 +10,11 @@ from cryptonet.chain import Chain
 from cryptonet.statemaker import StateMaker
 from cryptonet.standard import Tx, SuperTx, Signature
 from cryptonet.dapp import TxPrism
+from cryptonet.errors import ValidationError
+
+import encodium
+
+from pycoin import ecdsa
 
 class TestTransactions(unittest.TestCase):
 
@@ -36,21 +41,20 @@ class TestTransactions(unittest.TestCase):
         pass
 
     def test_standard_signature(self):
-        # found here: https://github.com/cryptosphere/rbnacl/commit/72fabf2f978ea03b75ee25a226e27bb731a8d566
-        # lots of samples here: http://ed25519.cr.yp.to/python/sign.input
-        privkey = int.from_bytes(unhexlify("b18e1d0045995ec3d010c387ccfeb984d783af8fbb0f40fa7db126d889f6dadd"), 'big')
-        pubkey = int.from_bytes(unhexlify("77f48b59caeda77751ed138b0ec667ff50f8768c25d48309a8f386a2bad187fb"), 'big')
-        signature = Signature.make(sig_bytes=b'', pubkey=pubkey)
-        message = unhexlify("916c7d1d268fc0e77c1bef238432573c39be577bbea0998936add2b50a653171" +
-                            "ce18a542b0b7f96c1691a3be6031522894a8634183eda38798a0c5d5d79fbd01" +
-                            "dd04a8646d71873b77b221998a81922d8105f892316369d5224c9983372d2313" +
-                            "c6b1f4556ea26ba49d46e8b561e0fc76633ac9766e68e21fba7edca93c4c7460" +
-                            "376d7f3ac22ff372c18f613f2ae2e856af40")
-        sig_bytes = unhexlify("6bd710a368c1249923fc7a1610747403040f0cc30815a00f9ff548a896bbda0b" +
-                              "4eb2ca19ebcf917f0f34200a9edbad3901b64ab09cc5ef7b9bcc3c40c0ff7509")
+        # borrowed from pycoin tests in large part
+        def do_test(secret_exponent, val_list):
+            signature = Signature.make(r=0, s=0, pubkey_x=0, pubkey_y=0)
+            for v in val_list:
+                signature.sign(secret_exponent, v)
+                signature.assert_valid_signature(v)
+                signature.s = signature.s+1
+                self.assertRaises(encodium.ValidationError, signature.assert_valid_signature, message=v)
 
-        signature.sign(message, privkey)
-        self.assertEqual(signature.sig_bytes, sig_bytes)
+        val_list = [100,20000,30000000,4000000000,500000000000,60000000000000]
+
+        do_test(0x1111111111111111111111111111111111111111111111111111111111111111, val_list)
+        do_test(0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd, val_list)
+        do_test(0x47f7616ea6f9b923076625b4488115de1ef1187f760e65f89eb6f4f7ff04b012, val_list)
 
     def test_transactions_unsigned(self):
         ''' Create some unsigned transactions (temp) that will be applied to state.
@@ -64,12 +68,12 @@ class TestTransactions(unittest.TestCase):
                 int.from_bytes(b'MAX', 'big'): 15
             }
             self.assertEqual(mid_state, self.state_maker.super_state[b''].complete_kvs())
-            tx = Tx.make(dapp=b'',value=5,fee=0,data=[b'ANDI'])
-            tx.sender = b'MAX'
+            tx = Tx.make(dapp=b'',value=5,fee=0,data=[b'ANDY'])
+            tx.sender = int.from_bytes(b'MAX', 'big')
             self.state_maker._process_tx(tx)
             end_state = {
                 int.from_bytes(b'MAX', 'big'): 10,
-                int.from_bytes(b'ANDI', 'big'): 5
+                int.from_bytes(b'ANDY', 'big'): 5
             }
             self.assertEqual(end_state, self.state_maker.super_state[b''].complete_kvs())
 
@@ -85,15 +89,32 @@ class TestTransactions(unittest.TestCase):
                 int.from_bytes(b'MAX', 'big'): 15
             }
             self.assertEqual(mid_state, self.state_maker.super_state[b''].complete_kvs())
-            tx = Tx.make(dapp=b'',value=5,fee=0,data=[b'ANDI'])
-            super_tx = SuperTx.make(nonce=0,txs=[tx],signature=Signature.make(sig_bytes=b'', pubkey=0))
+
+            tx = Tx.make(dapp=b'',value=5,fee=0,data=[b'ANDY'])
+            super_tx = SuperTx.make(txs=[tx],signature=Signature.make(r=0, s=0, pubkey_x=0, pubkey_y=0))
+            super_tx.sign(0x1111111111111111111111111111111111111111111111111111111111111111)
+            super_tx.assert_internal_consistency()
             tx.sender = int.from_bytes(b'MAX', 'big')
             self.state_maker._add_super_txs([super_tx])
             end_state = {
                 int.from_bytes(b'MAX', 'big'): 10,
-                int.from_bytes(b'ANDI', 'big'): 5
+                int.from_bytes(b'ANDY', 'big'): 5
             }
             self.assertEqual(end_state, self.state_maker.super_state[b''].complete_kvs())
+
+            tx1 = Tx.make(dapp=b'', value=3, fee=0, data=[b'ANDY'])
+            tx2 = Tx.make(dapp=b'', value=5, fee=0, data=[b'MAX'])
+            super_tx = SuperTx.make(txs=[tx1, tx2], signature=Signature.make(r=0, s=0, pubkey_x=0, pubkey_y=0))
+            super_tx.sign(0x1111111111111111111111111111111111111111111111111111111111111111)
+            tx1.sender = int.from_bytes(b'MAX', 'big')
+            tx2.sender = int.from_bytes(b'ANDY', 'big')
+            super_tx.assert_internal_consistency()
+            self.state_maker._add_super_txs([super_tx])
+            real_end_state = {
+                int.from_bytes(b'MAX', 'big'): 12,
+                int.from_bytes(b'ANDY', 'big'): 3,
+            }
+            self.assertEqual(real_end_state, self.state_maker.super_state[b''].complete_kvs())
 
 
     def tearDown(self):

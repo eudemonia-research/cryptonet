@@ -106,7 +106,6 @@ class StateDelta(object):
 
     def _make_key_valid(self, key):
         if not isinstance(key, int):
-            assert isinstance(key, bytes)
             key = int.from_bytes(key, 'big')
         if key < 0:
             raise KeyError('Negative entries not allowed')
@@ -288,6 +287,7 @@ class TxPrism(Dapp):
         '''
         assert tx.value > 0
         assert tx.fee >= 0
+        print('TxPrism.on_transaction', tx.sender)
         assert self.state[tx.sender] >= tx.value + tx.fee
         self.state[tx.sender] -= tx.value + tx.fee
         

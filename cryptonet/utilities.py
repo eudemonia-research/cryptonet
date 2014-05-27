@@ -33,7 +33,10 @@ def num2bits(n, minlen=0):
 def global_hash(msg):
     ''' This is the hash function that should be used EVERYWHERE in GPDHT.
     Currently defined to be SHA3.
-    As always, should return a BANT '''
+    Returns int, should accept int'''
     s = hashlib.sha3_256()
-    s.update(bytes(msg))
+    if not isinstance(msg, int):
+        s.update(bytes(msg))
+    else:
+        s.update(msg.to_bytes(msg.bit_length() // 8 + 1, 'big'))
     return int.from_bytes(s.digest(), 'big')
