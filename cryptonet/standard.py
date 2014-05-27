@@ -231,6 +231,7 @@ class Header(Field):
     def increment_nonce(self):
         self.nonce += 1
 
+    # todo: test
     def get_pre_candidate(self, chain, previous_block):
         new_header = Header.make(
             version=self.version,
@@ -243,30 +244,29 @@ class Header(Field):
         new_header.sigma_diff = Header.calc_sigma_diff(new_header, previous_block)
         return new_header
 
-
+    # todo: test
     def calc_expected_target(self, chain, previous_block):
         ''' given self, chain, and previous_block, calculate the expected target '''
         if self.previous_blocks[0] == 0: return Header.DEFAULT_TARGET
         if self.height % Header.RETARGET_PERIOD != 0: return previous_block.header.target
 
+        # todo: is this only going to work for retarget periods of a power of 2?
         old_ancestor = chain.get_block(self.previous_blocks[(Header.RETARGET_PERIOD - 1).bit_length()])
         timedelta = self.timestamp - old_ancestor.header.timestamp
         expected_timedelta = 60 * 60 * 24 * Header.RETARGET_PERIOD // Header.BLOCKS_PER_DAY
 
         if timedelta < expected_timedelta // 4: timedelta = expected_timedelta // 4
-        if timedelta > expected_timedelta * 4: timedelta = expected_timedelta * 4
+        elif timedelta > expected_timedelta * 4: timedelta = expected_timedelta * 4
 
         new_target = previous_block.header.target * timedelta // expected_timedelta
         debug('New Target Calculated: %064x, height: %d' % (new_target, self.height))
         return new_target
 
-    # need to test
+    # todo: test
     def calc_sigma_diff(self, previous_block=None):
         ''' given header, calculate the sigma_diff '''
-        if self.previous_blocks[0] == 0:
-            prevsigma_diff = 0
-        else:
-            prevsigma_diff = previous_block.header.sigma_diff
+        if self.previous_blocks[0] == 0: prevsigma_diff = 0
+        else: prevsigma_diff = previous_block.header.sigma_diff
         return prevsigma_diff + self.target_to_diff(self.target)
 
     @staticmethod
@@ -401,8 +401,6 @@ class Block(Field):
         # TxPrism is standard root dapp - allows for txs to be passed to contracts
         self.state_maker.register_dapp(TxPrism(b'', self.state_maker))
 
-        self.setup_rpc(chain)
-
     def set_state_maker(self, state_maker):
         self.state_maker = state_maker
         self.super_state = state_maker.super_state
@@ -411,35 +409,37 @@ class Block(Field):
         self.header.state_mr = self.state_maker.super_state.get_hash()
         self.header.transaction_mr = MerkleLeavesToRoot.make(leaves=self.super_txs).get_hash()
 
-    def setup_rpc(self, cryptonet):
+    # todo figure out where to call this
+    @staticmethod
+    def setup_rpc(cryptonet):
         ''' Keep in mind this runs inside the genesis block. Don't refer to things other than
         those which are common like the chian, statemaker, etc.
         '''
         chain = cryptonet.chain
         p2p = cryptonet.p2p
-        self.rpc = RPCServer(port=32550)
+        rpc = RPCServer(port=32550)
 
-        @self.rpc.add_method
+        @rpc.add_method
         def getinfo(*args):
-            state = self.state_maker.super_state[b'']
-            keys = state.all_keys()
             return {
                 "top_block hash": chain.head.get_hash(),
                 "top_block_height": chain.get_height(),
             }
 
-        @self.rpc.add_method
-        def getbalance(pubkey):
+        @rpc.add_method
+        def getbalance(pubkey_x):
             return {
-                "balance": self.super_state[b''][pubkey]
+                "balance": self.super_state[b''][pubkey_x]
             }
 
-        @self.rpc.add_method
+        @rpc.add_method
         def pushtx(super_tx):
+            # todo first add out our memory pool
+            # todo then don't need to check .is_valid()
             if super_tx.is_valid():
                 # when we can broadcast txs, do that
                 p2p.broadcast(b'SUPERTX', super_tx)
             else:
                 return {"error": "super_tx not valid"}
 
-        self.rpc.run()
+        rpc.run()
