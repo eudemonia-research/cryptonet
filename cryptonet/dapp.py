@@ -36,6 +36,10 @@ class Dapp(object):
         self.state = new_state
         self._synchronize_state()
 
+    def assert_true(self, condition, message):
+        if not condition:
+            raise ValidationError(message)
+
     def on_block(self, block, chain):
         ''' This is called when a new block arrives. Since many dapps won't
         use this event, raising NotImplemented here is unnecessary.
@@ -275,34 +279,49 @@ class StateDelta(object):
 
 
 class TxPrism(Dapp):
+
+    # TODO set correctly
+    ZERO_KEY = 0x1234567890
+
     def on_block(self, block, chain):
-        # coinbase stuff?
-        pass
+        ''' Coinbase can be dealt with as follows:
+         * grant pubkey with secret_exponent=0 some free coins and all tx fees.
+         * Miner denies all received txs with that pubkey
+         * Miner creates a signed tx emptying the 0-account balance
+        '''
+        # TODO implement correctly and sensibly
+        self.state[ZERO_KEY] += 50000  # or something
 
     def on_transaction(self, tx, block, chain):
         ''' Process a transaction.
         tx has following info (subject to change):
         tx.value, tx.fee, tx.data, tx.sender, tx.dapp
+
+        tx.value >= 0 not >0 so 0 value txs (like notification of new foreign blocks can be free)
         '''
-        assert tx.value > 0
-        assert tx.fee >= 0
-        print('TxPrism.on_transaction', tx.sender)
-        assert self.state[tx.sender] >= tx.value + tx.fee
+        self.assert_true(tx.value >= 0, 'tx.value must be greater than or equal to 0')
+        self.assert_true(tx.fee >= 0, 'tx.fee must be greater than or equal to 0')
+        debug('TxPrism.on_transaction', tx.sender)
+        self.assert_true(self.state[tx.sender] >= tx.value + tx.fee, 'sender must have enough funds')
         self.state[tx.sender] -= tx.value + tx.fee
 
         if tx.dapp == b'':
-            assert len(tx.data) == 1
+            self.assert_true(len(tx.data) == 1, 'Only one recipient allowed when sending to root dapp')
             recipient = tx.data[0]
             self.state[recipient] += tx.value
         else:
-            assert tx.dapp in self.state_maker.dapps
+            self.assert_true(tx.dapp in self.state_maker.dapps, 'dapp must be known')
             self.state[tx.dapp] += tx.value
             self.state_maker.dapps[tx.dapp].on_transaction(tx, block, chain)
 
 
 class TxTracker(Dapp):
+    ''' Special dapp to track transactions.
+    Has the useful property that txs are now easy to prove they've
+    happened without proving 'tx in block' and then 'block in main chain'.
+    '''
+
     def on_transaction(self, super_tx, block, chain):
-        if self.state[super_tx.get_hash()] != 0:
-            raise ValidationError('SuperTx already included in chain')
-        self.state[super_tx.get_hash()] = 1
+        self.assert_true(self.state[super_tx.get_hash()] == 0, 'SuperTx must not have been used previously')
+        self.state[super_tx.get_hash()] = block.height
 

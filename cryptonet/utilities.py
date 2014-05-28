@@ -42,3 +42,6 @@ def global_hash(msg):
     else:
         s.update(msg.to_bytes(msg.bit_length() // 8 + 1, 'big'))
     return int.from_bytes(s.digest(), 'big')
+
+
+time_as_int = lambda: int(time.time())

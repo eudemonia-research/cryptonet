@@ -3,7 +3,7 @@ import time
 from encodium import *
 import pycoin.ecdsa
 
-from cryptonet.utilities import global_hash
+from cryptonet.utilities import global_hash, time_as_int
 from cryptonet.statemaker import StateMaker
 from cryptonet.rpcserver import RPCServer
 from cryptonet.datastructs import MerkleLeavesToRoot
@@ -116,7 +116,7 @@ class SuperTx(Field):
 
     def to_bytes(self):
         return b''.join([
-            b''.join([tx.to_bytes() for tx in self.txs]),
+            self.txs_bytes,
             self.signature.to_bytes(),
         ])
 
@@ -145,7 +145,6 @@ class Header(Field):
     _TARGET1 = 2 ** 256 - 1
     RETARGET_PERIOD = 16
     BLOCKS_PER_DAY = 1440
-    timeint = lambda: int(time.time())
 
     def fields():
         version = Integer(length=2)
@@ -193,18 +192,18 @@ class Header(Field):
         self.assert_true(len(self.previous_blocks) < 30, 'reasonable number of prev_blocks')
 
     def assert_validity(self, chain):
-        # todo: finish
-        # todo: timestamp validation
         ''' self.assert_validity does not validate merkle roots.
         Since the thing generating the merkle roots is stored in the block, a
-        block is invlalid if its list of whatever does not produce the correct
+        block is invalid if its list of whatever does not produce the correct
         whatever_mr. The header is not invalid, however.
-        
+
         self.assert_validity should validate the following:
         * self.timestamp is >= something
         * self.target is as expected based on past blocks
         * self.previous_blocks exist and are correct
         '''
+        # todo: finish
+        # todo: timestamp validation
 
         if chain.initialized:
             for block_hash in self.previous_blocks:
@@ -212,15 +211,14 @@ class Header(Field):
                 self.assert_true(chain.db.get_ancestors(self.parent_hash) == self.previous_blocks,
                                  'previous blocks must match expected')
             self.assert_true(chain.get_block(self.parent_hash).height + 1 == self.height, 'Height requirement')
-            self.assert_true(self.calc_expected_target(chain, chain.get_block(self.parent_hash)) == self.target,
-                             'target must be as expected')
-            self.assert_true(self.calc_sigma_diff(chain.get_block(self.parent_hash)) == self.sigma_diff,
-                             'sigma_diff must be as expected')
-
         else:
             self.assert_true(self.height == 0, 'Genesis req.: height must be 0')
             self.assert_true(self.previous_blocks == [0], 'Genesis req.: Previous blocks must be zeroed')
             self.assert_true(self.uncle_mr == 0, 'Genesis req.: uncle_mr must be zeroed')
+        self.assert_true(self.calc_expected_target(chain, chain.get_block(self.parent_hash)) == self.target,
+                         'target must be as expected')
+        self.assert_true(self.calc_sigma_diff(chain.get_block(self.parent_hash)) == self.sigma_diff,
+                         'sigma_diff must be as expected')
 
     def valid_proof(self):
         return self.get_hash() < self.target
@@ -234,7 +232,7 @@ class Header(Field):
             version=self.version,
             nonce=0,
             height=self.height + 1,
-            timestamp=Header.timeint(),
+            timestamp=time_as_int(),
             previous_blocks=chain.db.get_ancestors(previous_block.get_hash()),
         )
         new_header.target = Header.calc_expected_target(new_header, chain, previous_block)
@@ -243,7 +241,9 @@ class Header(Field):
 
     # todo: test
     def calc_expected_target(self, chain, previous_block):
-        ''' given self, chain, and previous_block, calculate the expected target '''
+        ''' Given self, chain, and previous_block, calculate the expected target.
+        Currently using same method as Bitcoin
+        '''
         if self.previous_blocks[0] == 0: return Header.DEFAULT_TARGET
         if self.height % Header.RETARGET_PERIOD != 0: return previous_block.header.target
 
