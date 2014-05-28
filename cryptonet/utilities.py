@@ -18,17 +18,19 @@ def i2b(x):
     """
     return x.to_bytes((x.bit_length() // 8) + 1, 'big')
 
+
 def num2bits(n, minlen=0):
     n = int(n)
     r = []
     while n > 0:
-        r.append(n%2)
+        r.append(n % 2)
         n //= 2
     pad = minlen - len(r)
     while pad > 0:
         r.append(0)
         pad -= 1
     return r[::-1]
+
 
 def global_hash(msg):
     ''' This is the hash function that should be used EVERYWHERE in GPDHT.

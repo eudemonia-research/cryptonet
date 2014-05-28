@@ -4,6 +4,7 @@ import time
 from cryptonet.debug import debug
 from cryptonet.errors import ValidationError
 
+
 class Miner:
     def __init__(self, chain, seek_n_build):
         self._shutdown = False
@@ -12,26 +13,27 @@ class Miner:
         self.chain = chain
         self.chain.set_miner(self)
         self.seek_n_build = seek_n_build
-        
+
     def run(self):
         for t in self.threads:
             t.start()
-        
+
     def shutdown(self):
         self._shutdown = True
         for t in self.threads:
             t.join()
-        
+
     def restart(self):
         self._restart = True
-        
+
     def mine(self, provided_block=None):
         while not self._shutdown:
             self._restart = False
             # TODO: remove this sleep
             time.sleep(0.1)
-            if provided_block == None: block = self.chain.head.get_candidate(self.chain)
-            else: 
+            if provided_block == None:
+                block = self.chain.head.get_candidate(self.chain)
+            else:
                 block = provided_block
             count = 0
             print('miner restarting')
@@ -48,12 +50,12 @@ class Miner:
                 if count % 100000 == 0:
                     self._restart = True
             if self._shutdown: break
-            if self._restart: 
+            if self._restart:
                 self._restart = False
                 time.sleep(0.01)
                 continue
             debug('Miner: Found Soln : %064x' % block.get_hash())
-            if block.height == 0: # print genesis
+            if block.height == 0:  # print genesis
                 debug('Miner: ser\'d block: ', block.serialize())
             self.seek_n_build.add_block(block)
             while not self._restart and not self._shutdown:

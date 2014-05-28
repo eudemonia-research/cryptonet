@@ -10,7 +10,7 @@ from cryptonet.miner import Miner
 from cryptonet.debug import debug
 import cryptonet.standard
 
-config = {'network_debug':True}
+config = {'network_debug': True}
 
 # TODO: STATE
 # TODO: ECDSA
@@ -19,24 +19,26 @@ config = {'network_debug':True}
 class Cryptonet(object):
     def __init__(self, chain_vars):
         self._Block = None
-        
+
         self.p2p = Spore(seeds=chain_vars.seeds, address=chain_vars.address)
         self.set_handlers()
         # debug('cryptonet init, peers: ', self.p2p.peers)
-        
+
         self.db = Database()
         self.chain = Chain(chain_vars, db=self.db)
         self.seek_n_build = SeekNBuild(self.p2p, self.chain)
         self.miner = None
         if chain_vars.mine:
             self.miner = Miner(self.chain, self.seek_n_build)
-        
+
         self.mine_genesis = False
-        if chain_vars.genesis_binary == None: self.mine_genesis = True
-        else: self.genesis_binary = chain_vars.genesis_binary
-        
+        if chain_vars.genesis_binary == None:
+            self.mine_genesis = True
+        else:
+            self.genesis_binary = chain_vars.genesis_binary
+
         self.intros = {}
-        
+
     def run(self):
 
         if self.miner != None: self.miner.run()
@@ -46,11 +48,11 @@ class Cryptonet(object):
 
     def shutdown(self):
         self.p2p.shutdown()
-        
+
     #=================
     # Decorators
     #=================
-        
+
     def block(self, block_object):
         self._Block = block_object
         self.chain._Block = block_object
@@ -59,21 +61,22 @@ class Cryptonet(object):
         else:
             self.chain.set_genesis(self._Block().make(self.genesis_binary))
         return block_object
-        
-        
+
+
     #==================
     # Cryptonet Handlers
     #==================
-    
+
     def set_handlers(self):
         debug('set_handlers')
+
         @self.p2p.on_connect
         def on_connect_handler(node):
             debug('on_connect_handler')
             my_intro = Intro.make(top_block=self.chain.head.get_hash())
             node.send('intro', my_intro.serialize())
-            
-            
+
+
         @self.p2p.handler('intro')
         def intro_handler(node, payload):
             debug('intro_handler')
@@ -90,7 +93,7 @@ class Cryptonet(object):
             if not self.chain.has_block(their_intro.top_block):
                 debug('introhand', their_intro.top_block)
                 self.seek_n_build.seek_hash_now(their_intro.top_block)
-            
+
 
         @self.p2p.handler('blocks')
         def blocks_handler(node, payload):
@@ -108,8 +111,8 @@ class Cryptonet(object):
                     continue
                 self.seek_n_build.add_block(potential_block)
                 self.seek_n_build.seek_many_with_priority(potential_block.related_blocks())
-                        
-            
+
+
         @self.p2p.handler('request_blocks')
         def request_blocks_handler(node, payload):
             requests = HashList.make(payload)
@@ -121,5 +124,5 @@ class Cryptonet(object):
                     ret.append(self.chain.get_block(bh).serialize())
             if ret.len() > 0:
                 node.send('blocks', ret.serialize())
-            
-        # done setting handlers
+
+                # done setting handlers

@@ -5,7 +5,6 @@ from cryptonet.utilities import global_hash
 import cryptonet.standard
 
 
-
 class Chain(object):
     ''' A blockchain.
     '''
@@ -25,7 +24,7 @@ class Chain(object):
         self.blocks = set()
         self.block_hashes = set()
         self.invalid_block_hashes = set()
-        self.block_hashes_with_priority = set()      # (sigma_diff, block_hash)
+        self.block_hashes_with_priority = set()  # (sigma_diff, block_hash)
 
         self.genesis_block = None
         if genesis_block != None: self.set_genesis(genesis_block)
@@ -155,7 +154,8 @@ class Chain(object):
             reversed_path.append(current_block)
             current_block_hash = current_block.parent_hash
             if current_block_hash == 0:
-                raise ChainError('No path possible. %064x is not an ancestor of %064x' % (start_block_hash, end_block_hash))
+                raise ChainError(
+                    'No path possible. %064x is not an ancestor of %064x' % (start_block_hash, end_block_hash))
         return reversed_path[::-1]
 
 

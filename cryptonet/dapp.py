@@ -11,12 +11,13 @@ Provides common dapps. Eg: TxPrism, ChainHeaders
 Provides resources to dapps. Eg: StateDelta
 '''
 
+
 class Dapp(object):
     ''' The generic Dapp.
     All dapps should inherit from this class.
     self.on_transaction and self.on_block must be overloaded.
     '''
-    
+
     def __init__(self, name, state_maker):
         assert isinstance(name, bytes)
         self.name = name
@@ -26,33 +27,33 @@ class Dapp(object):
         self.state_bank = {}
         self._set_state(StateDelta())
 
-        
+
     def _synchronize_state(self):
         ''' Needed when self.state is set to a new object. '''
         self.super_state.register_dapp(self.name, self.state)
-        
+
     def _set_state(self, new_state):
         self.state = new_state
         self._synchronize_state()
-        
+
     def on_block(self, block, chain):
         ''' This is called when a new block arrives. Since many dapps won't
         use this event, raising NotImplemented here is unnecessary.
         '''
         #raise NotImplemented('on_block has not been implemented')
         pass
-        
+
     def on_transaction(self, subtx, block, chain):
         raise NotImplemented('on_transaction has not been implemented')
-        
+
     def checkpoint(self, hard_checkpoint=True):
         ''' Checkpoint state. '''
         self._set_state(self.state.checkpoint(hard_checkpoint))
-    
+
     def reset_to_last_checkpoint(self):
         ''' Apply to state. '''
         self._set_state(self.state.last_checkpoint())
-        
+
     def make_last_checkpoint_hard(self):
         ''' Harden last checkpoint. '''
         self.state.parent.harden(self.state)
@@ -86,7 +87,6 @@ class Dapp(object):
 
 
 class StateDelta(object):
-    
     def __init__(self, parent=None, height=0):
         self.key_value_store = {}
         self.parent = parent
@@ -94,7 +94,7 @@ class StateDelta(object):
         self.child = None
         self.my_hash = None
         self.deleted_keys = set()
-        
+
     def __contains__(self, key):
         if key in self.deleted_keys:
             return False
@@ -121,15 +121,15 @@ class StateDelta(object):
         elif self.parent != None:
             return self.parent[key]
         return 0
-        
-        
+
+
     def __setitem__(self, key, value):
         key = self._make_key_valid(key)
         if key in self.deleted_keys:
             self.deleted_keys.remove(key)
         self.my_hash = None
         self.key_value_store[key] = value
-        
+
     def __delitem__(self, key):
         self.deleted_keys.add(key)
         if key in self.key_value_store:
@@ -139,7 +139,7 @@ class StateDelta(object):
         debug('StateDelta: %05d, %s', (self.height, self.key_value_store))
         if self.parent != None:
             self.parent.recursively_print_state()
-        
+
     def all_keys(self):
         ''' Get keys from this k_v_store and parents, parents parents, etc.
         Returns a set. '''
@@ -156,7 +156,7 @@ class StateDelta(object):
         for k in all_keys:
             return_key_value_store[k] = self[k]
         return return_key_value_store
-        
+
     def get_hash(self):
         if self.my_hash == None:
             keys = list(self.all_keys())
@@ -174,12 +174,12 @@ class StateDelta(object):
             merkle_tree = MerkleLeavesToRoot.make(leaves=leaves)
             self.my_hash = merkle_tree.get_hash()
         return self.my_hash
-        
+
     def ancestors(self):
-        if self.parent == None: 
+        if self.parent == None:
             return [self]
         return [self] + self.parent.ancestors()
-        
+
     def checkpoint(self, hard_checkpoint=True):
         ''' Fork off from current StateDelta if hard_checkpoint == True.
         Some ancestors may be merged.
@@ -189,7 +189,7 @@ class StateDelta(object):
         if hard_checkpoint:
             self.harden(new_state_delta)
         return new_state_delta
-        
+
     def harden(self, new_child, heights_to_keep=None):
         ''' Merge any state deltas that can be merged and set child. '''
         if heights_to_keep == None:
@@ -234,7 +234,7 @@ class StateDelta(object):
             self.child = None
             return self
         return self.parent.prune_to_or_beyond(height)
-            
+
     def merge_with_child(self):
         ''' Triggers self.child.absorb(self); links self.child and self.parent. '''
         self.child.absorb(self)
@@ -242,44 +242,43 @@ class StateDelta(object):
         # garbage collection should clean up?
         self.parent.child = self.child
         self.child.parent = self.parent
-        
+
     def absorb(self, parent_state):
         ''' Takes a state and underlay any entries in self.key_value_store '''
         parent_keys = parent_state.key_value_store.keys()
         for k in parent_keys:
-            if k in self.key_value_store: 
+            if k in self.key_value_store:
                 continue
             self.key_value_store[k] = parent_state.key_value_store[k]
-         
+
     def gen_checkpoint_heights(self, height):
         ''' Generates the heights of StateDeltas that should be kept.
         If a height is not in this list it should be merged with self.child.
         '''
         r, i = [], 0
-        if height % 2 == 1: 
+        if height % 2 == 1:
             r.append(height)
             height -= 1
         while height >= 0:
             r.append(height)
-            if height % (2 ** (i+1)) != 0:
-                height -= 2**i
+            if height % (2 ** (i + 1)) != 0:
+                height -= 2 ** i
                 i += 1
-            else: 
-                height -= 2**i
+            else:
+                height -= 2 ** i
         return r
-        
+
 
 #===============================================================================
 # Common Dapps
 #===============================================================================
 
-        
+
 class TxPrism(Dapp):
-    
     def on_block(self, block, chain):
         # coinbase stuff?
         pass
-        
+
     def on_transaction(self, tx, block, chain):
         ''' Process a transaction.
         tx has following info (subject to change):
@@ -290,7 +289,7 @@ class TxPrism(Dapp):
         print('TxPrism.on_transaction', tx.sender)
         assert self.state[tx.sender] >= tx.value + tx.fee
         self.state[tx.sender] -= tx.value + tx.fee
-        
+
         if tx.dapp == b'':
             assert len(tx.data) == 1
             recipient = tx.data[0]
@@ -299,10 +298,9 @@ class TxPrism(Dapp):
             assert tx.dapp in self.state_maker.dapps
             self.state[tx.dapp] += tx.value
             self.state_maker.dapps[tx.dapp].on_transaction(tx, block, chain)
-            
-            
-class TxTracker(Dapp):
 
+
+class TxTracker(Dapp):
     def on_transaction(self, super_tx, block, chain):
         if self.state[super_tx.get_hash()] != 0:
             raise ValidationError('SuperTx already included in chain')

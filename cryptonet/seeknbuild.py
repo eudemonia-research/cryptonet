@@ -5,15 +5,18 @@ import queue
 from cryptonet.datastructs import *
 from cryptonet.errors import ValidationError
 
+
 class AtomicIncrementor:
     def __init__(self):
         self.lock = threading.Lock()
         self.counter = 0
+
     def get_next(self):
         with self.lock:
             r = self.counter
             self.counter += 1
         return r
+
 
 class SeekNBuild:
     ''' The SeekNBuild class is responsible for attempting to acquire all known
@@ -21,13 +24,14 @@ class SeekNBuild:
 
     See the block_seeker and chain_builder functions for more info.
     '''
+
     def __init__(self, p2p, chain):
         self.p2p = p2p
         self.chain = chain
         self.chain.learn_of_seek_n_build(self)
-        
+
         self.nonces = AtomicIncrementor()
-        
+
         self.future = set()
         self.future_queue = queue.PriorityQueue()
         self.present = set()
@@ -38,28 +42,28 @@ class SeekNBuild:
         self.done = set()
         self.all = set()
         self._shutdown = False
-        
+
         self.future_lock = threading.Lock()
         self.present_lock = threading.Lock()
         self.past_lock = threading.Lock()
-        
+
         self._funcs = {
             'height': self.chain.get_height,
         }
-        
+
         self.threads = [threading.Thread(target=self.block_seeker), threading.Thread(target=self.chain_builder)]
-        for t in self.threads: 
+        for t in self.threads:
             t.start()
 
     def max_blocks_at_once(self):
         # no reason for special values besides
         return int(max(5, min(500, self.get_chain_height()) // 3))
-        
+
     def shutdown(self):
         self._shutdown = True
         for t in self.threads:
             t.join()
-            
+
     def seek_hash_now(self, block_hash):
         ''' Add block_hash to queue with priority -1 (will be pulled next).
         '''
@@ -68,7 +72,7 @@ class SeekNBuild:
             with self.future_lock:
                 self.future_queue.put((-1, block_hash))
                 self.future.add(block_hash)
-        
+
     def seek_with_priority(self, block_hash_with_height):
         ''' Add block_hash to future queue with its priority.
         '''
@@ -79,13 +83,13 @@ class SeekNBuild:
             with self.future_lock:
                 self.future_queue.put((height, block_hash))
                 self.future.add(block_hash)
-                    
+
     def seek_many_with_priority(self, block_hashes_with_height):
         ''' Applies each in list to seek_with_priority()
         '''
         for height, block_hash in block_hashes_with_height:
             self.seek_with_priority((height, block_hash))
-        
+
     def block_seeker(self):
         ''' block_seeker() should be in its own thread.
         block_seeker will run in a loop and:
@@ -97,12 +101,12 @@ class SeekNBuild:
         3. For each block_hash to request, add it to the present_queue with the time it was requested.
         4. Pick a random peer and send the request to it.
         '''
-        while not self._shutdown and not self.chain.initialized: 
+        while not self._shutdown and not self.chain.initialized:
             time.sleep(0.1)
         while not self._shutdown:
             # we will eventually serialize this so we make it a Field
             requesting = IntList.make()
-            
+
             try:
                 with self.present_lock:
                     oldest_timestamp, oldest_block_hash = self.present_queue.get_nowait()
@@ -114,10 +118,10 @@ class SeekNBuild:
                     self.present_queue.put((oldest_timestamp, oldest_block_hash))
             except queue.Empty:
                 pass
-            
+
             with self.future_lock:
                 to_get = min(len(self.future), self.max_blocks_at_once()) - requesting.len()
-                if to_get > 0: 
+                if to_get > 0:
                     # pick some blocks to request
                     for i in range(to_get):
                         _, h = self.future_queue.get()
@@ -125,12 +129,12 @@ class SeekNBuild:
                         self.future.remove(h)
                         if _ != 0:
                             requesting.append(h)
-                
+
                 for h in requesting:
                     with self.present_lock:
                         self.present_queue.put((int(time.time()), h))
                         self.present.add(h)
-            
+
             if requesting.len() > 0:
                 # TODO : don't broadcast to all nodes, just one
                 #self.p2p.broadcast('request_blocks', ALL_BYTES(requesting.hashlist))
@@ -146,7 +150,7 @@ class SeekNBuild:
                 some_peer.data['lastmessage'] = time.time()
             else:
                 time.sleep(0.1)
-    
+
     def get_chain_height(self):
         return self._funcs['height']()
 
@@ -183,7 +187,7 @@ class SeekNBuild:
                 self.present.remove(block_hash)
             except KeyError:
                 pass
-        
+
     def chain_builder(self):
         '''
         1. Get the next block.
@@ -198,7 +202,7 @@ class SeekNBuild:
         while not self._shutdown:
             try:
                 height, nonce, block = self.past_queue.get(timeout=0.1)
-                print('builder:',height, nonce, block)
+                print('builder:', height, nonce, block)
             except queue.Empty:
                 continue
             if block.height == 0:
@@ -237,7 +241,7 @@ class SeekNBuild:
                 self.done.add(block_hash)
                 self.chain.add_block(block)
                 debug('builder to send : %064x' % block.get_hash())
-                to_send = BlocksMessage.make(contents = [block.serialize()])
+                to_send = BlocksMessage.make(contents=[block.serialize()])
                 debug('builder sending...')
                 debug('builder to send full : %s' % to_send.serialize())
                 self.broadcast_block(to_send)

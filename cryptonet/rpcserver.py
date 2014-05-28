@@ -9,6 +9,7 @@ from werkzeug.serving import run_simple
 
 from jsonrpc import JSONRPCResponseManager, dispatcher
 
+
 class RPCServer(object):
     """ Example of json-rpc usage with Wergzeug and requests.
 
@@ -36,7 +37,6 @@ class RPCServer(object):
 
 
 class RPCClient(object):
-
     def __init__(self, url="http://localhost:4000/jsonrpc"):
         self.url = url
         self.headers = {'content-type': 'application/json'}

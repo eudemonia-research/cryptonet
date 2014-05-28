@@ -24,15 +24,16 @@ class MerkleLeavesToRoot(Field):
         try:
             t = self.leaves[:]
             while len(t) > 1:
-                if len(t) % 2 != 0: t.append(int.from_bytes(b'\x00'*32, 'big'))
-                t = [global_hash(t[i].to_bytes(32,'big') + t[i+1].to_bytes(32,'big')) for i in range(0,len(t),2)]
+                if len(t) % 2 != 0: t.append(int.from_bytes(b'\x00' * 32, 'big'))
+                t = [global_hash(t[i].to_bytes(32, 'big') + t[i + 1].to_bytes(32, 'big')) for i in range(0, len(t), 2)]
             self.root = t[0]
         except:
             debug('MerkleTree update, leaves :', self.leaves)
-        
+
     def get_hash(self):
         return self.root
-        
+
+
 MerkleTree = MerkleLeavesToRoot
 
 #============================
@@ -45,122 +46,123 @@ class ChainVars:
         self.address = (b'127.0.0.1', 12345)
         self.genesis_binary = None
         self.mine = False
-            
+
 
 #============================
 # Primatives
 #============================
-        
+
 class BaseField(Field):
     def __init__(self, *args, **kwargs):
         Field.__init__(self, *args, **kwargs)
         self.default_options = Field.default_options
-        
+
     def get_hash(self):
         return global_hash(self.serialize())
+
 
 class ListFieldPrimative(Field):
     def extend(self, item):
         self.contents.append(item)
-    
+
     def append(self, item):
         self.contents.append(item)
-        
+
     def __getitem__(self, index):
         return self.contents[index]
-        
+
     def __setitem__(self, index, value):
         self.contents[index] = value
-        
+
     def len(self):
-        return len(self.contents)  
-        
+        return len(self.contents)
+
     def __iter__(self):
         return None
 
-        
+
 class IntList(ListFieldPrimative):
-    
     def fields():
         contents = List(Integer(), default=[])
-        
+
     def extend(self, item):
         self.contents.append(item)
-    
+
     def append(self, item):
         self.contents.append(item)
-        
+
     def __getitem__(self, index):
         return self.contents[index]
-        
+
     def __setitem__(self, index, value):
         self.contents[index] = value
-        
+
     def len(self):
         return len(self.contents)
 
     def __len__(self):
         return len(self.contents)
-        
+
     def __iter__(self):
         return self.contents.__iter__()
 
     def __eq__(self, other):
         return self.contents == other
-        
+
     def get_hash(self):
         return global_hash(self.serialize())
 
-class HashList(IntList):    
+
+class HashList(IntList):
     def fields():
         contents = List(Integer(length=32), default=[])
-        
+
     def extend(self, item):
         self.contents.append(item)
-    
+
     def append(self, item):
         self.contents.append(item)
-        
+
     def __getitem__(self, index):
         return self.contents[index]
-        
+
     def __setitem__(self, index, value):
         self.contents[index] = value
-        
+
     def len(self):
-        return len(self.contents)  
-        
+        return len(self.contents)
+
     def __iter__(self):
         return self.contents.__iter__()
-        
+
     def get_hash(self):
         return global_hash(self.serialize())
+
 
 class BytesList(ListFieldPrimative):
     def fields():
         contents = List(Bytes(), default=[])
-        
+
     def extend(self, item):
         self.contents.append(item)
-    
+
     def append(self, item):
         self.contents.append(item)
-        
+
     def __getitem__(self, index):
         return self.contents[index]
-        
+
     def __setitem__(self, index, value):
         self.contents[index] = value
-        
+
     def len(self):
-        return len(self.contents)  
-        
+        return len(self.contents)
+
     def __iter__(self):
         return self.contents.__iter__()
-        
+
     def get_hash(self):
         return global_hash(self.serialize())
-        
 
 
 #===============================================================================
@@ -177,10 +179,10 @@ class Intro(Field):
         top_block = Integer(length=32)
         relay = Integer(default=0, length=1)
         hash_list = List(Bytes(length=32), default=[])
-        
+
     def get_hash(self):
         return global_hash(self.serialize())
-        
+
 
 RequestBlocksMessage = HashList
 BlocksMessage = BytesList

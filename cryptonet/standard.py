@@ -1,16 +1,13 @@
 import time
 
 from encodium import *
-#import nacl.signing
-
-import cryptonet
-import cryptonet.chain
 import pycoin.ecdsa
+
 from cryptonet.utilities import global_hash
 from cryptonet.statemaker import StateMaker
 from cryptonet.rpcserver import RPCServer
 from cryptonet.datastructs import MerkleLeavesToRoot
-from cryptonet.dapp import Dapp, TxPrism
+from cryptonet.dapp import TxPrism
 from cryptonet.debug import debug
 
 '''
@@ -191,7 +188,7 @@ class Header(Field):
         is not validated.
         '''
         self.assert_true(self.version == 0, 'version at 0')
-        self.assert_true(self.timestamp <= int(time.time()) + 60*15, 'timestamp too far in future')
+        self.assert_true(self.timestamp <= int(time.time()) + 60 * 15, 'timestamp too far in future')
         self.assert_true(self.valid_proof(), 'valid PoW required')
         self.assert_true(len(self.previous_blocks) < 30, 'reasonable number of prev_blocks')
 
@@ -255,8 +252,10 @@ class Header(Field):
         timedelta = self.timestamp - old_ancestor.header.timestamp
         expected_timedelta = 60 * 60 * 24 * Header.RETARGET_PERIOD // Header.BLOCKS_PER_DAY
 
-        if timedelta < expected_timedelta // 4: timedelta = expected_timedelta // 4
-        elif timedelta > expected_timedelta * 4: timedelta = expected_timedelta * 4
+        if timedelta < expected_timedelta // 4:
+            timedelta = expected_timedelta // 4
+        elif timedelta > expected_timedelta * 4:
+            timedelta = expected_timedelta * 4
 
         new_target = previous_block.header.target * timedelta // expected_timedelta
         debug('New Target Calculated: %064x, height: %d' % (new_target, self.height))
@@ -265,8 +264,10 @@ class Header(Field):
     # todo: test
     def calc_sigma_diff(self, previous_block=None):
         ''' given header, calculate the sigma_diff '''
-        if self.previous_blocks[0] == 0: prevsigma_diff = 0
-        else: prevsigma_diff = previous_block.header.sigma_diff
+        if self.previous_blocks[0] == 0:
+            prevsigma_diff = 0
+        else:
+            prevsigma_diff = previous_block.header.sigma_diff
         return prevsigma_diff + self.target_to_diff(self.target)
 
     @staticmethod
@@ -409,15 +410,18 @@ class Block(Field):
         self.header.state_mr = self.state_maker.super_state.get_hash()
         self.header.transaction_mr = MerkleLeavesToRoot.make(leaves=self.super_txs).get_hash()
 
-    # todo figure out where to call this
-    @staticmethod
-    def setup_rpc(cryptonet):
-        ''' Keep in mind this runs inside the genesis block. Don't refer to things other than
-        those which are common like the chian, statemaker, etc.
-        '''
-        chain = cryptonet.chain
-        p2p = cryptonet.p2p
-        rpc = RPCServer(port=32550)
+
+class RCPHandler:
+    def __init__(self, cryptonet, port):
+        self.cryptonet = cryptonet
+        self.port = port
+        self.state_maker = cryptonet.state_maker
+        self.super_state = self.state_maker.super_state
+
+    def setup_rpc(self):
+        chain = self.cryptonet.chain
+        p2p = self.cryptonet.p2p
+        rpc = RPCServer(port=self.port)
 
         @rpc.add_method
         def getinfo(*args):

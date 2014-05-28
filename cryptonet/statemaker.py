@@ -14,6 +14,7 @@ Contains
 ROOT_DAPP = b''
 TX_TRACKER = b'_TX_TRACKER'
 
+
 class _DappHolder(object):
     def __init__(self):
         self.dapps = {}
@@ -77,7 +78,6 @@ class _DappHolder(object):
 
 
 class StateMaker(object):
-
     def __init__(self, chain, is_future=False):
         self.dapps = _DappHolder()
         self.chain = chain
@@ -90,7 +90,7 @@ class StateMaker(object):
         self.future_state_maker = None
         self.future_block = None
         self._Block = chain._Block
-        
+
     def register_dapp(self, new_dapp):
         assert isinstance(new_dapp, Dapp)
         self.dapps[new_dapp.name] = new_dapp
@@ -132,7 +132,7 @@ class StateMaker(object):
         with self.future_state():
             self._process_tx(tx)
             self.future_block.update_roots()
-        
+
     def _add_super_txs(self, list_of_super_txs):
         ''' Process a list of transactions, typically passes each to the ROOT_DAPP in sequence.
         '''
@@ -145,7 +145,7 @@ class StateMaker(object):
             self.reset_to_last_hardened_checkpoint()
             raise e
         return True
-        
+
     def _process_tx(self, tx):
         ''' Pass tx to root dapp. Does not 'try,except' so shouldn't be used 
         outside of this class.
@@ -153,15 +153,15 @@ class StateMaker(object):
         dapps as needed.
         '''
         self.dapps[ROOT_DAPP].on_transaction(tx, self.most_recent_block, self.chain)
-            
+
     def checkpoint(self, hard_checkpoint=True):
         ''' Checkpoint all dapp states. '''
         self.dapps.checkpoint(hard_checkpoint)
-    
+
     def reset_to_last_hardened_checkpoint(self):
         ''' Apply to all dapp states. '''
         self.dapps.reset_to_last_hardened_checkpoint()
-            
+
     def make_last_checkpoint_hard(self):
         ''' Apply to all dapps. '''
         self.dapps.make_last_checkpoint_hard()
@@ -287,7 +287,6 @@ class StateMaker(object):
         return self._alt_state_gateway(b'trial', from_height, amnesia=True)
 
 
-
 class SuperState(object):
     ''' SuperState()
     Holds other states in name:state dictionary (each pair belonging to a dapp).
@@ -295,17 +294,17 @@ class SuperState(object):
     where H(x) hashes x and MR(y) returns the merkle root of y.
     self.get_hash() returns the merkle root of the above tree.
     '''
-    
+
     def __init__(self):
         self.state_dict = {}
-        
+
     def __getitem__(self, key):
         return self.state_dict[key]
-        
+
     def register_dapp(self, name, state):
         debug('SuperState.register_dapp: name, state: %s, %s' % (name, state))
         self.state_dict[name] = state
-        
+
     def get_hash(self):
         leaves = []
         names = list(self.state_dict.keys())
