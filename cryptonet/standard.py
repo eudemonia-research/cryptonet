@@ -7,8 +7,9 @@ from cryptonet.utilities import global_hash, time_as_int
 from cryptonet.statemaker import StateMaker
 from cryptonet.rpcserver import RPCServer
 from cryptonet.datastructs import MerkleLeavesToRoot
-from cryptonet.dapp import TxPrism
+from cryptonet.dapp import TxPrism, TxTracker
 from cryptonet.debug import debug
+from cryptonet.constants import TX_TRACKER, ROOT_DAPP
 
 '''
 Hierarchy:
@@ -82,7 +83,7 @@ class Tx(Field):
         dapp = Bytes()
         value = Integer(length=8)
         fee = Integer(length=4)
-        donation = Integer(length=4)
+        donation = Integer(length=4, default=0)
         data = List(Bytes(), default=[])
 
     def init(self):
@@ -143,9 +144,10 @@ class SuperTx(Field):
 
 
 class Header(Field):
-    DEFAULT_TARGET = 2 ** 248 - 1
-    _TARGET1 = 2 ** 256 - 1
-    RETARGET_PERIOD = 16
+    DEFAULT_TARGET = 2 ** 248
+    _TARGET1 = 2 ** 256  # changed to exactly 2^256 as this is the only number with probability==1 that a hash will be
+                         # strictly less than the target. Additionally, it's a bit neater on the difficulty calc side.
+    RETARGET_PERIOD = 16  # Measured in blocks
     BLOCKS_PER_DAY = 1440
 
     def fields():
@@ -159,6 +161,9 @@ class Header(Field):
         transaction_mr = Integer(length=32, default=0)
         uncles_mr = Integer(length=32, default=0)
         previous_blocks = List(Integer(length=32))
+
+    def init(self):
+        self.parent_hash = self.previous_blocks[0]
 
     def to_bytes(self):
         return b''.join([
@@ -219,8 +224,7 @@ class Header(Field):
             self.assert_true(self.uncle_mr == 0, 'Genesis req.: uncle_mr must be zeroed')
         self.assert_true(self.calc_expected_target(chain, chain.get_block(self.parent_hash)) == self.target,
                          'target must be as expected')
-        self.assert_true(self.calc_sigma_diff(chain.get_block(self.parent_hash)) == self.sigma_diff,
-                         'sigma_diff must be as expected')
+        self.assert_true(self.calc_sigma_diff(self, chain) == self.sigma_diff, 'sigma_diff must be as expected')
 
     def valid_proof(self):
         return self.get_hash() < self.target
@@ -238,7 +242,7 @@ class Header(Field):
             previous_blocks=chain.db.get_ancestors(previous_block.get_hash()),
         )
         new_header.target = Header.calc_expected_target(new_header, chain, previous_block)
-        new_header.sigma_diff = Header.calc_sigma_diff(new_header, previous_block)
+        new_header.sigma_diff = Header.calc_sigma_diff(new_header, chain)
         return new_header
 
     # todo: test
@@ -264,13 +268,15 @@ class Header(Field):
         return new_target
 
     # todo: test
-    def calc_sigma_diff(self, previous_block=None):
+    @staticmethod
+    def calc_sigma_diff(header, chain):
         ''' given header, calculate the sigma_diff '''
-        if self.previous_blocks[0] == 0:
-            prevsigma_diff = 0
+        previous_block = chain.get_block(header.parent_hash)
+        if header.previous_blocks[0] == 0:
+            previous_sigma_diff = 0
         else:
-            prevsigma_diff = previous_block.header.sigma_diff
-        return prevsigma_diff + self.target_to_diff(self.target)
+            previous_sigma_diff = previous_block.header.sigma_diff
+        return previous_sigma_diff + header.target_to_diff(header.target)
 
     @staticmethod
     def target_to_diff(target):
@@ -397,12 +403,12 @@ class Block(Field):
         return self.header.valid_proof()
 
     def on_genesis(self, chain):
+        debug('Block.on_genesis called')
         assert not chain.initialized
         self.set_state_maker(StateMaker(chain))
-        debug('Block.on_genesis called')
-
         # TxPrism is standard root dapp - allows for txs to be passed to contracts
-        self.state_maker.register_dapp(TxPrism(b'', self.state_maker))
+        self.state_maker.register_dapp(TxPrism(ROOT_DAPP, self.state_maker))
+        self.state_maker.register_dapp(TxTracker(TX_TRACKER, self.state_maker))
 
     def set_state_maker(self, state_maker):
         self.state_maker = state_maker
@@ -410,7 +416,7 @@ class Block(Field):
 
     def update_roots(self):
         self.header.state_mr = self.state_maker.super_state.get_hash()
-        self.header.transaction_mr = MerkleLeavesToRoot.make(leaves=self.super_txs).get_hash()
+        self.header.transaction_mr = MerkleLeavesToRoot.make(leaves=[i.get_hash() for i in self.super_txs]).get_hash()
 
 
 class RCPHandler:
@@ -444,7 +450,8 @@ class RCPHandler:
             # todo then don't need to check .is_valid()
             if super_tx.is_valid():
                 # when we can broadcast txs, do that
-                p2p.broadcast(b'SUPERTX', super_tx)
+                # todo: figure out implementation details of tx sending
+                p2p.broadcast(b'supertx', super_tx)
             else:
                 return {"error": "super_tx not valid"}
 

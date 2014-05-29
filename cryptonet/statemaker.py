@@ -4,16 +4,13 @@ from cryptonet.errors import ValidationError
 from cryptonet.dapp import StateDelta
 from cryptonet.debug import debug
 from cryptonet.datastructs import MerkleLeavesToRoot
+from cryptonet.constants import ROOT_DAPP, TX_TRACKER
 
 ''' statemaker.py
 Contains 
     StateMaker: facilitates dapp functioning
     SuperState: holds all states
 '''
-
-ROOT_DAPP = b''
-TX_TRACKER = b'_TX_TRACKER'
-
 
 class _DappHolder(object):
     def __init__(self):

@@ -22,6 +22,10 @@ class TestTransactions(unittest.TestCase):
         self.state_maker = StateMaker(Chain(ChainVars()))
         self.state_maker.register_dapp(TxPrism(b'', self.state_maker))
 
+        class FakeBlock:
+            def __init__(self): self.height = 1
+        self.fake_block = FakeBlock()
+
     def test_mine_genesis(self):
         pass
 
@@ -95,6 +99,7 @@ class TestTransactions(unittest.TestCase):
             super_tx.sign(0x1111111111111111111111111111111111111111111111111111111111111111)
             super_tx.assert_internal_consistency()
             tx.sender = int.from_bytes(b'MAX', 'big')
+            self.state_maker.most_recent_block = self.fake_block
             self.state_maker._add_super_txs([super_tx])
             end_state = {
                 int.from_bytes(b'MAX', 'big'): 10,

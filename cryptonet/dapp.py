@@ -308,14 +308,16 @@ class TxPrism(Dapp):
         self.assert_true(tx.value >= 0, 'tx.value must be greater than or equal to 0')
         self.assert_true(tx.fee >= 0, 'tx.fee must be greater than or equal to 0')
         debug('TxPrism.on_transaction', tx.sender)
+
         self.assert_true(self.state[tx.sender] >= tx.value + tx.fee + tx.donation, 'sender must have enough funds')
+
         self.state[tx.sender] -= tx.value + tx.fee + tx.donation
-        self.state[TxPrism.KNOWN_PUBKEY_X] += tx.fee
-        self.state[TxPrism.EUDEMONIA_PUBKEY_X] += tx.donation
+        if tx.fee > 0: self.state[TxPrism.KNOWN_PUBKEY_X] += tx.fee
+        if tx.donation > 0: self.state[TxPrism.EUDEMONIA_PUBKEY_X] += tx.donation
 
         if tx.dapp == b'':
             self.assert_true(len(tx.data) == 1, 'Only one recipient allowed when sending to root dapp')
-            self.assert_true(tx.data[0] < 2 ** 256, 'recipient must be pubkey < 2^256')
+            self.assert_true(len(tx.data[0]) <= 32, 'recipient must be <= 32 bytes long (should be pubkey_x)')
             recipient = tx.data[0]
             self.state[recipient] += tx.value
         else:
