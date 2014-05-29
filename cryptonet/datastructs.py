@@ -1,5 +1,6 @@
 from cryptonet.utilities import global_hash
 from cryptonet.debug import debug
+from cryptonet.constants import SOFTWARE_VERSION
 from encodium import *
 import math
 
@@ -46,13 +47,19 @@ class ChainVars:
         self.address = (b'127.0.0.1', 12345)
         self.genesis_binary = None
         self.mine = False
+        # TODO : decide what default should be - devs pubkey or 0 pubkey (which means a network will be forced
+        # to change it otherwise it'll get DOSed.
+        self.alert_pubkey_x = 55066263022277343669578718895168534326250603453777594175500187360389116729240
 
 
 #============================
-# Primatives
+# Primitives
 #============================
+
 
 class BaseField(Field):
+    ''' DOES NOT WORK - ENCODIUM DOESN'T SUPPORT INHERITANCE YET
+    '''
     def __init__(self, *args, **kwargs):
         Field.__init__(self, *args, **kwargs)
         self.default_options = Field.default_options
@@ -62,6 +69,8 @@ class BaseField(Field):
 
 
 class ListFieldPrimative(Field):
+    ''' DOES NOT WORK - ENCODIUM DOESN'T SUPPORT INHERITANCE YET
+    '''
     def extend(self, item):
         self.contents.append(item)
 
@@ -82,6 +91,8 @@ class ListFieldPrimative(Field):
 
 
 class IntList(ListFieldPrimative):
+    ''' DOES NOT WORK - ENCODIUM DOESN'T SUPPORT INHERITANCE YET
+    '''
     def fields():
         contents = List(Integer(), default=[])
 

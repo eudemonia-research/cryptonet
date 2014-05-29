@@ -13,7 +13,6 @@ import cryptonet.standard
 config = {'network_debug': True}
 
 # TODO: STATE
-# TODO: ECDSA
 # TODO: Alerts
 
 class Cryptonet(object):
@@ -38,6 +37,9 @@ class Cryptonet(object):
             self.genesis_binary = chain_vars.genesis_binary
 
         self.intros = {}
+
+        self.alert_pubkey_x = chain_vars.alert_pubkey_x
+        self.alerts = {}
 
     def run(self):
 

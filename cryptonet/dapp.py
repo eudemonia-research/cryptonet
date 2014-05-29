@@ -289,7 +289,8 @@ class TxPrism(Dapp):
         ''' Coinbase can be dealt with as follows:
          * grant pubkey with secret_exponent=0 some free coins and all tx fees.
          * Miner denies all received txs with that pubkey
-         * Miner creates a signed tx emptying the 0-account balance
+         * Miner creates a signed tx emptying the 0-account balance - can distribute it single or multiple txs
+         * This makes it flexible for pools, as the pay-everyone transaction can be shown to exist
         '''
         # TODO implement correctly and sensibly
         self.state[TxPrism.KNOWN_PUBKEY_X] += 50000  # or something

@@ -1,0 +1,1 @@
+SOFTWARE_VERSION = 'Cryptonet/Eudemonia/0.0.1'
