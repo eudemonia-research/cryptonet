@@ -47,7 +47,7 @@ class Dapp(object):
         #raise NotImplemented('on_block has not been implemented')
         pass
 
-    def on_transaction(self, subtx, block, chain):
+    def on_transaction(self, tx, block, chain):
         raise NotImplemented('on_transaction has not been implemented')
 
     def checkpoint(self, hard_checkpoint=True):
@@ -228,7 +228,6 @@ class StateDelta(object):
             return self
         return self.parent.child_at_or_before(height)
 
-
     def prune_to_or_beyond(self, height):
         ''' If this StateDelta is less than height, it is an acceptable prune,
         so return. If not, do what self.parent says.
@@ -259,6 +258,7 @@ class StateDelta(object):
         ''' Generates the heights of StateDeltas that should be kept.
         If a height is not in this list it should be merged with self.child.
         '''
+        # todo explanation
         r, i = [], 0
         if height % 2 == 1:
             r.append(height)
@@ -280,8 +280,10 @@ class StateDelta(object):
 
 class TxPrism(Dapp):
 
-    # TODO set correctly
-    ZERO_KEY = 0x1234567890
+    # Used for coinbase transactions and anonymous submissions of block headers
+    KNOWN_SECRET_EXPONENT = 0x1
+    KNOWN_PUBKEY_X = 55066263022277343669578718895168534326250603453777594175500187360389116729240
+    EUDEMONIA_PUBKEY_X = 0xABCDABCDABCD
 
     def on_block(self, block, chain):
         ''' Coinbase can be dealt with as follows:
@@ -290,23 +292,29 @@ class TxPrism(Dapp):
          * Miner creates a signed tx emptying the 0-account balance
         '''
         # TODO implement correctly and sensibly
-        self.state[ZERO_KEY] += 50000  # or something
+        self.state[TxPrism.KNOWN_PUBKEY_X] += 50000  # or something
+        # Future example schedule
+        # Gold rush period: geometric series adjusted regularly (daily, probably)
+        # Constant block production: some amount produced constantly
 
     def on_transaction(self, tx, block, chain):
         ''' Process a transaction.
         tx has following info (subject to change):
         tx.value, tx.fee, tx.data, tx.sender, tx.dapp
 
-        tx.value >= 0 not >0 so 0 value txs (like notification of new foreign blocks can be free)
+        tx.value >= 0 not >0 so 0 value txs (like notification of new foreign blocks) can be free
         '''
         self.assert_true(tx.value >= 0, 'tx.value must be greater than or equal to 0')
         self.assert_true(tx.fee >= 0, 'tx.fee must be greater than or equal to 0')
         debug('TxPrism.on_transaction', tx.sender)
-        self.assert_true(self.state[tx.sender] >= tx.value + tx.fee, 'sender must have enough funds')
-        self.state[tx.sender] -= tx.value + tx.fee
+        self.assert_true(self.state[tx.sender] >= tx.value + tx.fee + tx.donation, 'sender must have enough funds')
+        self.state[tx.sender] -= tx.value + tx.fee + tx.donation
+        self.state[TxPrism.KNOWN_PUBKEY_X] += tx.fee
+        self.state[TxPrism.EUDEMONIA_PUBKEY_X] += tx.donation
 
         if tx.dapp == b'':
             self.assert_true(len(tx.data) == 1, 'Only one recipient allowed when sending to root dapp')
+            self.assert_true(tx.data[0] < 2 ** 256, 'recipient must be pubkey < 2^256')
             recipient = tx.data[0]
             self.state[recipient] += tx.value
         else:

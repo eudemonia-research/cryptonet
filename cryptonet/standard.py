@@ -82,6 +82,7 @@ class Tx(Field):
         dapp = Bytes()
         value = Integer(length=8)
         fee = Integer(length=4)
+        donation = Integer(length=4)
         data = List(Bytes(), default=[])
 
     def init(self):
@@ -93,6 +94,7 @@ class Tx(Field):
             self.dapp,
             self.value.to_bytes(8, 'big'),
             self.fee.to_bytes(4, 'big'),
+            self.donation.to_bytes(4, 'big'),
             b''.join(self.data)  # TODO unsafe; ['ab','cd'] and ['a','bcd'] are the same when put through this
         ])
 
