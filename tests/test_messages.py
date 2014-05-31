@@ -54,11 +54,15 @@ class TestMessage(unittest.TestCase):
 
         network_order = (0,0,1,1,0,1,0,0,1,1)
         for i in range(len(blocks)):
-            self.networks[network_order[i]].p2p.broadcast('blocks',blocks[i])
+            self.networks[network_order[i]].p2p.broadcast('blocks', blocks[i])
             time.sleep(0.5)
+        print(self.networks[0].chain.head.height)
         self.assertTrue(self.networks[0].chain.head.height == 7)
         self.assertTrue(self.networks[1].chain.head.height == 7)
 
+    def tearDown(self):
+        for n in self.networks:
+            n.shutdown()
 
 
 if __name__ == '__main__':

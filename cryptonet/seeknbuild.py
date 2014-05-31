@@ -137,8 +137,9 @@ class SeekNBuild:
 
             if requesting.len() > 0:
                 # TODO : don't broadcast to all nodes, just one
-                #self.p2p.broadcast('request_blocks', ALL_BYTES(requesting.hashlist))
-                some_peer = self.p2p.random_peer()
+                self.p2p.broadcast('request_blocks', requesting.serialize())
+                # Borked in spore since asyncio
+                '''some_peer = self.p2p.random_peer()
                 while True:
                     # ordered carefully
                     if some_peer == None:
@@ -147,24 +148,15 @@ class SeekNBuild:
                     else:
                         break
                 some_peer.send('request_blocks', requesting.serialize())
-                some_peer.data['lastmessage'] = time.time()
+                some_peer.data['lastmessage'] = time.time()'''
             else:
-                time.sleep(0.1)
+                time.sleep(0.05)
 
     def get_chain_height(self):
         return self._funcs['height']()
 
     def broadcast_block(self, to_send):
-        ''' Forks off to avoid hang if p2p playing up. This should not be needed.
-        Thread my be commented out; broadcast may be as normal. (debug)
-        '''
         self.p2p.broadcast('blocks', to_send.serialize())
-        '''def real_broadcast(self, to_send):
-            self.p2p.broadcast('blocks', to_send.serialize())
-        t = threading.Thread(target=real_broadcast, args=(self, to_send))
-        t.start()
-        self.threads.append(t)
-        '''
 
     def add_block(self, block):
         '''

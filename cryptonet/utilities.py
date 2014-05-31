@@ -31,6 +31,8 @@ def num2bits(n, minlen=0):
         pad -= 1
     return r[::-1]
 
+def random_peer(p2p):
+    p2p.peers()
 
 def global_hash(msg):
     ''' This is the hash function that should be used EVERYWHERE in GPDHT.
@@ -42,6 +44,5 @@ def global_hash(msg):
     else:
         s.update(msg.to_bytes(msg.bit_length() // 8 + 1, 'big'))
     return int.from_bytes(s.digest(), 'big')
-
 
 time_as_int = lambda: int(time.time())

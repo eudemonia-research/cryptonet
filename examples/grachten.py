@@ -218,6 +218,8 @@ class GrachtenBlock(Field):
     def reorganisation(self, chain, from_block, around_block, to_block):
         return True
 
+    def on_genesis(self, chain):
+        pass
 
 def make_genesis():
     """ General way to make a genesis block. """

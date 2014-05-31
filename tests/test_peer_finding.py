@@ -37,14 +37,10 @@ class TestPeerFinding(unittest.TestCase):
         for t in self.threads:
             t.start()
 
-
         time.sleep(2) # give everything time to warm up
 
     def test_peer_finding(self):
         print('starting!', self.networks)
-        print('calling p2p.all_connected_peers()')
-        print('peers 1/2', self.networks[0].p2p.all_connected_peers())
-        print('p2p.num_connected_peers() hangs here')
         self.assertGreaterEqual(self.networks[0].p2p.num_connected_peers(), self.end-self.start)
         print('peers 2/2', self.networks[0].p2p.all_connected_peers())
         time.sleep(2)
