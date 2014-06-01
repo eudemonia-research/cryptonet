@@ -12,7 +12,6 @@ marketcoin = Cryptonet()
 
 
 class BitcoinHeader(Field):
-
     DIFF_ONE_TARGET = 0x00000000ffff0000000000000000000000000000000000000000000000000000
 
     def fields():
@@ -49,7 +48,6 @@ class BitcoinHeader(Field):
     def assert_valid(self, dapp):
         self.assert_internal_consistency()
         self.assert_true(dapp.state[self.parent_hash] != 0, 'Parent header must exist')
-        self.assert_true(BitcoinHeader.calc_expected_target(self.dapp))
 
     @staticmethod
     def assert_true(condition, message):
@@ -60,22 +58,12 @@ class BitcoinHeader(Field):
     def make_from_bytes(header_bytes):
         return BitcoinHeader.make(
             version=int.from_bytes(header_bytes[:4], 'little'),
-            previous_block=int.from_bytes(header_bytes[4:4+32], 'little'),
-            merkle_root=int.from_bytes(header_bytes[4+32:4+32+32], 'little'),
-            timestamp=int.from_bytes(header_bytes[4+32+32:4+32+32+4], 'little'),
-            bits=int.from_bytes(header_bytes[4+32+32+4:4+32+32+4+4], 'little'),
-            nonce=int.from_bytes(header_bytes[4+32+32+4+4:4+32+32+4+4+4], 'little'),
+            previous_block=int.from_bytes(header_bytes[4:4 + 32], 'little'),
+            merkle_root=int.from_bytes(header_bytes[4 + 32:4 + 32 + 32], 'little'),
+            timestamp=int.from_bytes(header_bytes[4 + 32 + 32:4 + 32 + 32 + 4], 'little'),
+            bits=int.from_bytes(header_bytes[4 + 32 + 32 + 4:4 + 32 + 32 + 4 + 4], 'little'),
+            nonce=int.from_bytes(header_bytes[4 + 32 + 32 + 4 + 4:4 + 32 + 32 + 4 + 4 + 4], 'little'),
         )
-
-    @staticmethod
-    def calc_expected_target(header, height, dapp):
-        if height == 0:
-            return BitcoinHeader.DIFF_ONE_TARGET
-        if height % 2016 != 0:
-            return BitcoinHeader.make_from_bytes(dapp.state[header.parent_hash + self._BLOCK_HEADER_BYTES]).target
-        # calc retarget
-        # todo: implement
-        raise ValidationError('unimplemented')
 
     @staticmethod
     def bits_to_target(bits):
@@ -90,7 +78,8 @@ class BitcoinHeader(Field):
     @staticmethod
     def bits_to_diff(bits):
         return BitcoinHeader.target_to_diff(BitcoinHeader.bits_to_diff(bits))
-            
+
+
 #@marketcoin.dapp(b'BTC_CH')
 class BitcoinChainheaders(Dapp):
     ''' Chainheaders will track all provided chain headers and keep track of the longest chain.
@@ -105,7 +94,8 @@ class BitcoinChainheaders(Dapp):
     '''
 
     GENESIS_HASH = 0x000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f
-    GENESIS_BYTES = unhexlify("0100000000000000000000000000000000000000000000000000000000000000000000003ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a29ab5f49ffff001d1dac2b7c")
+    GENESIS_BYTES = unhexlify(
+        "0100000000000000000000000000000000000000000000000000000000000000000000003ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a29ab5f49ffff001d1dac2b7c")
 
     # _CHAIN offset: 0
     _CHAIN_INITIALISED = 0
@@ -147,10 +137,29 @@ class BitcoinChainheaders(Dapp):
         if self.state[block_hash] != 0:
             raise ValidationError('BitcoinChainheaders: block header already added')
         self.state[block_hash + self._BLOCK_HEADER_BYTES] = header.to_bytes()
-        self.state[block_hash + self._BLOCK_HEIGHT] = self.state[header.parent_hash + self._BLOCK_HEIGHT] + 1
-        self.state[block_hash + self._BLOCK_SIGMA_DIFF] = self.state[header.parent_hash + self._BLOCK_SIGMA_DIFF] + BitcoinHeader.bits_to_diff(header.bits)
+        header_height = self.state[header.parent_hash + self._BLOCK_HEIGHT] + 1
+        self.state[block_hash + self._BLOCK_HEIGHT] = header_height
+        sigma_diff = self.state[header.parent_hash + self._BLOCK_SIGMA_DIFF] + BitcoinHeader.bits_to_diff(header.bits)
+        self.state[block_hash + self._BLOCK_SIGMA_DIFF] = sigma_diff
 
-        self.state[block_hash + self._BLOCK_ANCESTORS]
+        # This section rolls up an incremental merkle tree
+        previous_ancestors_n = self.state[header.parent_hash + self._BLOCK_ANCESTORS_N]
+        previous_ancestors = self.state[
+                             header.parent_hash + self._BLOCK_ANCESTORS: header.parent_hash + \
+                                                                         self._BLOCK_ANCESTORS + previous_ancestors_n]
+        ancestors = previous_ancestors[:]
+        j = 2
+        while header_height % j == 0:
+            ancestors = ancestors[:-2] + [
+                global_hash(ancestors[-2].to_bytes(32, 'big') + ancestors[-1].to_bytes(32, 'big'))]
+            j *= 2
+        for i in range(len(ancestors)):
+            self.state[block_hash + self._BLOCK_ANCESTORS + i] = ancestors[i]
+
+        # If new head
+        if sigma_diff > self.state[self._CHAIN_TOP_SIGMA_DIFF]:
+            self.state[self._CHAIN_TOP_BLOCK] = block_hash
+            self.state[self._CHAIN_TOP_SIGMA_DIFF] = sigma_diff
 
 
 @marketcoin.dapp(b'BTC_SPV')
@@ -164,19 +173,18 @@ class BitcoinSPV(cryptonet.template.Dapp):
         1. Verify merkle branch is correct. Should result in MR from block
         2. Verify MR is in header 
         3. Set txhash XOR block_hash to 1'''
-    
+
     @staticmethod
     def on_block(workingState, block, chain):
         return workingState
-        
+
     @staticmethod
     def on_transaction(workingState, tx, chain):
         ''' Prove some BTC transaction was in some merkle tree via tx hash.
         If tx ABCD was in block 1234 then 1234 XOR ABCD will be set to 1. '''
         return workingState
-        
-        
-        
+
+
 @marketcoin.dapp(b'BTC_MARKET')
 class BitcoinMarket(cryptonet.template.Dapp):
     ''' Market has a few functions:
@@ -194,12 +202,12 @@ class BitcoinMarket(cryptonet.template.Dapp):
     4. ordermatch id, rawtx (from BTC network), block_hash (which includes tx)
     5. 
     '''
-    
+
     @staticmethod
     def on_block(workingState, block, chain):
         ''' Test for market execution condition and if so execute. '''
         return workingState
-        
+
     @staticmethod
     def on_transaction(workingState, tx, chain):
         ''' Depending on tx either insert, cancel, fulfill, or _ specified order '''
