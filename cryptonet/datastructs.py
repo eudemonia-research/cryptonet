@@ -10,7 +10,7 @@ import math
 
 class MerkleLeavesToRoot(Field):
     def fields():
-        leaves = List(Integer(width=32))
+        leaves = List(Integer(length=32))
 
     def init(self):
         self.update()
@@ -26,13 +26,46 @@ class MerkleLeavesToRoot(Field):
             t = self.leaves[:]
             while len(t) > 1:
                 if len(t) % 2 != 0: t.append(int.from_bytes(b'\x00' * 32, 'big'))
-                t = [global_hash(t[i].to_bytes(32, 'big') + t[i + 1].to_bytes(32, 'big')) for i in range(0, len(t), 2)]
+                t = [self.my_hash(t[i].to_bytes(32, 'big') + t[i + 1].to_bytes(32, 'big')) for i in range(0, len(t), 2)]
             self.root = t[0]
         except:
             debug('MerkleTree update, leaves :', self.leaves)
 
     def get_hash(self):
         return self.root
+
+    def my_hash(self, msg):
+        return global_hash(msg)
+
+
+class MerkleBranchToRoot(Field):
+
+    def fields():
+        hash = Integer(length=32)
+        hash_branch = List(Integer(length=32))
+        lr_branch = List(Integer(length=1))
+
+    def init(self):
+        assert len(self.hash_branch) == len(self.lr_branch)
+        self.update()
+
+    def update(self):
+        rolled_up = self.hash
+        for i in range(len(self.hash_branch)):
+            if self.lr_branch[i] == 0:
+                rolled_up = self.my_hash(self.hash_branch[i].to_bytes(32, 'big') + rolled_up.to_bytes(32, 'big'))
+            else:
+                rolled_up = self.my_hash(rolled_up.to_bytes(32, 'big') + self.hash_branch[i].to_bytes(32, 'big'))
+        self.root = rolled_up
+
+    def get_hash(self):
+        return self.root
+
+    def my_hash(self, msg):
+        return global_hash(msg)
+
+
+
 
 
 MerkleTree = MerkleLeavesToRoot

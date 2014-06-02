@@ -91,6 +91,10 @@ class Dapp(object):
 
 
 class StateDelta(object):
+
+    # TODO : check if reorganisations from chain A to chain B and then to chain A+n will reuse states generated for chain A,
+    # or will it regenerate all states from the point of the fork?
+
     def __init__(self, parent=None, height=0):
         self.key_value_store = {}
         self.parent = parent

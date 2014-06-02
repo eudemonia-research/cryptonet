@@ -5,8 +5,12 @@ from binascii import unhexlify
 from cryptonet import Cryptonet
 from cryptonet.dapp import Dapp
 from cryptonet.utilities import global_hash, dsha256R
+from cryptonet.datastructs import MerkleBranchToRoot
 
 from encodium import *
+
+BTC_CHAINHEADERS = b'BTC_CHAINHEADERS'
+BTC_SPV = b'BTC_SPV'
 
 #marketcoin = Cryptonet()
 
@@ -81,6 +85,8 @@ class BitcoinHeader(Field):
 class Chainheaders(Dapp):
     ''' Chainheaders will track all provided chain headers and keep track of the longest chain.
     Initial state should have ~genesis block hash~ some recent checkpoint for Bitcoin network.
+
+    Designed for Bitcoin-like chains
 
     Requirements:
     To satisfy SPV requirements we need to track a number of properties not stored in the header itself.
@@ -162,15 +168,16 @@ class Chainheaders(Dapp):
             self.state[self._CHAIN_TOP_BLOCK] = block_hash
             self.state[self._CHAIN_TOP_SIGMA_DIFF] = sigma_diff
 
-#@marketcoin.dapp(b'BTC_CHAINHEADERS')
+#@marketcoin.dapp(BTC_CHAINHEADERS)
 class BitcoinChainheaders(Chainheaders):
+    # Starts at block 300,000
     GENESIS_HASH = 0x000000000000000082ccf8f1557c5d40b21edabb18d2d691cfbf87118bac7254
     GENESIS_BYTES = unhexlify(
         "020000007ef055e1674d2e6551dba41cd214debbee34aeb544c7ec670000000000000000d3998963f80c5bab43fe8c26228e98d030edf4dcbe48a666f5c39e2d7a885c9102c86d536c890019593a470d")
 
     HEADER_CLASS = BitcoinHeader
 
-#@marketcoin.dapp(b'BTC_SPV')
+#@marketcoin.dapp(BTC_SPV)
 class BitcoinSPV(Dapp):
     ''' SPV and MerkleTree verification.
     SPV takes a block hash, 2 transaction hashes, and a merkle branch.
@@ -180,17 +187,44 @@ class BitcoinSPV(Dapp):
     hashes, but are half way through the merkle tree) there is little benefit.
         1. Verify merkle branch is correct. Should result in MR from block
         2. Verify MR is in header 
-        3. Set txhash XOR block_hash to 1'''
+        3. Set txhash XOR block_hash to 1
 
-    @staticmethod
-    def on_block(workingState, block, chain):
-        return workingState
+    Designed for Bitcoin-type chains'''
 
-    @staticmethod
-    def on_transaction(workingState, tx, chain):
+    def on_block(self, block, chain):
+        pass
+
+    def on_transaction(self, tx, block, chain):
         ''' Prove some BTC transaction was in some merkle tree via tx hash.
-        If tx ABCD was in block 1234 then 1234 XOR ABCD will be set to 1. '''
-        return workingState
+        If tx ABCD was in block 1234 then 1234 XOR ABCD will be set to 1.
+
+        Inputs:
+        block_hash
+        tx_hash
+        [lr, merkle_branch]...'''
+
+        self.assert_true(len(tx.data) >= 2, 'tx_data must carry 2 or more elements to prove a tx was in a block')
+        block_hash = tx.data[0]
+        tx_hash = tx.data[1]
+        self.assert_true(block_hash > 100000 and tx_hash > 100000, 'block_hash & tx_hash reasonable values')
+        self.assert_true(tx_hash in self.super_state[BTC_CHAINHEADERS], 'tx_hash exists')
+
+        header_bytes = self.super_state[BTC_CHAINHEADERS][tx_hash]
+        header = BitcoinHeader.make_from_bytes(header_bytes)
+        header.assert_internal_consistency()  # this checks we're actually dealing with a header
+        self.assert_true(header.get_hash() == block_hash, 'provided hash is correct')
+
+        def pair_up(l):
+            return [(l[i], l[i+1]) for i in range(0, len(l), 2)]
+
+        def bisect(l):
+            return ([t[0] for t in l], [t[1] for t in l])
+
+        merkle_prep = bisect(pair_up(tx.data[2:]))
+        merkle_root = MerkleBranchToRoot.make(hash=block_hash, lr_branch=merkle_prep[0], hash_branch=merkle_prep[1]).get_hash()
+        self.assert_true(merkle_root == header.merkle_root, 'merkle_roots must match')
+
+        self.state[tx_hash ^ block_hash] = 1
 
 
 #@marketcoin.dapp(b'BTC_MARKET')
