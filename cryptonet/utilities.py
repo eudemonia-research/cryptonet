@@ -34,7 +34,7 @@ def num2bits(n, minlen=0):
 def random_peer(p2p):
     p2p.peers()
 
-def global_hash(msg):
+def global_hash(msg, length=None):
     ''' This is the hash function that should be used EVERYWHERE in GPDHT.
     Currently defined to be SHA3.
     Returns int, should accept int'''
@@ -42,7 +42,24 @@ def global_hash(msg):
     if not isinstance(msg, int):
         s.update(bytes(msg))
     else:
-        s.update(msg.to_bytes(msg.bit_length() // 8 + 1, 'big'))
+        if length == None:
+            length = msg.bit_length() // 8 + 1
+        s.update(msg.to_bytes(length, 'big'))
     return int.from_bytes(s.digest(), 'big')
+
+def dsha256R(msg):
+    ''' Return a dsha256 hash reversed
+    '''
+    return dsha256(msg)[::-1]
+
+def dsha256(msg):
+    ''' Input should be bytes
+    '''
+    return sha256(sha256(msg))
+
+def sha256(msg):
+    s = hashlib.sha256()
+    s.update(msg)
+    return s.digest()
 
 time_as_int = lambda: int(time.time())

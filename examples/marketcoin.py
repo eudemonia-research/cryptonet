@@ -4,12 +4,11 @@ from binascii import unhexlify
 
 from cryptonet import Cryptonet
 from cryptonet.dapp import Dapp
-from cryptonet.utilities import global_hash
+from cryptonet.utilities import global_hash, dsha256R
 
 from encodium import *
 
-marketcoin = Cryptonet()
-
+#marketcoin = Cryptonet()
 
 class BitcoinHeader(Field):
     DIFF_ONE_TARGET = 0x00000000ffff0000000000000000000000000000000000000000000000000000
@@ -37,7 +36,7 @@ class BitcoinHeader(Field):
         ])
 
     def get_hash(self):
-        return global_hash(self.to_bytes())
+        return int.from_bytes(dsha256R(self.to_bytes()), 'big')
 
     def valid_proof_of_work(self):
         return self.get_hash() < self.target
@@ -58,7 +57,7 @@ class BitcoinHeader(Field):
     def make_from_bytes(header_bytes):
         return BitcoinHeader.make(
             version=int.from_bytes(header_bytes[:4], 'little'),
-            previous_block=int.from_bytes(header_bytes[4:4 + 32], 'little'),
+            parent_hash=int.from_bytes(header_bytes[4:4 + 32], 'little'),
             merkle_root=int.from_bytes(header_bytes[4 + 32:4 + 32 + 32], 'little'),
             timestamp=int.from_bytes(header_bytes[4 + 32 + 32:4 + 32 + 32 + 4], 'little'),
             bits=int.from_bytes(header_bytes[4 + 32 + 32 + 4:4 + 32 + 32 + 4 + 4], 'little'),
@@ -79,9 +78,7 @@ class BitcoinHeader(Field):
     def bits_to_diff(bits):
         return BitcoinHeader.target_to_diff(BitcoinHeader.bits_to_diff(bits))
 
-
-#@marketcoin.dapp(b'BTC_CH')
-class BitcoinChainheaders(Dapp):
+class Chainheaders(Dapp):
     ''' Chainheaders will track all provided chain headers and keep track of the longest chain.
     Initial state should have ~genesis block hash~ some recent checkpoint for Bitcoin network.
 
@@ -93,9 +90,12 @@ class BitcoinChainheaders(Dapp):
     * Must track height
     '''
 
-    GENESIS_HASH = 0x000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f
-    GENESIS_BYTES = unhexlify(
-        "0100000000000000000000000000000000000000000000000000000000000000000000003ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a29ab5f49ffff001d1dac2b7c")
+    # These are the first blocks according to Chainheaders - can be located anywhere, doesn't need to be the actual
+    # genesis blocks for the foreign chain
+    GENESIS_HASH = 0
+    GENESIS_BYTES = unhexlify("0100000000000000000000000000000000000000000000000000000000000000000000003ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a29ab5f49ffff001d1dac2b7c")
+
+    HEADER_CLASS = None
 
     # _CHAIN offset: 0
     _CHAIN_INITIALISED = 0
@@ -128,14 +128,14 @@ class BitcoinChainheaders(Dapp):
         # should accept a list of block headers and validate to store the longest chain
         assert len(tx.data) > 0
         for raw_header in tx.data:
-            header = BitcoinHeader.make_from_bytes(raw_header)
+            header = self.HEADER_CLASS.make_from_bytes(raw_header)
             header.assert_valid(self)
             self.add_header_to_state(header)
 
     def add_header_to_state(self, header):
         block_hash = header.get_hash()
         if self.state[block_hash] != 0:
-            raise ValidationError('BitcoinChainheaders: block header already added')
+            raise ValidationError('Chainheaders: block header already added')
         self.state[block_hash + self._BLOCK_HEADER_BYTES] = header.to_bytes()
         header_height = self.state[header.parent_hash + self._BLOCK_HEIGHT] + 1
         self.state[block_hash + self._BLOCK_HEIGHT] = header_height
@@ -144,9 +144,10 @@ class BitcoinChainheaders(Dapp):
 
         # This section rolls up an incremental merkle tree
         previous_ancestors_n = self.state[header.parent_hash + self._BLOCK_ANCESTORS_N]
-        previous_ancestors = self.state[
-                             header.parent_hash + self._BLOCK_ANCESTORS: header.parent_hash + \
-                                                                         self._BLOCK_ANCESTORS + previous_ancestors_n]
+        previous_ancestors = []
+        previous_ancestors_start_index = header.parent_hash + self._BLOCK_ANCESTORS
+        for i in range(previous_ancestors_n):
+                previous_ancestors.append(self.state[previous_ancestors_start_index + i])
         ancestors = previous_ancestors[:]
         j = 2
         while header_height % j == 0:
@@ -161,9 +162,16 @@ class BitcoinChainheaders(Dapp):
             self.state[self._CHAIN_TOP_BLOCK] = block_hash
             self.state[self._CHAIN_TOP_SIGMA_DIFF] = sigma_diff
 
+#@marketcoin.dapp(b'BTC_CHAINHEADERS')
+class BitcoinChainheaders(Chainheaders):
+    GENESIS_HASH = 0x000000000000000082ccf8f1557c5d40b21edabb18d2d691cfbf87118bac7254
+    GENESIS_BYTES = unhexlify(
+        "020000007ef055e1674d2e6551dba41cd214debbee34aeb544c7ec670000000000000000d3998963f80c5bab43fe8c26228e98d030edf4dcbe48a666f5c39e2d7a885c9102c86d536c890019593a470d")
 
-@marketcoin.dapp(b'BTC_SPV')
-class BitcoinSPV(cryptonet.template.Dapp):
+    HEADER_CLASS = BitcoinHeader
+
+#@marketcoin.dapp(b'BTC_SPV')
+class BitcoinSPV(Dapp):
     ''' SPV and MerkleTree verification.
     SPV takes a block hash, 2 transaction hashes, and a merkle branch.
     The merkle branch should prove those two transaction hashes were included
@@ -185,8 +193,8 @@ class BitcoinSPV(cryptonet.template.Dapp):
         return workingState
 
 
-@marketcoin.dapp(b'BTC_MARKET')
-class BitcoinMarket(cryptonet.template.Dapp):
+#@marketcoin.dapp(b'BTC_MARKET')
+class BitcoinMarket(Dapp):
     ''' Market has a few functions:
         0. execute occasionally
         1. accept bids for MKC
