@@ -4,7 +4,7 @@ from binascii import hexlify, unhexlify
 
 import cryptonet
 from cryptonet.debug import debug
-from cryptonet.errors import ChainError
+from cryptonet.errors import ChainError, ValidationError
 
 #==============================================================================
 # GENERAL CRYPTONET FUNCTIONS
@@ -61,5 +61,19 @@ def sha256(msg):
     s = hashlib.sha256()
     s.update(msg)
     return s.digest()
+
+def _split_varint_and_bytes(int_location, bytes):
+    return (bytes[int_location[0]:int_location[1]], bytes[int_location[1]:])
+
+def get_varint_and_remainder(bytes):
+    if bytes[0] < 0xfd:
+        return _split_varint_and_bytes((0, 1), bytes)
+    if bytes[0] == 0xfd:
+        return _split_varint_and_bytes((1, 3), bytes)
+    if bytes[0] == 0xfe:
+        return _split_varint_and_bytes((1, 5), bytes)
+    if bytes[0] == 0xff:
+        return _split_varint_and_bytes((1, 9), bytes)
+
 
 time_as_int = lambda: int(time.time())

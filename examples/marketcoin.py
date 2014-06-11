@@ -4,7 +4,7 @@ from binascii import unhexlify
 
 from cryptonet import Cryptonet
 from cryptonet.dapp import Dapp
-from cryptonet.utilities import global_hash, dsha256R
+from cryptonet.utilities import global_hash, dsha256R, get_varint_and_remainder
 from cryptonet.datastructs import MerkleBranchToRoot
 
 from encodium import *
@@ -207,9 +207,9 @@ class BitcoinSPV(Dapp):
         block_hash = tx.data[0]
         tx_hash = tx.data[1]
         self.assert_true(block_hash > 100000 and tx_hash > 100000, 'block_hash & tx_hash reasonable values')
-        self.assert_true(tx_hash in self.super_state[BTC_CHAINHEADERS], 'tx_hash exists')
+        self.assert_true(block_hash in self.super_state[BTC_CHAINHEADERS], 'block_hash exists')
 
-        header_bytes = self.super_state[BTC_CHAINHEADERS][tx_hash]
+        header_bytes = self.super_state[BTC_CHAINHEADERS][block_hash]
         header = BitcoinHeader.make_from_bytes(header_bytes)
         header.assert_internal_consistency()  # this checks we're actually dealing with a header
         self.assert_true(header.get_hash() == block_hash, 'provided hash is correct')
@@ -217,11 +217,11 @@ class BitcoinSPV(Dapp):
         def pair_up(l):
             return [(l[i], l[i+1]) for i in range(0, len(l), 2)]
 
-        def bisect(l):
+        def unzip(l):
             return ([t[0] for t in l], [t[1] for t in l])
 
-        merkle_prep = bisect(pair_up(tx.data[2:]))
-        merkle_root = MerkleBranchToRoot.make(hash=block_hash, lr_branch=merkle_prep[0], hash_branch=merkle_prep[1]).get_hash()
+        merkle_prep = unzip(pair_up(tx.data[2:]))
+        merkle_root = MerkleBranchToRoot.make(hash=tx_hash, lr_branch=merkle_prep[0], hash_branch=merkle_prep[1]).get_hash()
         self.assert_true(merkle_root == header.merkle_root, 'merkle_roots must match')
 
         self.state[tx_hash ^ block_hash] = 1
@@ -245,15 +245,257 @@ class BitcoinMarket(Dapp):
     5. 
     '''
 
-    @staticmethod
-    def on_block(workingState, block, chain):
-        ''' Test for market execution condition and if so execute. '''
-        return workingState
+    class NewOrder(Field):
+        ''' An order as submitted in a transaction.
+        '''
 
-    @staticmethod
-    def on_transaction(workingState, tx, chain):
+        LOCAL = True
+        FOREIGN = False
+
+        def fields():
+            # which currency is being used, local or foreign
+            local_or_foreign = Boolean()
+            # maximum spend in that currency
+            max_spend = Integer(length=8)
+            min_return = Integer(length=8)
+            # offering rate * 2^64
+            offering_rate_scaled = Integer(length=16)
+            # required output - zero length for XMK buy
+            # must be an address so someone can't force to a non-standard output
+            # addresses are 20 bytes
+            pubkey_hash = Integer(length=20)
+
+
+    class Order(Field):
+        ''' An order as in the order book
+        '''
+
+        BID = True
+        ASK = False
+
+        def fields():
+            bid_or_ask = Boolean()  # always bid FOR XMK (buy) or ask FOR XMK (sell)
+            amount = Integer(length=8)
+            rate = Integer(length=16)
+            # link in order book
+            next_worse_order = Integer(length=32)
+            next_better_order = Integer(length=32)
+            pay_to_pubkey_hash = Integer(length=20)
+            sender = Integer(length=32)
+            pledge = Integer(length=8)
+
+
+    class OrderMatch(Field):
+        ''' An order-match as stored in the state
+        '''
+
+        def fields():
+            pay_to_pubkey_hash = Integer(length=20)
+            success_output = Integer(length=32)  # local pubkey_x corresponding to buyer of XMK
+            fail_output = Integer(length=32)  # local pubkey_x corresponding to seller of XMK (used if buyer reneges)
+            foreign_amount = Integer(length=8)
+            local_amount = Integer(length=8)
+            pledge_amount = Integer(length=8)
+
+
+    """class BitcoinInput(Field):
+        ''' A bitcoin input
+        '''
+
+        def fields():
+            previous_transaction = Integer(length=32)
+            previous_txout_index = Integer(length=4)
+            script_length = Integer(length=1)
+
+
+    class BitcoinOutput(Field):
+        ''' A bitcoin output
+        '''
+
+        def fields():
+            amount = Integer(length=8)
+            script_length = Integer(length=2)
+            script = Bytes()
+            # TODO check script of correct length
+
+    class BitcoinTransaction(Field):
+        ''' A bitcoin transaction
+        '''
+
+        def fields():
+            version = Integer(length=4)
+            input_counter = Integer(length=1)
+            inputs = List(BitcoinMarket.BitcoinInput())
+            output_counter = Integer(length=1)
+            outputs = List(BitcoinMarket.BitcoinOutput())
+            lock_time = Integer(length=4)
+
+        def to_bytes(self):
+            return b''.join([
+                self.version.to_bytes(4, 'big'),
+                self.input_bytes,
+                self.output_counter.to_bytes(1, 'big'),
+                b''.join([i.to_bytes for i in self.outputs]),
+                self.lock_time.to_bytes(4, 'big')
+            ])
+
+        @staticmethod
+        def make_from_bytes(raw_bitcoin_transaction):
+            version_bytes = raw_bitcoin_transaction[:4]
+            input_counter = raw_bitcoin_transaction[4]
+            if input_counter > 0xf0:
+                raise ValidationError('Too many inputs')
+            inputs = []
+            potential_input_bytes = raw_bitcoin_transaction[5:]
+            for i in range(input_counter):
+                input_length, potential_input_bytes = get_varint_and_remainder(potential_input_bytes)
+                inputs.append(potential_input_bytes[:input_length])
+            outputs_and_locktime = potential_input_bytes
+            output_counter = outputs_and_locktime[0]
+            if output_counter > 0xf0:
+                raise ValidationError('Too many outputs')"""
+
+    class BitcoinTransaction(Field):
+
+        def fields():
+            bytes = Bytes()
+
+        def init(self):
+            try:
+                self._split_transaction()
+            except:
+                raise ValidationError('Tx failed to decode correctly')
+
+        def contains_output(self, output_as_bytes):
+            return output_as_bytes in self.outputs
+
+        def _split_transaction(self):
+            self.version = self.bytes[:4]
+            self.in_counter, remainder = get_varint_and_remainder(self.bytes[:4])
+            self.inputs, remainder = self._split_inputs(self.in_counter, remainder)
+            self.out_counter, remainder = get_varint_and_remainder(remainder)
+            self.outputs, remainder = self._split_outputs(self.out_counter, remainder)
+            self.lock_time = remainder
+            assert len(self.lock_time) == 4
+
+        def _split_inputs(self, n, bytes):
+            if n == 0:
+                return []
+            chunk, remainder = self._split_off_input(bytes)
+            return [chunk] + self._split_inputs(n-1, remainder)
+
+        @staticmethod
+        def _split_off_input(bytes):
+            start = bytes[:36]
+            script_len, remainder = get_varint_and_remainder(bytes[:36])
+            script = remainder[:script_len]
+            sequence_number = remainder[script_len:script_len+4]
+            return (start + script_len + script + sequence_number, remainder[script_len+4:])
+
+        def _split_outputs(self, out_counter, bytes):
+            if out_counter == 0:
+                return []
+            chunk, remainder = self._split_off_output(bytes)
+            return [chunk] + self._split_outputs(out_counter - 1, remainder)
+
+        def _split_off_output(self, bytes):
+            value = bytes[:8]
+            script_len, remainder = get_varint_and_remainder(bytes[8:])
+            script = remainder[:script_len]
+            return (script, remainder[script_len:])
+
+
+    class ProofOfPayment(Field):
+        ''' Submitted to prove payment
+        '''
+
+        def fields():
+            order_match_id = Integer(length=32)
+            transaction = BitcoinMarket.BitcoinTransaction()
+
+
+    class CancelOrder(Field):
+        ''' Message to cancel order
+        '''
+
+        def fields():
+            order_id = Integer(length=32)
+
+
+    class RedeemPledge(Field):
+        ''' Submitted by seller of XMK to redeem the pledge if buyer reneges.
+        '''
+
+        def fields():
+            order_match_id = Integer(length=32)
+
+
+    _ACTIONS = dict(flip(enumerate(['new', 'cancel', 'fulfill', 'redeem'])))
+
+    # this maps market metadata, including target frequency for market execution
+    _METADATA = dict(enumerate(['best_sell_order', 'best_buy_order', 'target_frequency']))
+
+    _ORDER = dict(enumerate([]))
+
+    def on_block(self, block, chain):
+        ''' Test for market execution condition and if so execute.
+
+        1. Cycle through market and construct order_matches.
+            1. get top orders
+            2. ensure sell_price <= buy_price
+            3. create an order_match
+            4. calculate change and set appropriate top order
+            5. go to (0)
+        '''
+
+
+
+        self.update_price_tracker()
+
+    def update_price_tracker(self, new_max, new_min, timestamp):
+        ''' Updates metadata about the recent price to be used when calculating required pledges.
+        '''
+        pass  # self.state[self._METADATA]
+
+    def on_transaction(self, tx, block, chain):
         ''' Depending on tx either insert, cancel, fulfill, or _ specified order '''
-        return workingState
+        self.assert_true(len(tx.data) > 1, 'txs to market must have more than one bit o data')
+        self.assert_true(len(tx.data[0]) == 1, 'first data element must be single byte')
+        action = tx.data[0][0]  # is an integer
+        if action == self._ACTIONS['new']:
+            self.add_new_order(tx, block, chain)
+        elif action == self._ACTIONS['cancel']:
+            self.cancel_order(tx, block, chain)
+        elif action == self._ACTIONS['fulfill']:
+            self.fulfill_order_match(tx, block, chain)
+        elif action == self._ACTIONS['redeem']:
+            self.redeem_pledge(tx, block, chain)
+        else:
+            raise ValidationError('Unknown Action')
+
+    def add_new_order(self, tx, block, chain):
+        ''' Insert order into order book.
+        '''
+        pass
+
+    def cancel_order(self, tx, block, chain):
+        ''' Remove order from order book.
+        '''
+        pass
+
+    def fulfill_order_match(self, tx, block, chain):
+        ''' Prove a fulfilled order_match by providing the relevant Bitcoin tx.
+        Does not require authentication.
+        '''
+        pass
+
+    def redeem_pledge(self, tx, block, chain):
+        ''' If 1440 (or 24hrs) blocks have passed allow the pledge to be pushed to seller.
+        Does not require authentication.
+        '''
+        pass
+
+
 
 
 

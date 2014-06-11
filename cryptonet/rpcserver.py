@@ -37,9 +37,11 @@ class RPCServer(object):
 
 
 class RPCClient(object):
-    def __init__(self, url="http://localhost:4000/jsonrpc"):
+    def __init__(self, url="http://localhost:4000/jsonrpc", username=b'', password=b''):
         self.url = url
         self.headers = {'content-type': 'application/json'}
+        self.username = username
+        self.password = password
 
     def request(self, method_name, params):
         payload = {
@@ -48,5 +50,4 @@ class RPCClient(object):
             "jsonrpc": "2.0",
             "id": 0,
         }
-        print(payload)
-        return requests.post(self.url, data=json.dumps(payload), headers=self.headers).json()
+        return requests.post(self.url, data=json.dumps(payload), headers=self.headers, auth=(self.username, self.password)).json()
