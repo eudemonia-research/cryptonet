@@ -3,7 +3,7 @@
 from setuptools import setup
 
 setup(name='Cryptonet',
-      version='0.0.3',
+      version='0.0.4',
       description='Blockchain and Cryptonet Framework',
       author='Max Kaye',
       author_email='max@eudemonia.io',
