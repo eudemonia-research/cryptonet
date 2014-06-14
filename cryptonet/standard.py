@@ -334,7 +334,7 @@ class Block(Field):
         assert self.state_maker != None
         success = self.state_maker.reorganisation(chain, from_block, around_block, to_block, is_test)
         if success:
-            to_block.set_state_maker(self.state_maker)
+            to_block._set_state_maker(self.state_maker)
         return success
 
     def get_hash(self):
@@ -405,14 +405,18 @@ class Block(Field):
     def on_genesis(self, chain):
         debug('Block.on_genesis called')
         assert not chain.initialized
-        self.set_state_maker(StateMaker(chain))
+        self._set_state_maker(StateMaker(chain))
         # TxPrism is standard root dapp - allows for txs to be passed to contracts
         self.state_maker.register_dapp(TxPrism(ROOT_DAPP, self.state_maker))
         self.state_maker.register_dapp(TxTracker(TX_TRACKER, self.state_maker))
 
-    def set_state_maker(self, state_maker):
+    def _set_state_maker(self, state_maker):
         self.state_maker = state_maker
         self.super_state = state_maker.super_state
+        self.additional_state_operations(state_maker)
+
+    def additional_state_operations(self, state_maker):
+        pass
 
     def update_roots(self):
         self.header.state_mr = self.state_maker.super_state.get_hash()

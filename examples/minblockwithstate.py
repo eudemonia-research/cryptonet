@@ -114,7 +114,7 @@ class MinBlockWithState(encodium.Field):
         assert self.state_maker != None
         success = self.state_maker.reorganisation(chain, from_block, around_block, to_block, is_test)
         if success:
-            to_block.set_state_maker(self.state_maker)
+            to_block._set_state_maker(self.state_maker)
         return success
 
     def assert_true(self, condition, message):
@@ -173,7 +173,7 @@ class MinBlockWithState(encodium.Field):
 
 def make_genesis():
     genesis_block = MinBlockWithState.make(parent_hash=0,height=0)
-    genesis_block.set_state_maker(StateMaker(min_net.chain, MinBlockWithState))
+    genesis_block._set_state_maker(StateMaker(min_net.chain, MinBlockWithState))
     genesis_block.update_state_root()
     miner = Miner(min_net.chain, min_net.seek_n_build)
     miner.mine(genesis_block)

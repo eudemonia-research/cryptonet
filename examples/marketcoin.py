@@ -1,10 +1,10 @@
-#!/usr/bin/env python3
+# !/usr/bin/env python3
 
 from binascii import unhexlify
 
 from cryptonet import Cryptonet
 from cryptonet.dapp import Dapp
-from cryptonet.utilities import global_hash, dsha256R, get_varint_and_remainder
+from cryptonet.utilities import global_hash, dsha256R, get_varint_and_remainder, create_index
 from cryptonet.datastructs import MerkleBranchToRoot
 
 from encodium import *
@@ -12,7 +12,7 @@ from encodium import *
 BTC_CHAINHEADERS = b'BTC_CHAINHEADERS'
 BTC_SPV = b'BTC_SPV'
 
-#marketcoin = Cryptonet()
+# marketcoin = Cryptonet()
 
 class BitcoinHeader(Field):
     DIFF_ONE_TARGET = 0x00000000ffff0000000000000000000000000000000000000000000000000000
@@ -82,6 +82,7 @@ class BitcoinHeader(Field):
     def bits_to_diff(bits):
         return BitcoinHeader.target_to_diff(BitcoinHeader.bits_to_diff(bits))
 
+
 class Chainheaders(Dapp):
     ''' Chainheaders will track all provided chain headers and keep track of the longest chain.
     Initial state should have ~genesis block hash~ some recent checkpoint for Bitcoin network.
@@ -99,7 +100,8 @@ class Chainheaders(Dapp):
     # These are the first blocks according to Chainheaders - can be located anywhere, doesn't need to be the actual
     # genesis blocks for the foreign chain
     GENESIS_HASH = 0
-    GENESIS_BYTES = unhexlify("0100000000000000000000000000000000000000000000000000000000000000000000003ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a29ab5f49ffff001d1dac2b7c")
+    GENESIS_BYTES = unhexlify(
+        "0100000000000000000000000000000000000000000000000000000000000000000000003ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a29ab5f49ffff001d1dac2b7c")
 
     HEADER_CLASS = None
 
@@ -153,7 +155,7 @@ class Chainheaders(Dapp):
         previous_ancestors = []
         previous_ancestors_start_index = header.parent_hash + self._BLOCK_ANCESTORS
         for i in range(previous_ancestors_n):
-                previous_ancestors.append(self.state[previous_ancestors_start_index + i])
+            previous_ancestors.append(self.state[previous_ancestors_start_index + i])
         ancestors = previous_ancestors[:]
         j = 2
         while header_height % j == 0:
@@ -168,6 +170,7 @@ class Chainheaders(Dapp):
             self.state[self._CHAIN_TOP_BLOCK] = block_hash
             self.state[self._CHAIN_TOP_SIGMA_DIFF] = sigma_diff
 
+
 #@marketcoin.dapp(BTC_CHAINHEADERS)
 class BitcoinChainheaders(Chainheaders):
     # Starts at block 300,000
@@ -176,6 +179,7 @@ class BitcoinChainheaders(Chainheaders):
         "020000007ef055e1674d2e6551dba41cd214debbee34aeb544c7ec670000000000000000d3998963f80c5bab43fe8c26228e98d030edf4dcbe48a666f5c39e2d7a885c9102c86d536c890019593a470d")
 
     HEADER_CLASS = BitcoinHeader
+
 
 #@marketcoin.dapp(BTC_SPV)
 class BitcoinSPV(Dapp):
@@ -215,20 +219,21 @@ class BitcoinSPV(Dapp):
         self.assert_true(header.get_hash() == block_hash, 'provided hash is correct')
 
         def pair_up(l):
-            return [(l[i], l[i+1]) for i in range(0, len(l), 2)]
+            return [(l[i], l[i + 1]) for i in range(0, len(l), 2)]
 
         def unzip(l):
             return ([t[0] for t in l], [t[1] for t in l])
 
         merkle_prep = unzip(pair_up(tx.data[2:]))
-        merkle_root = MerkleBranchToRoot.make(hash=tx_hash, lr_branch=merkle_prep[0], hash_branch=merkle_prep[1]).get_hash()
+        merkle_root = MerkleBranchToRoot.make(hash=tx_hash, lr_branch=merkle_prep[0],
+                                              hash_branch=merkle_prep[1]).get_hash()
         self.assert_true(merkle_root == header.merkle_root, 'merkle_roots must match')
 
         self.state[tx_hash ^ block_hash] = 1
 
 
 #@marketcoin.dapp(b'BTC_MARKET')
-class BitcoinMarket(Dapp):
+class Market(Dapp):
     ''' Market has a few functions:
         0. execute occasionally
         1. accept bids for MKC
@@ -272,17 +277,56 @@ class BitcoinMarket(Dapp):
 
         BID = True
         ASK = False
+        RATE_CONSTANT = 256 ** 8
 
         def fields():
             bid_or_ask = Boolean()  # always bid FOR XMK (buy) or ask FOR XMK (sell)
             amount = Integer(length=8)
-            rate = Integer(length=16)
+            rate = Integer(length=16)  # rate per 256**8 XMK? 19 orders of magnitude each way, probably enough
             # link in order book
             next_worse_order = Integer(length=32)
             next_better_order = Integer(length=32)
             pay_to_pubkey_hash = Integer(length=20)
             sender = Integer(length=32)
             pledge = Integer(length=8)
+
+        @classmethod
+        def make_change(cls, source_order, amount=0, pledge=0):
+            return cls.make(
+                bid_or_ask=source_order.bid_or_ask, amount=amount, rate=source_order.rate,
+                next_worse_order=source_order.next_worse_order, next_better_order=source_order.next_better_order,
+                pay_to_pubkey_hash=source_order.pay_to_pubkey_hash, sender=source_order.sender, pledge=pledge
+            )
+
+        @staticmethod
+        def create_match_and_change(bid, ask, pledged):
+            # todo: figure out how to do rates - duh, just work in large numbers
+            new_rate = (bid.rate + ask.rate) // 2
+            max_bid_xmk = bid.amount * Market.Order.RATE_CONSTANT // bid.rate
+            max_ask_xmk = ask.amount
+            if max_ask_xmk == max_bid_xmk:
+                trade_volume = max_bid_xmk
+                foreign_amount = Market.Order.calculate_rate(new_rate, xmk=trade_volume)
+                change = None
+            else:
+                trade_volume = min(max_bid_xmk, max_ask_xmk)
+                if trade_volume == max_bid_xmk:  # IE there is alt change
+                    change = Market.Order.make_change(ask, amount=max_ask_xmk - max_bid_xmk)
+                elif trade_volume == max_ask_xmk:  # IE there is xmk change
+                    alt_change_amount = Market.Order.calculate_rate(bid.rate, xmk=max_bid_xmk - trade_volume)
+                    alt_pledge_amount = bid.pledge - (bid.pledge * max_bid_xmk // trade_volume)
+                    change = Market.Order.make_change(bid, amount=alt_change_amount, pledge=alt_pledge_amount)
+            match = Market.OrderMatch(pay_to_pubkey_hash=ask.pay_to_pubkey_hash, success_output=bid.sender,
+                                      fail_output=ask.sender, foreign_amount=foreign_amount, local_amount=trade_volume,
+                                      pledge_amount=pledged)
+            return (match, change)
+
+        @staticmethod
+        def calculate_rate(rate, xmk=None, alt=None):
+            assert not (xmk == None and alt == None)
+            if xmk == None:
+                return alt * Market.Order.RATE_CONSTANT // rate
+            return xmk * rate // Market.Order.RATE_CONSTANT
 
 
     class OrderMatch(Field):
@@ -298,120 +342,13 @@ class BitcoinMarket(Dapp):
             pledge_amount = Integer(length=8)
 
 
-    """class BitcoinInput(Field):
-        ''' A bitcoin input
-        '''
-
-        def fields():
-            previous_transaction = Integer(length=32)
-            previous_txout_index = Integer(length=4)
-            script_length = Integer(length=1)
-
-
-    class BitcoinOutput(Field):
-        ''' A bitcoin output
-        '''
-
-        def fields():
-            amount = Integer(length=8)
-            script_length = Integer(length=2)
-            script = Bytes()
-            # TODO check script of correct length
-
-    class BitcoinTransaction(Field):
-        ''' A bitcoin transaction
-        '''
-
-        def fields():
-            version = Integer(length=4)
-            input_counter = Integer(length=1)
-            inputs = List(BitcoinMarket.BitcoinInput())
-            output_counter = Integer(length=1)
-            outputs = List(BitcoinMarket.BitcoinOutput())
-            lock_time = Integer(length=4)
-
-        def to_bytes(self):
-            return b''.join([
-                self.version.to_bytes(4, 'big'),
-                self.input_bytes,
-                self.output_counter.to_bytes(1, 'big'),
-                b''.join([i.to_bytes for i in self.outputs]),
-                self.lock_time.to_bytes(4, 'big')
-            ])
-
-        @staticmethod
-        def make_from_bytes(raw_bitcoin_transaction):
-            version_bytes = raw_bitcoin_transaction[:4]
-            input_counter = raw_bitcoin_transaction[4]
-            if input_counter > 0xf0:
-                raise ValidationError('Too many inputs')
-            inputs = []
-            potential_input_bytes = raw_bitcoin_transaction[5:]
-            for i in range(input_counter):
-                input_length, potential_input_bytes = get_varint_and_remainder(potential_input_bytes)
-                inputs.append(potential_input_bytes[:input_length])
-            outputs_and_locktime = potential_input_bytes
-            output_counter = outputs_and_locktime[0]
-            if output_counter > 0xf0:
-                raise ValidationError('Too many outputs')"""
-
-    class BitcoinTransaction(Field):
-
-        def fields():
-            bytes = Bytes()
-
-        def init(self):
-            try:
-                self._split_transaction()
-            except:
-                raise ValidationError('Tx failed to decode correctly')
-
-        def contains_output(self, output_as_bytes):
-            return output_as_bytes in self.outputs
-
-        def _split_transaction(self):
-            self.version = self.bytes[:4]
-            self.in_counter, remainder = get_varint_and_remainder(self.bytes[:4])
-            self.inputs, remainder = self._split_inputs(self.in_counter, remainder)
-            self.out_counter, remainder = get_varint_and_remainder(remainder)
-            self.outputs, remainder = self._split_outputs(self.out_counter, remainder)
-            self.lock_time = remainder
-            assert len(self.lock_time) == 4
-
-        def _split_inputs(self, n, bytes):
-            if n == 0:
-                return []
-            chunk, remainder = self._split_off_input(bytes)
-            return [chunk] + self._split_inputs(n-1, remainder)
-
-        @staticmethod
-        def _split_off_input(bytes):
-            start = bytes[:36]
-            script_len, remainder = get_varint_and_remainder(bytes[:36])
-            script = remainder[:script_len]
-            sequence_number = remainder[script_len:script_len+4]
-            return (start + script_len + script + sequence_number, remainder[script_len+4:])
-
-        def _split_outputs(self, out_counter, bytes):
-            if out_counter == 0:
-                return []
-            chunk, remainder = self._split_off_output(bytes)
-            return [chunk] + self._split_outputs(out_counter - 1, remainder)
-
-        def _split_off_output(self, bytes):
-            value = bytes[:8]
-            script_len, remainder = get_varint_and_remainder(bytes[8:])
-            script = remainder[:script_len]
-            return (script, remainder[script_len:])
-
-
     class ProofOfPayment(Field):
         ''' Submitted to prove payment
         '''
 
         def fields():
             order_match_id = Integer(length=32)
-            transaction = BitcoinMarket.BitcoinTransaction()
+            transaction = Market.BitcoinTransaction()
 
 
     class CancelOrder(Field):
@@ -429,13 +366,15 @@ class BitcoinMarket(Dapp):
         def fields():
             order_match_id = Integer(length=32)
 
-
-    _ACTIONS = dict(flip(enumerate(['new', 'cancel', 'fulfill', 'redeem'])))
+    # todo: make that list composition a function
+    _ACTIONS = create_index(['new', 'cancel', 'fulfill', 'redeem'])
 
     # this maps market metadata, including target frequency for market execution
-    _METADATA = dict(enumerate(['best_sell_order', 'best_buy_order', 'target_frequency']))
+    _METADATA = create_index(['lowest_trade', 'highest_trade', 'best_bid', 'best_ask', 'volume',
+                              'mean', 'standard_deviation', 'target_period'])
 
-    _ORDER = dict(enumerate([]))
+    # this is how we find our way between states; track the start of each side of the orderbook.
+    _STATE_INDEX = create_index(['ob_best_bid', 'ob_best_ask'])
 
     def on_block(self, block, chain):
         ''' Test for market execution condition and if so execute.
@@ -448,11 +387,32 @@ class BitcoinMarket(Dapp):
             5. go to (0)
         '''
 
+        def create_order_match_and_change(bid_order, ask_order):
+            pass
 
+        highest_trade = 0
+        lowest_trade = 2 ** 64 - 1
+        best_bid = None
+        best_ask = None
+        volume = 0
+        match_counter = 0
 
-        self.update_price_tracker()
+        block.orderbook['bid'][0]
 
-    def update_price_tracker(self, new_max, new_min, timestamp):
+        mean = None
+        standard_deviation = None
+
+        match, change = None, None
+        this_bid = self.state[Market._STATE_INDEX['ob_best_bid']]
+        this_ask = self.state[Market._STATE_INDEX['ob_best_ask']]
+
+        # as long as someone will pay more than someone will accept
+        while this_bid.rate >= this_ask.rate:
+            match, change = create_order_match_and_change(this_bid, this_ask)
+
+        self.update_metadata(0, 0, 0)
+
+    def update_metadata(self, new_max, new_min, timestamp):
         ''' Updates metadata about the recent price to be used when calculating required pledges.
         '''
         pass  # self.state[self._METADATA]
@@ -494,6 +454,10 @@ class BitcoinMarket(Dapp):
         Does not require authentication.
         '''
         pass
+
+    def additional_state_operations(self, state_maker):
+        # pass the orderbook and ordermatchbook to block
+        self.state_maker = state_maker
 
 
 

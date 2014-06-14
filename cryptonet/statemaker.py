@@ -117,7 +117,7 @@ class StateMaker(object):
     def _block_events(self, block):
         ''' What is done every time a block is received - operates directly on current state.
         '''
-        block.set_state_maker(self)
+        block._set_state_maker(self)
         self.dapps.on_block(block, self.chain)
         self._add_super_txs(block.super_txs)
         block.update_roots()

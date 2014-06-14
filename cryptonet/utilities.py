@@ -77,3 +77,8 @@ def get_varint_and_remainder(bytes):
 
 
 time_as_int = lambda: int(time.time())
+
+
+def create_index(labels):
+    # starts at 1
+    dict(zip(labels, [i+1 for i in range(len(labels))]))
