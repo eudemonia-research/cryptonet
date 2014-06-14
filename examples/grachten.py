@@ -30,7 +30,10 @@ parser.add_argument('-mine', action='store_true')
 parser.add_argument('-network_debug', action='store_true')
 args = parser.parse_args()
 
-config['port'] = args.port
+if isinstance(args.port, list):
+    config['port'] = int(args.port[0])
+else:
+    config['port'] = int(args.port)
 seeds = []
 if isinstance(args.addnode, list) and args.addnode[0] != '':
     h,p = args.addnode[0].split(':')

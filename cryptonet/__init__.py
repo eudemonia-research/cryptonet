@@ -76,24 +76,18 @@ class Cryptonet(object):
         def on_connect_handler(node):
             debug('on_connect_handler')
             my_intro = Intro.make(top_block=self.chain.head.get_hash())
-            node.send('intro', my_intro.serialize())
+            node.send('intro', my_intro)
 
 
-        @self.p2p.handler('intro')
-        def intro_handler(node, payload):
+        @self.p2p.on_message('intro', Intro.make)
+        def intro_handler(node, their_intro):
             debug('intro_handler')
-            try:
-                their_intro = Intro.make(payload)
-            except ValidationError:
-                node.misbehaving()
-                return
             if config['network_debug'] or True:
                 debug('MSG intro : %064x' % their_intro.get_hash())
-            if node in self.intros:
-                return None
             self.intros[node] = their_intro
-            if not self.chain.has_block(their_intro.top_block):
-                debug('introhand', their_intro.top_block)
+            debug('intro_handler: the peer: ', node.address)
+            if not self.chain.has_block_hash(their_intro.top_block):
+                debug('intro_handler: their top_block %064x' % their_intro.top_block)
                 self.seek_n_build.seek_hash_now(their_intro.top_block)
 
 

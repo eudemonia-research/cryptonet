@@ -133,7 +133,8 @@ class SeekNBuild:
                     for i in range(to_get):
                         _, h = self.future_queue.get()
                         #print('block_seeker: asking for height: ',_)
-                        self.future.remove(h)
+                        if h in self.future:
+                            self.future.remove(h)
                         if _ != 0:
                             requesting.append(h)
 
