@@ -91,9 +91,8 @@ class Cryptonet(object):
                 self.seek_n_build.seek_hash_now(their_intro.top_block)
 
 
-        @self.p2p.handler('blocks')
-        def blocks_handler(node, payload):
-            block_list = BytesList.make(payload)
+        @self.p2p.on_message('blocks', BytesList.make)
+        def blocks_handler(node, block_list):
             if config['network_debug'] or True:
                 debug('MSG blocks : %064x' % block_list.get_hash())
             for serialized_block in block_list:
@@ -110,9 +109,8 @@ class Cryptonet(object):
                 self.seek_n_build.seek_many_with_priority(potential_block.related_blocks())
 
 
-        @self.p2p.handler('request_blocks')
-        def request_blocks_handler(node, payload):
-            requests = HashList.make(payload)
+        @self.p2p.on_message('request_blocks', HashList.make)
+        def request_blocks_handler(node, requests):
             if config['network_debug'] or True:
                 debug('MSG request_blocks : %064x' % requests.get_hash())
             blocks_to_send = BytesList.make()

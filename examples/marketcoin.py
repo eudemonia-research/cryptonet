@@ -2,6 +2,8 @@
 
 from binascii import unhexlify
 
+from pycoin.tx import Tx as PycoinTx
+
 from cryptonet import Cryptonet
 from cryptonet.dapp import Dapp
 from cryptonet.utilities import global_hash, dsha256R, get_varint_and_remainder, create_index
@@ -306,24 +308,26 @@ class Market(Dapp):
             max_ask_xmk = ask.amount
             if max_ask_xmk == max_bid_xmk:
                 trade_volume = max_bid_xmk
-                foreign_amount = Market.Order.calculate_rate(new_rate, xmk=trade_volume)
                 change = None
             else:
                 trade_volume = min(max_bid_xmk, max_ask_xmk)
                 if trade_volume == max_bid_xmk:  # IE there is alt change
                     change = Market.Order.make_change(ask, amount=max_ask_xmk - max_bid_xmk)
+                    alt_pledge_amount = pledged
                 elif trade_volume == max_ask_xmk:  # IE there is xmk change
                     alt_change_amount = Market.Order.calculate_rate(bid.rate, xmk=max_bid_xmk - trade_volume)
                     alt_pledge_amount = bid.pledge - (bid.pledge * max_bid_xmk // trade_volume)
                     change = Market.Order.make_change(bid, amount=alt_change_amount, pledge=alt_pledge_amount)
+            foreign_amount = Market.Order.calculate_rate(new_rate, xmk=trade_volume)
             match = Market.OrderMatch(pay_to_pubkey_hash=ask.pay_to_pubkey_hash, success_output=bid.sender,
                                       fail_output=ask.sender, foreign_amount=foreign_amount, local_amount=trade_volume,
-                                      pledge_amount=pledged)
+                                      pledge_amount=pledged-alt_pledge_amount)
             return (match, change)
 
         @staticmethod
         def calculate_rate(rate, xmk=None, alt=None):
-            assert not (xmk == None and alt == None)
+            assert xmk != None or alt != None
+            assert xmk == None or alt == None
             if xmk == None:
                 return alt * Market.Order.RATE_CONSTANT // rate
             return xmk * rate // Market.Order.RATE_CONSTANT
@@ -348,7 +352,10 @@ class Market(Dapp):
 
         def fields():
             order_match_id = Integer(length=32)
-            transaction = Market.BitcoinTransaction()
+            tx_bytes = Bytes()
+
+        def init(self):
+            self.transaction = PycoinTx.parse(self.tx_bytes)
 
 
     class CancelOrder(Field):
@@ -405,10 +412,24 @@ class Market(Dapp):
         match, change = None, None
         this_bid = self.state[Market._STATE_INDEX['ob_best_bid']]
         this_ask = self.state[Market._STATE_INDEX['ob_best_ask']]
+        ordermatches = []
 
         # as long as someone will pay more than someone will accept
         while this_bid.rate >= this_ask.rate:
             match, change = create_order_match_and_change(this_bid, this_ask)
+            ordermatches.append(match)
+            if change.bid_or_ask == Market.Order.BID:
+                this_bid = change
+                this_ask = self.state[this_ask.next_worst_order]
+            else:
+                this_bid = self.state[this_bid.next_worst_order]
+                this_ask = change
+        self.state[Market.Order.BID] = this_bid.get_hash()
+        self.state[Market.Order.ASK] = this_ask.get_hash()
+        self.state[this_bid.get_hash()] = this_bid
+        self.state[this_ask.get_hash()] = this_ask
+
+        # todo : write summary for this block here
 
         self.update_metadata(0, 0, 0)
 
