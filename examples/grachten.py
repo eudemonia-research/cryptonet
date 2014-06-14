@@ -31,11 +31,10 @@ parser.add_argument('-network_debug', action='store_true')
 args = parser.parse_args()
 
 config['port'] = args.port
-if isinstance(args.port, list): config['port'] = args.port[0]
 seeds = []
 if isinstance(args.addnode, list) and args.addnode[0] != '':
     h,p = args.addnode[0].split(':')
-    seeds.append((h,p))
+    seeds.append((h,int(p)))
     
 # bootstrap while testing
 #seeds.append(('xk.io',32555))
@@ -169,7 +168,7 @@ class GrachtenBlock(Field):
     def get_hash(self):
         return int(self.merkle_tree.get_hash())
         
-    def valid_proof_of_work(self):
+    def valid_proof(self):
         return self.header.valid_proof_of_work(self)
         
     def assert_true(self, condition, message):
@@ -179,7 +178,7 @@ class GrachtenBlock(Field):
     def assert_internal_consistency(self):
         ''' This should fail if the block could never be valid - no reference to chain possible '''
         self.header.assert_internal_consistency()
-        self.assert_true( self.valid_proof_of_work(), 'PoW must validate against header: %064x' % self.get_hash() )
+        self.assert_true( self.valid_proof(), 'PoW must validate against header: %064x' % self.get_hash() )
         #debug('block: AssertInternalConsistency', self.tree.leaves)
         self.assert_true( self.header.get_hash() == self.leaves[1], 'GrachtenHeader hash must be in pos 1 of tree, %s %064x' % (self.leaves, self.header.get_hash()))
         

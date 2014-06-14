@@ -4,6 +4,7 @@ import queue
 
 from cryptonet.datastructs import *
 from cryptonet.errors import ValidationError
+from cryptonet.debug import debug, verbose_debug
 
 
 class AtomicIncrementor:
@@ -111,9 +112,15 @@ class SeekNBuild:
                 with self.present_lock:
                     oldest_timestamp, oldest_block_hash = self.present_queue.get_nowait()
                     while oldest_timestamp + 10 < time.time():  # requested >10s ago
-                        debug('seeker, block re-request: ', oldest_block_hash)
                         if oldest_block_hash in self.present:
-                            requesting.append(oldest_block_hash)
+                            if self.chain.has_block_hash(oldest_block_hash) == False:
+                                debug('seeker, block re-request: %064x' % oldest_block_hash)
+                                requesting.append(oldest_block_hash)
+                            else:
+                                with self.present_lock:
+                                    if oldest_block_hash in self.present:
+                                        self.present.remove(oldest_block_hash)
+
                         oldest_timestamp, oldest_block_hash = self.present_queue.get_nowait()
                     self.present_queue.put((oldest_timestamp, oldest_block_hash))
             except queue.Empty:
@@ -194,7 +201,7 @@ class SeekNBuild:
         while not self._shutdown:
             try:
                 height, nonce, block = self.past_queue.get(timeout=0.1)
-                print('builder:', height, nonce, block)
+                debug('builder:', height, nonce, block)
             except queue.Empty:
                 continue
             if block.height == 0:
@@ -235,6 +242,6 @@ class SeekNBuild:
                 debug('builder to send : %064x' % block.get_hash())
                 to_send = BlocksMessage.make(contents=[block.serialize()])
                 debug('builder sending...')
-                debug('builder to send full : %s' % to_send.serialize())
+                verbose_debug('builder to send full : %s' % to_send.serialize())
                 self.broadcast_block(to_send)
                 debug('builder success : %064x' % block.get_hash())

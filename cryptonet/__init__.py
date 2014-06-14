@@ -106,6 +106,7 @@ class Cryptonet(object):
                 try:
                     potential_block = self._Block().make(serialized_block)
                     potential_block.assert_internal_consistency()
+                    debug('blocks_handler: accepting block of height %d' % potential_block.height)
                 except ValidationError as e:
                     debug('blocks_handler: serialized_block:', serialized_block)
                     debug('blocks_handler error', e)
@@ -120,11 +121,11 @@ class Cryptonet(object):
             requests = HashList.make(payload)
             if config['network_debug'] or True:
                 debug('MSG request_blocks : %064x' % requests.get_hash())
-            ret = BytesList.make()
+            blocks_to_send = BytesList.make()
             for bh in requests:
                 if self.chain.has_block_hash(bh):
-                    ret.append(self.chain.get_block(bh).serialize())
-            if ret.len() > 0:
-                node.send('blocks', ret.serialize())
+                    blocks_to_send.append(self.chain.get_block(bh).serialize())
+            if blocks_to_send.len() > 0:
+                node.send('blocks', blocks_to_send)
 
                 # done setting handlers

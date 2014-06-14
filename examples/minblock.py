@@ -67,7 +67,7 @@ class MinBlock(encodium.Field):
     def increment_nonce(self):
         self.nonce += 1
         
-    def valid_proof_of_work(self):
+    def valid_proof(self):
         return True
         
     def better_than(self, other):
