@@ -1,5 +1,6 @@
 import hashlib, sys
 import sha3
+import pprint as pprint_module
 from binascii import hexlify, unhexlify
 
 import cryptonet
@@ -82,3 +83,7 @@ time_as_int = lambda: int(time.time())
 def create_index(labels):
     # starts at 1
     dict(zip(labels, [i+1 for i in range(len(labels))]))
+
+pp = pprint_module.PrettyPrinter(indent=4)
+def pretty_string(obj):
+    return pp.pformat(obj)

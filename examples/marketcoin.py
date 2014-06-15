@@ -6,7 +6,7 @@ from pycoin.tx import Tx as PycoinTx
 
 from cryptonet import Cryptonet
 from cryptonet.dapp import Dapp
-from cryptonet.utilities import global_hash, dsha256R, get_varint_and_remainder, create_index
+from cryptonet.utilities import global_hash, dsha256R, get_varint_and_remainder, create_index, pretty_string
 from cryptonet.datastructs import MerkleBranchToRoot
 
 from encodium import *
@@ -173,7 +173,7 @@ class Chainheaders(Dapp):
             self.state[self._CHAIN_TOP_SIGMA_DIFF] = sigma_diff
 
 
-#@marketcoin.dapp(BTC_CHAINHEADERS)
+# @marketcoin.dapp(BTC_CHAINHEADERS)
 class BitcoinChainheaders(Chainheaders):
     # Starts at block 300,000
     GENESIS_HASH = 0x000000000000000082ccf8f1557c5d40b21edabb18d2d691cfbf87118bac7254
@@ -301,27 +301,29 @@ class Market(Dapp):
             )
 
         @staticmethod
-        def create_match_and_change(bid, ask, pledged):
+        def create_match_and_change(bid, ask):
             # todo: figure out how to do rates - duh, just work in large numbers
             new_rate = (bid.rate + ask.rate) // 2
-            max_bid_xmk = bid.amount * Market.Order.RATE_CONSTANT // bid.rate
-            max_ask_xmk = ask.amount
-            if max_ask_xmk == max_bid_xmk:
-                trade_volume = max_bid_xmk
+            print('create_match_and_change', bid.rate, ask.rate, new_rate, Market.Order.RATE_CONSTANT)
+            bid_xmk = bid.amount * Market.Order.RATE_CONSTANT // new_rate
+            ask_xmk = ask.amount
+            print('cmac, min bid, max ask: ', bid_xmk, ask_xmk)
+            if ask_xmk == bid_xmk:
+                trade_volume = bid_xmk
                 change = None
+                alt_pledge_amount = bid.pledge
             else:
-                trade_volume = min(max_bid_xmk, max_ask_xmk)
-                if trade_volume == max_bid_xmk:  # IE there is alt change
-                    change = Market.Order.make_change(ask, amount=max_ask_xmk - max_bid_xmk)
-                    alt_pledge_amount = pledged
-                elif trade_volume == max_ask_xmk:  # IE there is xmk change
-                    alt_change_amount = Market.Order.calculate_rate(bid.rate, xmk=max_bid_xmk - trade_volume)
-                    alt_pledge_amount = bid.pledge - (bid.pledge * max_bid_xmk // trade_volume)
-                    change = Market.Order.make_change(bid, amount=alt_change_amount, pledge=alt_pledge_amount)
+                trade_volume = min(bid_xmk, ask_xmk)
+                alt_pledge_amount = bid.pledge * bid_xmk // trade_volume
+                if trade_volume == bid_xmk:  # IE there is alt change
+                    change = Market.Order.make_change(ask, amount=ask_xmk - bid_xmk)
+                elif trade_volume == ask_xmk:  # IE there is xmk change
+                    alt_change_amount = Market.Order.calculate_rate(bid.rate, xmk=bid_xmk - trade_volume)
+                    change = Market.Order.make_change(bid, amount=alt_change_amount, pledge=bid.pledge - alt_pledge_amount)
             foreign_amount = Market.Order.calculate_rate(new_rate, xmk=trade_volume)
             match = Market.OrderMatch(pay_to_pubkey_hash=ask.pay_to_pubkey_hash, success_output=bid.sender,
                                       fail_output=ask.sender, foreign_amount=foreign_amount, local_amount=trade_volume,
-                                      pledge_amount=pledged-alt_pledge_amount)
+                                      pledge_amount=alt_pledge_amount)
             return (match, change)
 
         @staticmethod
@@ -338,12 +340,22 @@ class Market(Dapp):
         '''
 
         def fields():
-            pay_to_pubkey_hash = Integer(length=20)
+            pay_to_pubkey_hash = Integer(length=20)  # PKH of seller on ALT network
             success_output = Integer(length=32)  # local pubkey_x corresponding to buyer of XMK
             fail_output = Integer(length=32)  # local pubkey_x corresponding to seller of XMK (used if buyer reneges)
             foreign_amount = Integer(length=8)
             local_amount = Integer(length=8)
             pledge_amount = Integer(length=8)
+
+        def __str__(self):
+            return pretty_string({
+                'p2phk': self.pay_to_pubkey_hash,
+                'success_out': self.success_output,
+                'fail_out': self.fail_output,
+                'foreign_amount': self.foreign_amount,
+                'local_amount': self.local_amount,
+                'pledge_amount': self.pledge_amount
+            })
 
 
     class ProofOfPayment(Field):
