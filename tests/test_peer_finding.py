@@ -45,10 +45,6 @@ class TestPeerFinding(unittest.TestCase):
         # print('peers 2/2', self.networks[0].p2p.all_connected_peers())
         time.sleep(2)
 
-        for n in self.networks:
-            #print(n.p2p.peers)
-            n.p2p.shutdown()
-
     def tearDown(self):
         a = [n.p2p.shutdown() for n in self.networks]
 
