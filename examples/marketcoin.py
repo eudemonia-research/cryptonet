@@ -1,6 +1,7 @@
 # !/usr/bin/env python3
 
 from binascii import unhexlify
+import statistics
 
 from pycoin.tx import Tx as PycoinTx
 
@@ -183,7 +184,7 @@ class BitcoinChainheaders(Chainheaders):
     HEADER_CLASS = BitcoinHeader
 
 
-#@marketcoin.dapp(BTC_SPV)
+# @marketcoin.dapp(BTC_SPV)
 class BitcoinSPV(Dapp):
     ''' SPV and MerkleTree verification.
     SPV takes a block hash, 2 transaction hashes, and a merkle branch.
@@ -265,7 +266,7 @@ class Market(Dapp):
             # maximum spend in that currency
             max_spend = Integer(length=8)
             min_return = Integer(length=8)
-            # offering rate * 2^64
+            # see Order.RATE_CONSTANT for scaling
             offering_rate_scaled = Integer(length=16)
             # required output - zero length for XMK buy
             # must be an address so someone can't force to a non-standard output
@@ -286,11 +287,31 @@ class Market(Dapp):
             amount = Integer(length=8)
             rate = Integer(length=16)  # rate per 256**8 XMK? 19 orders of magnitude each way, probably enough
             # link in order book
-            next_worse_order = Integer(length=32)
-            next_better_order = Integer(length=32)
             pay_to_pubkey_hash = Integer(length=20)
             sender = Integer(length=32)
             pledge = Integer(length=8)
+            exact_value_out = Integer(length=8, default=0)
+            next_worse_order = Integer(length=32)
+            next_better_order = Integer(length=32)
+
+        def to_bytes(self):
+            return b''.join([
+                '\x01' if self.bid_or_ask == self.BID else '\x00',
+                self.amount.to_bytes(8, 'big'),
+                self.rate.to_bytes(16, 'big'),
+                self.pay_to_pubkey_hash.to_bytes(20, 'big'),
+                self.sender.to_bytes(32, 'big'),
+                self.pledge.to_bytes(8, 'big'),
+                self.exavt_value_out.to_bytes(8, 'big'),
+            ])
+
+        def get_hash(self):
+            return global_hash(self.to_bytes())
+
+        @classmethod
+        def from_new_order(cls, new_order):
+            # todo: this whole method
+            return cls.make()
 
         @classmethod
         def make_change(cls, source_order, amount=0, pledge=0):
@@ -303,9 +324,9 @@ class Market(Dapp):
         @staticmethod
         def create_match_and_change(bid, ask):
             # todo: figure out how to do rates - duh, just work in large numbers
-            new_rate = (bid.rate + ask.rate) // 2
-            print('create_match_and_change', bid.rate, ask.rate, new_rate, Market.Order.RATE_CONSTANT)
-            bid_xmk = bid.amount * Market.Order.RATE_CONSTANT // new_rate
+            trade_rate = (bid.rate + ask.rate) // 2
+            print('create_match_and_change', bid.rate, ask.rate, trade_rate, Market.Order.RATE_CONSTANT)
+            bid_xmk = bid.amount * Market.Order.RATE_CONSTANT // trade_rate
             ask_xmk = ask.amount
             print('cmac, min bid, max ask: ', bid_xmk, ask_xmk)
             if ask_xmk == bid_xmk:
@@ -319,11 +340,14 @@ class Market(Dapp):
                     change = Market.Order.make_change(ask, amount=ask_xmk - bid_xmk)
                 elif trade_volume == ask_xmk:  # IE there is xmk change
                     alt_change_amount = Market.Order.calculate_rate(bid.rate, xmk=bid_xmk - trade_volume)
-                    change = Market.Order.make_change(bid, amount=alt_change_amount, pledge=bid.pledge - alt_pledge_amount)
-            foreign_amount = Market.Order.calculate_rate(new_rate, xmk=trade_volume)
+                    change = Market.Order.make_change(bid, amount=alt_change_amount,
+                                                      pledge=bid.pledge - alt_pledge_amount)
+                else:
+                    raise ValidationError('Wtf, how\'d you get here?!')
+            foreign_amount = Market.Order.calculate_rate(trade_rate, xmk=trade_volume)
             match = Market.OrderMatch(pay_to_pubkey_hash=ask.pay_to_pubkey_hash, success_output=bid.sender,
                                       fail_output=ask.sender, foreign_amount=foreign_amount, local_amount=trade_volume,
-                                      pledge_amount=alt_pledge_amount)
+                                      pledge_amount=alt_pledge_amount, rate=trade_rate)
             return (match, change)
 
         @staticmethod
@@ -346,6 +370,21 @@ class Market(Dapp):
             foreign_amount = Integer(length=8)
             local_amount = Integer(length=8)
             pledge_amount = Integer(length=8)
+            rate = Integer(length=16)
+
+        def to_bytes(self):
+            return b''.join([
+                self.pay_to_pubkey_hash.to_bytes(20, 'big'),
+                self.success_output.to_bytes(32, 'big'),
+                self.fail_output.to_bytes(32, 'big'),
+                self.foreign_amount.to_bytes(8, 'big'),
+                self.local_amount.to_bytes(8, 'big'),
+                self.pledge_amount.to_bytes(8, 'big'),
+                self.rate.to_bytes(16, 'big')
+            ])
+
+        def get_hash(self):
+            return global_hash(self.to_bytes())
 
         def __str__(self):
             return pretty_string({
@@ -369,6 +408,15 @@ class Market(Dapp):
         def init(self):
             self.transaction = PycoinTx.parse(self.tx_bytes)
 
+        def to_bytes(self):
+            return b''.join([
+                self.order_match_id.to_bytes(32, 'big'),
+                self.tx_bytes
+            ])
+
+        def get_hash(self):
+            return global_hash(self.to_bytes())
+
 
     class CancelOrder(Field):
         ''' Message to cancel order
@@ -379,13 +427,12 @@ class Market(Dapp):
 
 
     class RedeemPledge(Field):
-        ''' Submitted by seller of XMK to redeem the pledge if buyer reneges.
+        ''' Submitted by seller (or anyone) of XMK to redeem the pledge if buyer reneges.
         '''
 
         def fields():
             order_match_id = Integer(length=32)
 
-    # todo: make that list composition a function
     _ACTIONS = create_index(['new', 'cancel', 'fulfill', 'redeem'])
 
     # this maps market metadata, including target frequency for market execution
@@ -406,30 +453,39 @@ class Market(Dapp):
             5. go to (0)
         '''
 
-        def create_order_match_and_change(bid_order, ask_order):
-            pass
+        def lookup_period_metadata(block_hash, index):
+            return self.state[block_hash - index]
+
+        # unused for the moment
+        def set_period_metadata(block_hash, index, content):
+            self.state[block_hash - index] = content
 
         highest_trade = 0
         lowest_trade = 2 ** 64 - 1
-        best_bid = None
-        best_ask = None
         volume = 0
-        match_counter = 0
 
-        block.orderbook['bid'][0]
-
-        mean = None
-        standard_deviation = None
-
-        match, change = None, None
-        this_bid = self.state[Market._STATE_INDEX['ob_best_bid']]
-        this_ask = self.state[Market._STATE_INDEX['ob_best_ask']]
+        trades = []
         ordermatches = []
 
-        # as long as someone will pay more than someone will accept
+        this_bid_hash = self.state[Market._STATE_INDEX['ob_best_bid']]
+        this_ask_hash = self.state[Market._STATE_INDEX['ob_best_ask']]
+        this_bid = self.state[this_bid_hash]
+        this_ask = self.state[this_ask_hash]
+        best_bid = this_bid
+        best_ask = this_ask
+
+        # as long as the bids are better than the asks matching continues
         while this_bid.rate >= this_ask.rate:
-            match, change = create_order_match_and_change(this_bid, this_ask)
+            match, change = Market.Order.create_match_and_change(this_bid, this_ask)
+            # update meta and ordermatches
             ordermatches.append(match)
+            volume += match.local_amount
+            if match.rate > highest_trade:
+                highest_trade = match.rate
+            elif match.rate < lowest_trade:
+                lowest_trade = match.rate
+            trades.append(match.rate)
+            # set next orders
             if change.bid_or_ask == Market.Order.BID:
                 this_bid = change
                 this_ask = self.state[this_ask.next_worst_order]
@@ -441,20 +497,42 @@ class Market(Dapp):
         self.state[this_bid.get_hash()] = this_bid
         self.state[this_ask.get_hash()] = this_ask
 
-        # todo : write summary for this block here
+        match_counter = len(ordermatches)
 
-        self.update_metadata(0, 0, 0)
+        # I'm going to cheat, todo: make this something less not-python-dependent
+        # the * 10000 is there to keep significant figures; we need this because we're storing ints
+        mean = int(statistics.mean(trades) * 10000)
+        std_dev = int(statistics.stdev(trades, mean) * 10000)
 
-    def update_metadata(self, new_max, new_min, timestamp):
+        # todo : cleanup - keep state clear of clutter
+
+        self.update_metadata(lowest_trade, highest_trade, best_bid, best_ask, volume, mean, std_dev, lookup_period_metadata(block.header.previous_blocks[1], self._METADATA['target_period']))
+
+        # TODO: remove old orders (>24hrs old)
+        # this will be done by running through the list of orders placed 24 hours ago (or x blocks, I guess)
+        # maybe orders should be rejected if they're not unique over the ENTIRE life of the chain
+        # the down side is we still need to keep everything in state, which sucks and takes up lots of memory.
+        # After 10^6 orders we'd use 6.4*10^7 bytes; 64 mb? Bitcoin has had (generously) 35 Million txs, the same
+        # volume would mean 1.8 GB which is fucking tonnes
+        # todo: solve
+
+    def update_metadata(self, lowest_trade, highest_trade, best_bid, best_ask, volume, mean, standard_deviation, target_period):
         ''' Updates metadata about the recent price to be used when calculating required pledges.
         '''
-        pass  # self.state[self._METADATA]
+        self.state[self._METADATA['lowest_trade']] = lowest_trade
+        self.state[self._METADATA['highest_trade']] = highest_trade
+        self.state[self._METADATA['best_bid']] = best_bid
+        self.state[self._METADATA['best_ask']] = best_ask
+        self.state[self._METADATA['volume']] = volume
+        self.state[self._METADATA['mean']] = mean
+        self.state[self._METADATA['standard_deviation']] = standard_deviation
+        self.state[self._METADATA['target_period']] = target_period
 
     def on_transaction(self, tx, block, chain):
         ''' Depending on tx either insert, cancel, fulfill, or _ specified order '''
-        self.assert_true(len(tx.data) > 1, 'txs to market must have more than one bit o data')
+        self.assert_true(len(tx.data) == 2, 'txs to market must have two bits o data in all cases, index and serialised object')
         self.assert_true(len(tx.data[0]) == 1, 'first data element must be single byte')
-        action = tx.data[0][0]  # is an integer
+        action = tx.data[0][0]  # b'123'[0] is an integer
         if action == self._ACTIONS['new']:
             self.add_new_order(tx, block, chain)
         elif action == self._ACTIONS['cancel']:
@@ -468,8 +546,30 @@ class Market(Dapp):
 
     def add_new_order(self, tx, block, chain):
         ''' Insert order into order book.
+        Orderbook is doubly linked list of orders
+        Find the relevant insertion place and insert into doubly linked list.
+        Also add the order to the list of orders added during that block.
         '''
-        pass
+
+        def find_insert_place(oip):
+            # do something with state and find place in orderbook, what does a place in the orderbook even mean?
+            # cant concentrate re A
+            # oooohhh code
+            pass
+
+        def insert_into_state(oip, insert_before_this_hash):
+            pass
+
+        order_in_potentia = Market.NewOrder.make(tx[1])
+        oip = order_in_potentia
+        # insert order; link in relevant place, if first set in state
+        # can we figure out a way of caching or getting an efficient method of searching
+        order = Market.Order.from_new_order(oip)
+        if self.state[order.get_hash()] != 0:
+            raise ValidationError('Already identical order in order book, rejecting')
+        insert_before_this_hash = find_insert_place(oip)
+        insert_into_state(oip, insert_before_this_hash)
+
 
     def cancel_order(self, tx, block, chain):
         ''' Remove order from order book.
@@ -489,7 +589,7 @@ class Market(Dapp):
         pass
 
     def additional_state_operations(self, state_maker):
-        # pass the orderbook and ordermatchbook to block
+        # pass the orderbook and ordermatchbook to block, if we go that route
         self.state_maker = state_maker
 
 

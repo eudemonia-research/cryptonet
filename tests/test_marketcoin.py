@@ -25,10 +25,10 @@ class TestTransactions(unittest.TestCase):
         match, change = Market.Order.create_match_and_change(bid, ask)
         expected_match = Market.OrderMatch(pay_to_pubkey_hash=123456789, success_output=bid.sender,
                                            fail_output=ask.sender, foreign_amount=999999, local_amount=1000000,
-                                           pledge_amount=bid.pledge)
+                                           pledge_amount=bid.pledge, rate=match.rate)
         expected_match2 = Market.OrderMatch(pay_to_pubkey_hash=123456789, success_output=bid.sender,
                                            fail_output=ask.sender, foreign_amount=999999, local_amount=1000000,
-                                           pledge_amount=bid.pledge)
+                                           pledge_amount=bid.pledge, rate=match.rate)
         expected_change = None
         print(expected_match2, expected_match)
         # todo: this fails, wtf
