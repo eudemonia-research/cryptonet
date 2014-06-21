@@ -553,8 +553,6 @@ class Market(Dapp):
 
         def find_insert_place(oip):
             # do something with state and find place in orderbook, what does a place in the orderbook even mean?
-            # cant concentrate re A
-            # oooohhh code
             pass
 
         def insert_into_state(oip, insert_before_this_hash):
@@ -565,8 +563,7 @@ class Market(Dapp):
         # insert order; link in relevant place, if first set in state
         # can we figure out a way of caching or getting an efficient method of searching
         order = Market.Order.from_new_order(oip)
-        if self.state[order.get_hash()] != 0:
-            raise ValidationError('Already identical order in order book, rejecting')
+        self.assert_true(self.state[order.get_hash()] != 0, 'Already identical order in order book, rejecting')
         insert_before_this_hash = find_insert_place(oip)
         insert_into_state(oip, insert_before_this_hash)
 
@@ -574,7 +571,14 @@ class Market(Dapp):
     def cancel_order(self, tx, block, chain):
         ''' Remove order from order book.
         '''
-        pass
+
+        def remove_order(self, order_to_remove):
+            pre_order = self.state[order_to_remove.next_better]
+        cancellation = Market.CancelOrder.make(tx.data[1])
+        self.assert_true(self.state[cancellation.order_id] != 0, 'Order must exist')
+        order_to_cancel = self.state[cancellation.order_id]
+        self.assert_true(order_to_cancel.sender == tx.sender, 'Must be authorised to cancel order')
+
 
     def fulfill_order_match(self, tx, block, chain):
         ''' Prove a fulfilled order_match by providing the relevant Bitcoin tx.
