@@ -71,6 +71,8 @@ class MinBlock(encodium.Field):
         return True
         
     def better_than(self, other):
+        if other == None:
+            return True
         return self.height > other.height
 
     def reorganisation(self, chain, from_block, around_block, to_block):

@@ -199,6 +199,8 @@ class GrachtenBlock(Field):
             self.assert_true( self.merkle_tree.leaves[0] == self.merkle_tree.leaves[1] and self.merkle_tree.leaves[0] == self.header.get_hash(), 'genesis header hash requirement' )
     
     def better_than(self, other):
+        if other == None:
+            return True
         return self.header.sigma_diff > other.header.sigma_diff
         
     def related_blocks(self):

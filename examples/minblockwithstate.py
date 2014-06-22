@@ -53,10 +53,10 @@ class MinBlockWithState(encodium.Field):
         if chain.initialized:
             self.assert_true(chain.has_block_hash(self.parent_hash), 'Parent unknown')
             self.assert_true(chain.get_block(self.parent_hash).height + 1 == self.height, 'Height requirement')
+            self.assert_true(self.super_state.get_hash() == self.state_root, 'State root must match expected')
         else:
             self.assert_true(self.height == 0, 'Genesis req.: height must be 0')
             self.assert_true(self.parent_hash == 0, 'Genesis req.: parent_hash must be zeroed')
-        self.assert_true(self.super_state.get_hash() == self.state_root, 'State root must match expected')
         
     def to_bytes(self):
         return b''.join([
@@ -86,6 +86,8 @@ class MinBlockWithState(encodium.Field):
         return True
         
     def better_than(self, other):
+        if other == None:
+            return True
         return self.height > other.height
 
     def reorganisation(self, chain, from_block, around_block, to_block, is_test=False):
@@ -149,7 +151,7 @@ class MinBlockWithState(encodium.Field):
 
         self.setup_rpc()
 
-    def set_state_maker(self, state_maker):
+    def _set_state_maker(self, state_maker):
         self.state_maker = state_maker
         self.super_state = state_maker.super_state
 
