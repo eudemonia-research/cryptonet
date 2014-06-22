@@ -88,7 +88,6 @@ class SeekNBuild:
     def seek_many_with_priority(self, block_hashes_with_height):
         ''' Applies each in list to seek_with_priority()
         '''
-        debug(block_hashes_with_height)
         for height, block_hash in block_hashes_with_height:
             self.seek_with_priority((height, block_hash))
 
@@ -203,7 +202,6 @@ class SeekNBuild:
         while not self._shutdown:
             try:
                 height, nonce, block = self.past_queue.get(timeout=0.1)
-                debug('builder:', height, nonce, block)
             except queue.Empty:
                 continue
             if block.height == 0:
@@ -212,7 +210,6 @@ class SeekNBuild:
                 continue
             block_hash = block.get_hash()
             #print('chain_builder: checking %d' % block.height)
-            debug('builder: checkpoint 1')
             # TODO : handle orphans intelligently
             if block.height > self.get_chain_height() + 1:
                 #print('chain_builder: chain height: %d' % self.get_chain_height())
