@@ -57,6 +57,7 @@ class Miner:
             debug('Miner: Found Soln : %064x' % block.get_hash())
             if block.height == 0:  # print genesis
                 debug('Miner: ser\'d block: ', block.serialize())
+                break
             self.seek_n_build.add_block(block)
             while not self._restart and not self._shutdown:
                 time.sleep(0.01)

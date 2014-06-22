@@ -67,6 +67,7 @@ class _DappHolder(object):
             self.dapps[d].forget_alt(state_tag)
 
     def generate_super_state(self):
+        debug('Generating super state')
         super_state = SuperState()
         for d in self.dapps:
             dapp = self.dapps[d]

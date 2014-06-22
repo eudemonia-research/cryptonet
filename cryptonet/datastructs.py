@@ -76,7 +76,7 @@ MerkleTree = MerkleLeavesToRoot
 
 class ChainVars:
     def __init__(self, **kwargs):
-        self.seeds = ['127.0.0.1', 32764]
+        self.seeds = [('127.0.0.1', 32764)]
         self.address = (b'127.0.0.1', 12345)
         self.genesis_binary = None
         self.mine = False

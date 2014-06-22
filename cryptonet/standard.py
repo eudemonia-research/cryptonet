@@ -151,16 +151,16 @@ class Header(Field):
     BLOCKS_PER_DAY = 1440
 
     def fields():
-        version = Integer(length=2)
-        nonce = Integer(length=8)  # nonce second to increase work needed for PoW
-        height = Integer(length=4)
-        timestamp = Integer(length=5)
-        target = Integer(length=32, default=0)
-        sigma_diff = Integer(length=32, default=0)
+        version = Integer(length=2, default=1)
+        nonce = Integer(length=8, default=0)  # nonce second to increase work needed for PoW
+        height = Integer(length=4, default=0)
+        timestamp = Integer(length=5, default=int(time.time()))
+        target = Integer(length=32, default=Header.DEFAULT_TARGET)
+        sigma_diff = Integer(length=32, default=Header.target_to_diff(Header.DEFAULT_TARGET))
         state_mr = Integer(length=32, default=0)
         transaction_mr = Integer(length=32, default=0)
         uncles_mr = Integer(length=32, default=0)
-        previous_blocks = List(Integer(length=32))
+        previous_blocks = List(Integer(length=32), default=[0])
 
     def init(self):
         self.parent_hash = self.previous_blocks[0]
@@ -193,7 +193,7 @@ class Header(Field):
         'not silly' means the data 'looks' right (length, etc) but the information
         is not validated.
         '''
-        self.assert_true(self.version == 0, 'version at 0')
+        self.assert_true(self.version == 1, 'version at 1')
         self.assert_true(self.timestamp <= int(time.time()) + 60 * 15, 'timestamp too far in future')
         self.assert_true(self.valid_proof(), 'valid PoW required')
         self.assert_true(len(self.previous_blocks) < 30, 'reasonable number of prev_blocks')
@@ -221,7 +221,7 @@ class Header(Field):
         else:
             self.assert_true(self.height == 0, 'Genesis req.: height must be 0')
             self.assert_true(self.previous_blocks == [0], 'Genesis req.: Previous blocks must be zeroed')
-            self.assert_true(self.uncle_mr == 0, 'Genesis req.: uncle_mr must be zeroed')
+            self.assert_true(self.uncles_mr == 0, 'Genesis req.: uncle_mr must be zeroed')
         self.assert_true(self.calc_expected_target(chain, chain.get_block(self.parent_hash)) == self.target,
                          'target must be as expected')
         self.assert_true(self.calc_sigma_diff(self, chain) == self.sigma_diff, 'sigma_diff must be as expected')
@@ -297,6 +297,7 @@ class Block(Field):
     def init(self):
         self.parent_hash = self.header.previous_blocks[0]
         self.height = self.header.height
+        self.priority = self.height
         self.state_maker = None
         self.super_state = None
 
@@ -340,6 +341,9 @@ class Block(Field):
     def get_hash(self):
         return self.header.get_hash()
 
+    def __hash__(self):
+        return global_hash(self.serialize())
+
     #def add_super_txs(self, list_of_super_txs):
     #    self.state_maker.add_super_txs(list_of_super_txs)
 
@@ -371,12 +375,13 @@ class Block(Field):
         if chain.initialized:
             self.assert_true(chain.has_block_hash(self.parent_hash), 'Parent must be known')
             self.assert_true(chain.get_block(self.parent_hash).height + 1 == self.height, 'Height requirement')
+            self.assert_true(self.super_state.get_hash() == self.header.state_mr, 'State root must match expected')
         else:
             self.assert_true(self.height == 0, 'Genesis req.: height must be 0')
             self.assert_true(self.parent_hash == 0, 'Genesis req.: parent_hash must be zeroed')
+            self.assert_true(self.header.state_mr == 0, 'Genesis req.: state_mr zeroed')
         # TODO The below will fail if the current block isn't at the head.
         # TODO Policy should be to only .assert_validity() on the head.
-        self.assert_true(self.super_state.get_hash() == self.header.state_root, 'State root must match expected')
 
     def better_than(self, other):
         if other == None:
@@ -386,6 +391,10 @@ class Block(Field):
     def assert_true(self, condition, message):
         if not condition:
             raise ValidationError('Block Failed Validation: %s' % message)
+
+    @classmethod
+    def get_unmined_genesis(cls):
+        return Block.make(header=Header.make(), uncles=[], super_txs=[])
 
     def get_candidate(self, chain):
         # todo : fix so state_root matches expected - should now be fixed?
@@ -407,8 +416,8 @@ class Block(Field):
         assert not chain.initialized
         self._set_state_maker(StateMaker(chain))
         # TxPrism is standard root dapp - allows for txs to be passed to contracts
-        self.state_maker.register_dapp(TxPrism(ROOT_DAPP, self.state_maker))
-        self.state_maker.register_dapp(TxTracker(TX_TRACKER, self.state_maker))
+        #self.state_maker.register_dapp(TxPrism(ROOT_DAPP, self.state_maker))
+        #self.state_maker.register_dapp(TxTracker(TX_TRACKER, self.state_maker))
 
     def _set_state_maker(self, state_maker):
         self.state_maker = state_maker

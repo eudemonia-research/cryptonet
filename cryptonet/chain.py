@@ -35,6 +35,8 @@ class Chain(object):
         self.seek_n_build = seek_n_build
 
     def get_block(self, block_hash):
+        if block_hash == 0:
+            return None
         return self.db.get_entry(block_hash)
 
     def has_block(self, block):
@@ -67,8 +69,9 @@ class Chain(object):
             block.on_genesis(self)
             block.assert_validity(self)
             self.genesis_block = block
+            self.add_block(block)  # must add_block first so state_maker can deal with the reorg and find the block
             self.set_head(block)
-            self.add_block(block)
+            self.initialized = True
         else:
             raise ChainError('genesis block already known: %s' % self.genesis_block)
 
@@ -106,9 +109,6 @@ class Chain(object):
         if block.better_than(self.head):
             self.set_head(block)
 
-        if self.initialized == False:
-            self.initialized = True
-
         debug('added block %d, hash: %064x' % (block.height, block.get_hash()))
 
         self.restart_miner()
@@ -131,9 +131,10 @@ class Chain(object):
         mutual_history = set()
         blocks = [self.get_block(block_hash_a), self.get_block(block_hash_b)]
         while True:
-            if blocks[0] == blocks[1]:
+            if blocks[0].get_hash() == blocks[1].get_hash():
                 return blocks[0]
             if blocks[0].parent_hash == 0 and blocks[1].parent_hash == 0:
+                print(blocks[0].get_hash(), blocks[1].get_hash())
                 raise ChainError('No LCA - different chains.')
             for i in range(len(blocks)):
                 block_hash = blocks[i].get_hash()

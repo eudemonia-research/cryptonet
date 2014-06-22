@@ -1,5 +1,5 @@
 from spore import Spore
-#from . import defaultStructures
+# from . import defaultStructures
 from cryptonet.seeknbuild import SeekNBuild
 from cryptonet.chain import Chain
 from cryptonet.utilities import global_hash
@@ -8,7 +8,6 @@ from cryptonet.errors import ValidationError
 from cryptonet.datastructs import *
 from cryptonet.miner import Miner
 from cryptonet.debug import debug
-import cryptonet.standard
 
 config = {'network_debug': True}
 
@@ -17,7 +16,7 @@ config = {'network_debug': True}
 
 class Cryptonet(object):
     def __init__(self, chain_vars):
-        self._Block = None
+        self._Block = None  # from cryptonet.standard
 
         self.p2p = Spore(seeds=chain_vars.seeds, address=chain_vars.address)
         self.set_handlers()
@@ -42,7 +41,6 @@ class Cryptonet(object):
         self.alerts = {}
 
     def run(self):
-
         if self.miner != None: self.miner.run()
         self.p2p.run()
         self.seek_n_build.shutdown()
@@ -51,7 +49,7 @@ class Cryptonet(object):
     def shutdown(self):
         self.p2p.shutdown()
 
-    #=================
+    # =================
     # Decorators
     #=================
 
@@ -59,9 +57,11 @@ class Cryptonet(object):
         self._Block = block_object
         self.chain._Block = block_object
         if self.mine_genesis:
-            pass
+            genesis_block = self._Block.get_unmined_genesis()
+            self.miner.mine(genesis_block)
         else:
-            self.chain.set_genesis(self._Block().make(self.genesis_binary))
+            genesis_block = self._Block().make(self.genesis_binary)
+        self.chain.set_genesis(genesis_block)
         return block_object
 
 
