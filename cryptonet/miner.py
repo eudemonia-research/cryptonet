@@ -47,14 +47,14 @@ class Miner:
                     except ValidationError as e:
                         debug('Miner: invalid block generated: %s' % block.serialize())
                         continue
-                if count % 100000 == 0:
-                    self._restart = True
             if self._shutdown: break
             if self._restart:
                 self._restart = False
                 time.sleep(0.01)
+                provided_block = None
                 continue
             debug('Miner: Found Soln : %064x' % block.get_hash())
+            debug('Miner: header.state_mr', block.header.state_mr)
             if block.height == 0:  # print genesis
                 debug('Miner: ser\'d block: ', block.serialize())
                 break

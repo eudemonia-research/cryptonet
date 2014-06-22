@@ -13,5 +13,6 @@ chain_vars.mine = True
 min_coin = Cryptonet(chain_vars)
 
 min_coin.block(cryptonet.standard.Block)
+rpc = cryptonet.standard.RCPHandler(min_coin, 12346)
 
 min_coin.run()

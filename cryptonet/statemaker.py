@@ -123,12 +123,14 @@ class StateMaker(object):
         self._add_super_txs(block.super_txs)
         block.update_roots()
 
-    def apply_transaction_to_future(self, tx):
+    def apply_super_tx_to_future(self, super_tx):
         ''' This applies a transaction to future_block.
          The state will be updated and a new block available when pushed to the miner.
-        '''
+         - This is equivalent to adding the tx to the mem-pool
+         '''
         with self.future_state():
-            self._process_tx(tx)
+            self.future_block.super_txs.append(super_tx)
+            self._add_super_txs([super_tx])
             self.future_block.update_roots()
 
     def _add_super_txs(self, list_of_super_txs):
@@ -188,6 +190,7 @@ class StateMaker(object):
             chain.recursively_mark_invalid(chain_path_to_trial[-1].get_hash())
         if not is_test and success:
             self._refresh_future_block(to_block)
+            self.most_recent_block = to_block
         return success
 
     def _refresh_future_block(self, new_head):
@@ -311,5 +314,6 @@ class SuperState(object):
         for n in names:
             leaves.extend([global_hash(n), self.state_dict[n].get_hash()])
         merkle_root = MerkleLeavesToRoot.make(leaves=leaves)
+        debug('SuperState: root: ', merkle_root.get_hash(), [self.state_dict[n].complete_kvs() for n in names])
         return merkle_root.get_hash()
 

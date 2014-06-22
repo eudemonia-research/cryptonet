@@ -1,4 +1,5 @@
 import time
+from binascii import unhexlify
 
 from encodium import *
 import pycoin.ecdsa
@@ -10,6 +11,7 @@ from cryptonet.datastructs import MerkleLeavesToRoot
 from cryptonet.dapp import TxPrism, TxTracker
 from cryptonet.debug import debug
 from cryptonet.constants import TX_TRACKER, ROOT_DAPP
+import cryptonet
 
 '''
 Hierarchy:
@@ -113,9 +115,14 @@ class SuperTx(Field):
 
     def init(self):
         self._gen_txs_bytes()
+        self._set_tx_sender()
 
     def _gen_txs_bytes(self):
         self.txs_bytes = b''.join([tx.to_bytes() for tx in self.txs])
+
+    def _set_tx_sender(self):
+        for tx in self.txs:
+            tx.sender = self.signature.pubkey_x
 
     def to_bytes(self):
         return b''.join([
@@ -129,8 +136,7 @@ class SuperTx(Field):
     def sign(self, secret_exponent):
         # shouldn't need to self._gen_txs_bytes() here
         self.signature.sign(secret_exponent, int.from_bytes(self.txs_bytes, 'big'))
-        for tx in self.txs:
-            tx.sender = self.signature.pubkey_x
+        self._set_tx_sender()
 
     def assert_internal_consistency(self):
         '''Should ensure signature is valid, nonce is valid, and each tx is valid
@@ -370,11 +376,13 @@ class Block(Field):
         ''' self.assert_validity should validate the following:
         * self.header.state_mr equals root of self.super_state
         '''
+        print(self.super_state[b''].all_keys())
         self.assert_internal_consistency()
         self.header.assert_validity(chain)
         if chain.initialized:
             self.assert_true(chain.has_block_hash(self.parent_hash), 'Parent must be known')
             self.assert_true(chain.get_block(self.parent_hash).height + 1 == self.height, 'Height requirement')
+            print('#####################',self.state_maker.future_block.super_state[b''].key_value_store)
             self.assert_true(self.super_state.get_hash() == self.header.state_mr, 'State root must match expected')
         else:
             self.assert_true(self.height == 0, 'Genesis req.: height must be 0')
@@ -398,6 +406,8 @@ class Block(Field):
 
     def get_candidate(self, chain):
         # todo : fix so state_root matches expected - should now be fixed?
+        print(self.state_maker.future_block.header.state_mr, self.super_state.get_hash())
+        print(self.state_maker.future_block.super_txs)
         return self.state_maker.future_block
 
     def get_pre_candidate(self, chain):
@@ -413,6 +423,7 @@ class Block(Field):
 
     def on_genesis(self, chain):
         debug('Block.on_genesis called')
+        assert isinstance(chain, cryptonet.Chain)
         assert not chain.initialized
         self._set_state_maker(StateMaker(chain))
         # TxPrism is standard root dapp - allows for txs to be passed to contracts
@@ -420,24 +431,32 @@ class Block(Field):
         #self.state_maker.register_dapp(TxTracker(TX_TRACKER, self.state_maker))
 
     def _set_state_maker(self, state_maker):
+        assert isinstance(state_maker, StateMaker)
         self.state_maker = state_maker
         self.super_state = state_maker.super_state
         self.additional_state_operations(state_maker)
 
     def additional_state_operations(self, state_maker):
-        pass
+        assert isinstance(state_maker, StateMaker)
 
     def update_roots(self):
-        self.header.state_mr = self.state_maker.super_state.get_hash()
-        self.header.transaction_mr = MerkleLeavesToRoot.make(leaves=[i.get_hash() for i in self.super_txs]).get_hash()
+        if self.height != 0:
+            debug('UPDATE_ROOTS')
+            self.header.state_mr = self.state_maker.super_state.get_hash()
+            self.header.transaction_mr = MerkleLeavesToRoot.make(leaves=[i.get_hash() for i in self.super_txs]).get_hash()
+
+    def add_super_tx(self, super_tx):
+        self.super_txs.append(super_tx)
+        self.state_maker.ap
 
 
 class RCPHandler:
     def __init__(self, cryptonet, port):
         self.cryptonet = cryptonet
         self.port = port
-        self.state_maker = cryptonet.state_maker
+        self.state_maker = cryptonet.chain.head.state_maker
         self.super_state = self.state_maker.super_state
+        self.setup_rpc()
 
     def setup_rpc(self):
         chain = self.cryptonet.chain
@@ -445,7 +464,7 @@ class RCPHandler:
         rpc = RPCServer(port=self.port)
 
         @rpc.add_method
-        def getinfo(*args):
+        def getinfo():
             return {
                 "top_block hash": chain.head.get_hash(),
                 "top_block_height": chain.get_height(),
@@ -453,19 +472,19 @@ class RCPHandler:
 
         @rpc.add_method
         def getbalance(pubkey_x):
+            assert isinstance(pubkey_x, int)
             return {
                 "balance": self.super_state[b''][pubkey_x]
             }
 
         @rpc.add_method
-        def pushtx(super_tx):
-            # todo first add out our memory pool
-            # todo then don't need to check .is_valid()
-            if super_tx.is_valid():
-                # when we can broadcast txs, do that
-                # todo: figure out implementation details of tx sending
-                p2p.broadcast(b'supertx', super_tx)
-            else:
-                return {"error": "super_tx not valid"}
+        def pushtx(super_tx_serialised):
+            print('######rpc.pushtx: stx ser\'d', super_tx_serialised)
+            super_tx = SuperTx.make(unhexlify(super_tx_serialised))
+            super_tx.assert_internal_consistency()
+            self.state_maker.apply_super_tx_to_future(super_tx)
+            chain.restart_miner()
+            p2p.broadcast(b'super_tx', super_tx)
+            return {"success": True}
 
         rpc.run()
