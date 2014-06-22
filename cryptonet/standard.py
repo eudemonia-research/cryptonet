@@ -482,8 +482,6 @@ class RCPHandler:
             print('######rpc.pushtx: stx ser\'d', super_tx_serialised)
             super_tx = SuperTx.make(unhexlify(super_tx_serialised))
             super_tx.assert_internal_consistency()
-            if self.state_maker.super_tx_known(super_tx):
-                return {"success": True, "relayed": False}
             self.state_maker.apply_super_tx_to_future(super_tx)
             chain.restart_miner()
             p2p.broadcast(b'super_tx', super_tx)
