@@ -464,21 +464,26 @@ class RCPHandler:
         rpc = RPCServer(port=self.port)
 
         @rpc.add_method
-        def getinfo():
+        def get_info():
             return {
                 "top_block hash": chain.head.get_hash(),
                 "top_block_height": chain.get_height(),
+                "difficulty": Header.target_to_diff(chain.head.header.target),
             }
 
         @rpc.add_method
-        def getbalance(pubkey_x):
+        def get_balance(pubkey_x):
             assert isinstance(pubkey_x, int)
             return {
                 "balance": self.super_state[b''][pubkey_x]
             }
 
         @rpc.add_method
-        def pushtx(super_tx_serialised):
+        def get_ledger():
+            return self.super_state[b''].complete_kvs()
+
+        @rpc.add_method
+        def push_tx(super_tx_serialised):
             print('######rpc.pushtx: stx ser\'d', super_tx_serialised)
             super_tx = SuperTx.make(unhexlify(super_tx_serialised))
             super_tx.assert_internal_consistency()
