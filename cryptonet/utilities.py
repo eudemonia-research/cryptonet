@@ -19,7 +19,7 @@ def i2b(x):
     :param x: input integer
     :return: bytes
     """
-    return x.to_bytes((x.bit_length() // 8) + 1, 'big')
+    return x.to_bytes((x.bit_length() - 1) // 8 + 1, 'big')
 
 
 def num2bits(n, minlen=0):

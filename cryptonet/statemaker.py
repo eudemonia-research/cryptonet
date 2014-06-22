@@ -129,8 +129,8 @@ class StateMaker(object):
          - This is equivalent to adding the tx to the mem-pool
          '''
         with self.future_state():
-            self.future_block.super_txs.append(super_tx)
             self._add_super_txs([super_tx])
+            self.future_block.super_txs.append(super_tx)
             self.future_block.update_roots()
 
     def _add_super_txs(self, list_of_super_txs):
