@@ -54,7 +54,7 @@ IP address or a name and a phone number.
 Transactions send to `REGISTER` are treated similarly, but there is a fee (which is 500 units) and they are stored
 until the beginning of the next block when they are sent to MY_OWNER.
 
-This comes pre-packaged with monetary units distributed as a mining reward.
+This comes pre-packaged with monetary units distributed as a mining reward. 
 
 ## Things left to do:
 

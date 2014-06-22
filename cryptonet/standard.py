@@ -31,10 +31,16 @@ BLOCK [
 
 class Signature(Field):
     def fields():
-        r = Integer(length=32)
-        s = Integer(length=32)
-        pubkey_x = Integer(length=32)
-        pubkey_y = Integer(length=32)
+        r = Integer(length=32, default=0)
+        s = Integer(length=32, default=0)
+        pubkey_x = Integer(length=32, default=0)
+        pubkey_y = Integer(length=32, default=0)
+
+    @classmethod
+    def make_from_exponent_and_message(cls, secret_exponent, message):
+        s = Signature()
+        s.sign(secret_exponent, message)
+        return s
 
     def init(self):
         self.sender = self.pubkey_x
@@ -54,7 +60,7 @@ class Signature(Field):
                                    global_hash(message),
                                    (self.r, self.s)):
             raise ValidationError('Signature failed to verify')
-        print('Signature.assert_valid_signature', message)
+        debug('Signature.assert_valid_signature', message)
 
     def pubkey(self):
         return (self.pubkey_x, self.pubkey_y)
@@ -77,7 +83,7 @@ class Signature(Field):
                                                                                     secret_exponent)
         self.sender = self.pubkey_x
         self.assert_valid_signature(message)
-        print('Signature.sign', message)
+        debug('Signature.sign', message)
 
 
 class Tx(Field):
@@ -111,7 +117,7 @@ class Tx(Field):
 class SuperTx(Field):
     def fields():
         txs = List(Tx())
-        signature = Signature()
+        signature = Signature(default=Signature.make(pubkey_x=0, pubkey_y=0, r=0, s=0))
 
     def init(self):
         self._gen_txs_bytes()
@@ -170,6 +176,7 @@ class Header(Field):
 
     def init(self):
         self.parent_hash = self.previous_blocks[0]
+        self.previous_blocks_with_height = [(self.height - 2**i, self.previous_blocks[i]) for i in range(len(self.previous_blocks))]
 
     def to_bytes(self):
         return b''.join([
@@ -241,8 +248,6 @@ class Header(Field):
     # todo: test
     def get_pre_candidate(self, chain, previous_block):
         new_header = Header.make(
-            version=self.version,
-            nonce=0,
             height=self.height + 1,
             timestamp=time_as_int(),
             previous_blocks=chain.db.get_ancestors(previous_block.get_hash()),
@@ -313,7 +318,7 @@ class Block(Field):
         return False
 
     def related_blocks(self):
-        return self.header.previous_blocks
+        return self.header.previous_blocks_with_height
 
     def reorganisation(self, chain, from_block, around_block, to_block, is_test=False):
         ''' self.reorganisation() should be called only on the current head, where to_block is
@@ -376,13 +381,11 @@ class Block(Field):
         ''' self.assert_validity should validate the following:
         * self.header.state_mr equals root of self.super_state
         '''
-        print(self.super_state[b''].all_keys())
         self.assert_internal_consistency()
         self.header.assert_validity(chain)
         if chain.initialized:
             self.assert_true(chain.has_block_hash(self.parent_hash), 'Parent must be known')
             self.assert_true(chain.get_block(self.parent_hash).height + 1 == self.height, 'Height requirement')
-            print('#####################',self.state_maker.future_block.super_state[b''].key_value_store)
             self.assert_true(self.super_state.get_hash() == self.header.state_mr, 'State root must match expected')
         else:
             self.assert_true(self.height == 0, 'Genesis req.: height must be 0')
@@ -406,8 +409,6 @@ class Block(Field):
 
     def get_candidate(self, chain):
         # todo : fix so state_root matches expected - should now be fixed?
-        print(self.state_maker.future_block.header.state_mr, self.super_state.get_hash())
-        print(self.state_maker.future_block.super_txs)
         return self.state_maker.future_block
 
     def get_pre_candidate(self, chain):
@@ -484,7 +485,6 @@ class RCPHandler:
 
         @rpc.add_method
         def push_tx(super_tx_serialised):
-            print('######rpc.pushtx: stx ser\'d', super_tx_serialised)
             super_tx = SuperTx.make(unhexlify(super_tx_serialised))
             super_tx.assert_internal_consistency()
             self.state_maker.apply_super_tx_to_future(super_tx)

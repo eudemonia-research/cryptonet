@@ -88,6 +88,7 @@ class SeekNBuild:
     def seek_many_with_priority(self, block_hashes_with_height):
         ''' Applies each in list to seek_with_priority()
         '''
+        debug(block_hashes_with_height)
         for height, block_hash in block_hashes_with_height:
             self.seek_with_priority((height, block_hash))
 

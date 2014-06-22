@@ -57,7 +57,7 @@ class Chain(object):
         return self.db.get_ancestors(start)
 
     def restart_miner(self):
-        print('chain: restarting miner')
+        debug('chain: restarting miner')
         if self.miner != None:
             self.miner.restart()
 
@@ -134,7 +134,6 @@ class Chain(object):
             if blocks[0].get_hash() == blocks[1].get_hash():
                 return blocks[0]
             if blocks[0].parent_hash == 0 and blocks[1].parent_hash == 0:
-                print(blocks[0].get_hash(), blocks[1].get_hash())
                 raise ChainError('No LCA - different chains.')
             for i in range(len(blocks)):
                 block_hash = blocks[i].get_hash()

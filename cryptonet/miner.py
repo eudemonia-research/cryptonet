@@ -36,7 +36,7 @@ class Miner:
             else:
                 block = provided_block
             count = 0
-            print('miner restarting')
+            debug('miner restarting')
             while not self._shutdown and not self._restart:
                 count += 1
                 block.increment_nonce()

@@ -25,9 +25,8 @@ class Cryptonet(object):
         self.db = Database()
         self.chain = Chain(chain_vars, db=self.db)
         self.seek_n_build = SeekNBuild(self.p2p, self.chain)
-        self.miner = None
-        if chain_vars.mine:
-            self.miner = Miner(self.chain, self.seek_n_build)
+        self.mine = chain_vars.mine
+        self.miner = Miner(self.chain, self.seek_n_build)
 
         self.mine_genesis = False
         if chain_vars.genesis_binary == None:
@@ -41,10 +40,10 @@ class Cryptonet(object):
         self.alerts = {}
 
     def run(self):
-        if self.miner != None: self.miner.run()
+        if self.mine: self.miner.run()
         self.p2p.run()
         self.seek_n_build.shutdown()
-        if self.miner != None: self.miner.shutdown()
+        if self.mine: self.miner.shutdown()
 
     def shutdown(self):
         self.p2p.shutdown()
@@ -97,7 +96,7 @@ class Cryptonet(object):
                 debug('MSG blocks : %064x' % block_list.get_hash())
             for serialized_block in block_list:
                 try:
-                    potential_block = self._Block().make(serialized_block)
+                    potential_block = self._Block.make(serialized_block)
                     potential_block.assert_internal_consistency()
                     debug('blocks_handler: accepting block of height %d' % potential_block.height)
                 except ValidationError as e:

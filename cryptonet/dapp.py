@@ -167,7 +167,7 @@ class StateDelta(object):
 
     def get_hash(self):
         if self.my_hash == None:
-            print(self.complete_kvs())
+            #debug('StateDelta.get_hash, complete_kvs', self.complete_kvs())
             keys = list(self.all_keys())
             debug('StateDelta: get_hash: keys', keys)
             # TODO: keys.sort() definition unknown ATM, needs to be specific so
