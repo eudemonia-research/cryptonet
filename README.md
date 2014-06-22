@@ -2,18 +2,24 @@
 
 A generic library to build blockchains with arbitrary properties.
 
+Cryptonet is designed to facilitate extremely rapid development of cryptosystems. It is designed to be completely
+modular, allowing almost everything to be modified in an isolated fashion.
+
+There ~are~ will be many powerful built in modules that can enable even novice users to build structures such as
+distributed markets.
+
 ## Conceptual Examples:
 
 (These are a guide only of what the end result *should* look like (but it might not).)
 
+### key value store
+
 ```
-<network setup>
+my_network = Cryptonet(ChainVars())
 
 @my_network.dapp(b'KVS')
 class KeyValueStore(Dapp):
-
-    def on_block(self, block, chain):
-        pass
+    ''' A key value store could be used as a dns system. '''
 
     def on_transaction(self, tx, block, chain):
         key = sha3(tx.data[0])
@@ -23,9 +29,10 @@ class KeyValueStore(Dapp):
 
 @my_network.dap(b'REGISTER')
 class Register(Dapp):
+    ''' This is a KVS with a fee that automatically funnels to one party. '''
     MY_OWNER = b'bobs_pubkey'
     BALANCE = 0
-
+    
     def on_block(self, block, chain):
         self.make_transaction(MY_OWNER, self.state[BALANCE], 0, [])
         self.state[BALANCE] = 0
@@ -51,16 +58,17 @@ This comes pre-packaged with monetary units distributed as a mining reward.
 
 ## Things left to do:
 
-* Standard blocks and headers
-    * These are mostly done but largely untested.
-* Transaction broadcasts & management (no mempool or P2P yet)
-* ECDSA (txs validate signatures)
-* RPC interface (started)
+* Test Std blocks, headers, etc
+* Transaction P2P - handler
 * Dapp.make_transaction()
+* **min_coin alphanet** (currently working on)
 * Marketcoin alphanet
 
 ## Done
 
+* RPC mark 0
+* Std blocks, headers, txs, etc
+* ECDSA
 * State (needs testing)
     * Dapp template
     * StateDeltas
@@ -70,10 +78,7 @@ This comes pre-packaged with monetary units distributed as a mining reward.
 
 ## Dependancies
 
-* python3
-* Spore
-* encodium
-* pysha3 (maybe)
+see setup.py.
 
 ## Examples
 
@@ -87,7 +92,7 @@ args are currently stored in the example itself, so arguments won't work univers
 
 ## Standards
 
-This are some of the possibilities for 'default' structures.
+This are some of the possibilities for 'default' structures. Look in cryptonet.standards; it's pretty easy to read.
 
 ### Block
 
@@ -96,8 +101,8 @@ This are some of the possibilities for 'default' structures.
 	header,
 	uncles,
 	[
-	    tx1,
-	    tx2,
+	    stx1,
+	    stx2,
 	    ...
 	]
 ]
@@ -143,5 +148,45 @@ H: MerkleRoot( [i1, i2, i3, ...] )
 	header,
 	header,
 	...
+]
+```
+
+### Super Tx
+
+```
+[
+    [
+        tx1,
+        tx2,
+        ...
+    ],
+    Signature
+]
+```
+
+### Transaction
+
+```
+[
+    to_dapp,
+    amount,
+    fee,
+    donation,
+    [
+        bytes1,
+        bytes2,
+        ...
+    ]
+]
+```
+
+### Signature
+
+```
+[
+    pubkey_x,
+    pubkey_y,
+    r,
+    s
 ]
 ```
