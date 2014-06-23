@@ -100,7 +100,8 @@ You can run min_coin like so: `python3 examples/min_coin.py -add_nodes 198.199.1
 
 Then, in a new terminal:
 
-``` > alias mc='rpc 127.0.0.1:12344'
+```
+> alias mc='rpc 127.0.0.1:12344'
 > alias stdtx='./utils/stdtx'
 
 > mc get_info
