@@ -1,0 +1,26 @@
+#!/usr/bin/python3
+
+''' min_coin tx tool '''
+
+import argparse
+from binascii import hexlify
+
+from cryptonet.standard import SuperTx, Tx
+
+parser = argparse.ArgumentParser()
+parser.add_argument('secret_exponent', type=int, help='secret exponent to use')
+parser.add_argument('to_x', type=int, help='pubkey_x of user to send to')
+parser.add_argument('amount', metavar='amount', type=int, help='amount to send')
+parser.add_argument('fee', nargs='?', default=0, type=int, help='fee (default 0)')
+parser.add_argument('donation', nargs='?', default=0, type=int, help='donation (default 0)')
+args = parser.parse_args()
+
+print(args)
+
+stx = SuperTx.make(
+  txs=[Tx.make(
+    dapp=b'', value=args.amount, fee=args.fee,
+    donation=args.donation, data=[args.to_x.to_bytes(32, 'big')]
+    )])
+stx.sign(args.secret_exponent)
+print(hexlify(stx.serialize()).decode())
