@@ -15,8 +15,6 @@ parser.add_argument('fee', nargs='?', default=0, type=int, help='fee (default 0)
 parser.add_argument('donation', nargs='?', default=0, type=int, help='donation (default 0)')
 args = parser.parse_args()
 
-print(args)
-
 stx = SuperTx.make(
   txs=[Tx.make(
     dapp=b'', value=args.amount, fee=args.fee,
