@@ -84,8 +84,12 @@ see setup.py.
 
 try:
 ```
+Terminal 1:
 python3 examples/grachten.py -mine
-python3 examples/grachten.py -addnode 127.0.0.1:32555
+```
+```
+Terminal 2:
+python3 examples/grachten.py -port 32556 -addnode 127.0.0.1:32555 -debug
 ```
 
 args are currently stored in the example itself, so arguments won't work universally yet
