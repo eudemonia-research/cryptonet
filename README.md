@@ -94,6 +94,59 @@ python3 examples/grachten.py -port 32556 -addnode 127.0.0.1:32555 -debug
 
 args are currently stored in the example itself, so arguments won't work universally yet
 
+## `min_coin`
+
+You can run min_coin like so: `python3 examples/min_coin.py -add_nodes 198.199.102.43:32555 -mine -port 32555 -rpc_port 12344`
+
+Then, in a new terminal:
+
+``` > alias mc='rpc 127.0.0.1:12344'
+> alias stdtx='./utils/stdtx'
+
+> mc get_info
+{
+    "difficulty": 342601,
+    "top_block hash": 300004629461987275343749802263029500466571070873970211316190874403973327,
+    "top_block_height": 129
+}
+
+> mc get_ledger
+{
+    "55066263022277343669578718895168534326250603453777594175500187360389116729240": 6450000
+}
+
+> stdtx
+usage: stdtx [-h] secret_exponent to_x amount [fee] [donation]
+stdtx: error: the following arguments are required: secret_exponent, to_x, amount
+
+> stdtx 0 1234567890987654321 1000000 200 300
+01330131010101030f42400200c802012c23012101000000000000000000000000000000000000000000000000112210f4b16c1cb186012051bda76b4e2a057b9dde21fd861947efea533d56fb4ec1183ffbe65a635c74102100b048464711e62b2318c540db9ecc027e3615b13383476b8e4d65284718286e3a2079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179820483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8
+
+> mc push_tx 01330131010101030f42400200c802012c23012101000000000000000000000000000000000000000000000000112210f4b16c1cb186012051bda76b4e2a057b9dde21fd861947efea533d56fb4ec1183ffbe65a635c74102100b048464711e62b2318c540db9ecc027e3615b13383476b8e4d65284718286e3a2079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179820483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8
+{
+    "success": true,
+    "relayed": true
+}
+
+( wait for a block )
+
+> mc get_ledger
+{
+    "1234567890987654321": 1000000,
+    "188899839028173": 300,
+    "55066263022277343669578718895168534326250603453777594175500187360389116729240": 5499700
+}
+
+> mc get_info
+{
+    "top_block_height": 130,
+    "difficulty": 342601,
+    "top_block hash": 114877799261342757148804071220116137852294408957289398645657848834346206
+}
+
+```
+
+
 ## Standards
 
 This are some of the possibilities for 'default' structures. Look in cryptonet.standards; it's pretty easy to read.
