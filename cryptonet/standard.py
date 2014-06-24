@@ -157,7 +157,7 @@ class SuperTx(Field):
 
 class Header(Field):
     DEFAULT_TARGET = 2 ** 248
-    _TARGET1 = 2 ** 256 - 1  # changed it because this is what it should be; as it is a target itself also
+    _TARGET1 = 2 ** 256  # fuck it (see history)
     RETARGET_PERIOD = 16  # Measured in blocks
     BLOCKS_PER_DAY = 28800 # lots of blocks; 144 = 10m; 28800 = 5s; set so low for testing
 
@@ -239,7 +239,7 @@ class Header(Field):
         self.assert_true(self.calc_sigma_diff(self, chain) == self.sigma_diff, 'sigma_diff must be as expected')
 
     def valid_proof(self):
-        return self.get_hash() <= self.target
+        return self.get_hash() < self.target
 
     def increment_nonce(self):
         self.nonce += 1
@@ -274,7 +274,7 @@ class Header(Field):
             timedelta = expected_timedelta * 4
 
         new_target = previous_block.header.target * timedelta // expected_timedelta
-        new_target = min(new_target, self._TARGET1)
+        new_target = min(new_target, self._TARGET1 - 1)
         debug('New Target Calculated: %064x, height: %d' % (new_target, self.height))
         return new_target
 
