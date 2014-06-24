@@ -157,8 +157,7 @@ class SuperTx(Field):
 
 class Header(Field):
     DEFAULT_TARGET = 2 ** 248
-    _TARGET1 = 2 ** 256  # changed to exactly 2^256 as this is the only number with probability==1 that a hash will be
-                         # strictly less than the target. Additionally, it's a bit neater on the difficulty calc side.
+    _TARGET1 = 2 ** 256 - 1  # changed it because this is what it should be; as it is a target itself also
     RETARGET_PERIOD = 16  # Measured in blocks
     BLOCKS_PER_DAY = 28800 # lots of blocks; 144 = 10m; 28800 = 5s; set so low for testing
 
@@ -240,7 +239,7 @@ class Header(Field):
         self.assert_true(self.calc_sigma_diff(self, chain) == self.sigma_diff, 'sigma_diff must be as expected')
 
     def valid_proof(self):
-        return self.get_hash() < self.target
+        return self.get_hash() <= self.target
 
     def increment_nonce(self):
         self.nonce += 1
