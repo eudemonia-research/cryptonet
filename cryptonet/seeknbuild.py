@@ -201,7 +201,7 @@ class SeekNBuild:
             time.sleep(0.1)
         while not self._shutdown:
             try:
-		with self.past_lock:
+                with self.past_lock:
                     height, nonce, block = self.past_queue.get(timeout=0.1)
             except queue.Empty:
                 continue

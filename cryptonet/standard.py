@@ -275,6 +275,7 @@ class Header(Field):
             timedelta = expected_timedelta * 4
 
         new_target = previous_block.header.target * timedelta // expected_timedelta
+        new_target = min(new_target, self._TARGET1)
         debug('New Target Calculated: %064x, height: %d' % (new_target, self.height))
         return new_target
 
