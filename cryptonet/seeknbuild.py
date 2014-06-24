@@ -201,7 +201,8 @@ class SeekNBuild:
             time.sleep(0.1)
         while not self._shutdown:
             try:
-                height, nonce, block = self.past_queue.get(timeout=0.1)
+		with self.past_lock:
+                    height, nonce, block = self.past_queue.get(timeout=0.1)
             except queue.Empty:
                 continue
             if block.height == 0:
@@ -214,9 +215,9 @@ class SeekNBuild:
             if block.height > self.get_chain_height() + 1:
                 #print('chain_builder: chain height: %d' % self.get_chain_height())
                 #print('chain_builder: block.height %d' % block.height)
-                self.past_queue.put((height, nonce, block))
                 # try some of those which were parentless:
                 with self.past_lock:
+                    self.past_queue.put((height, nonce, block))
                     while not self.past_queue_no_parent.empty():
                         self.past_queue.put(self.past_queue_no_parent.get())
                 time.sleep(0.05)
@@ -232,11 +233,13 @@ class SeekNBuild:
                 if not self.chain.has_block_hash(block.parent_hash):
                     debug('chain_builder: don\'t have parent')
                     debug('chain_builder: head and curr', self.chain.head.get_hash(), block.parent_hash)
-                    self.past_queue_no_parent.put((height, nonce, block))
+                    with self.past_lock:
+                        self.past_queue_no_parent.put((height, nonce, block))
                     continue
                 # todo: only broadcast block on success
-                self.past.remove(block_hash)
-                self.done.add(block_hash)
+                with self.past_lock:
+                    self.past.remove(block_hash)
+                    self.done.add(block_hash)
                 self.chain.add_block(block)
                 debug('builder to send : %064x' % block.get_hash())
                 to_send = BlocksMessage.make(contents=[block.serialize()])
