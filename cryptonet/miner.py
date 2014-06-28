@@ -30,7 +30,7 @@ class Miner:
         while not self._shutdown:
             self._restart = False
             # TODO: remove this sleep
-            time.sleep(5)
+            time.sleep(2)
             if provided_block == None:
                 block = self.chain.head.get_candidate(self.chain)
             else:
