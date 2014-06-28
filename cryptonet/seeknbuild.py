@@ -1,6 +1,6 @@
 import time
 import queue
-#import threading
+import threading
 
 from cryptonet.datastructs import *
 from cryptonet.errors import ValidationError
