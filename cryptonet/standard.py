@@ -1,16 +1,14 @@
 import time
 from binascii import unhexlify
 
-from encodium import *
+from encodium import Encodium, Bytes, List, Integer, ValidationError
 import pycoin.ecdsa
 
 from cryptonet.utilities import global_hash, time_as_int
 from cryptonet.statemaker import StateMaker
 from cryptonet.rpcserver import RPCServer
 from cryptonet.datastructs import MerkleLeavesToRoot
-from cryptonet.dapp import TxPrism, TxTracker
 from cryptonet.debug import debug
-from cryptonet.constants import TX_TRACKER, ROOT_DAPP
 import cryptonet
 
 '''
@@ -29,12 +27,11 @@ BLOCK [
 '''
 
 
-class Signature(Field):
-    def fields():
-        r = Integer(length=32, default=0)
-        s = Integer(length=32, default=0)
-        pubkey_x = Integer(length=32, default=0)
-        pubkey_y = Integer(length=32, default=0)
+class Signature(Encodium):
+    r = Integer.Definition(length=32, default=0)
+    s = Integer.Definition(length=32, default=0)
+    pubkey_x = Integer.Definition(length=32, default=0)
+    pubkey_y = Integer.Definition(length=32, default=0)
 
     @classmethod
     def make_from_exponent_and_message(cls, secret_exponent, message):
@@ -42,7 +39,8 @@ class Signature(Field):
         s.sign(secret_exponent, message)
         return s
 
-    def init(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.sender = self.pubkey_x
 
     def to_bytes(self):
@@ -86,13 +84,12 @@ class Signature(Field):
         debug('Signature.sign', message)
 
 
-class Tx(Field):
-    def fields():
-        dapp = Bytes()
-        value = Integer(length=8)
-        fee = Integer(length=4, default=0)
-        donation = Integer(length=4, default=0)
-        data = List(Bytes(), default=[])
+class Tx(Encodium):
+    dapp = Bytes.Definition()
+    value = Integer.Definition(length=8)
+    fee = Integer.Definition(length=4, default=0)
+    donation = Integer.Definition(length=4, default=0)
+    data = List.Definition(Bytes.Definition(), default=[])
 
     def init(self):
         #self.sender = self.recover_pubkey()
@@ -114,10 +111,9 @@ class Tx(Field):
         pass  # if we've got this far the tx should be well formed
 
 
-class SuperTx(Field):
-    def fields():
-        txs = List(Tx())
-        signature = Signature(default=Signature.make(pubkey_x=0, pubkey_y=0, r=0, s=0))
+class SuperTx(Encodium):
+    txs = List.Definition(Tx.Definition())
+    signature = Signature.Definition(default=Signature(pubkey_x=0, pubkey_y=0, r=0, s=0))
 
     def init(self):
         self._gen_txs_bytes()
@@ -155,23 +151,22 @@ class SuperTx(Field):
         assert old_txs_bytes == self.txs_bytes
 
 
-class Header(Field):
+class Header(Encodium):
     DEFAULT_TARGET = 2 ** 248
     _TARGET1 = 2 ** 256  # fuck it (see history)
     RETARGET_PERIOD = 16  # Measured in blocks
     BLOCKS_PER_DAY = 28800 # lots of blocks; 144 = 10m; 28800 = 5s; set so low for testing
 
-    def fields():
-        version = Integer(length=2, default=1)
-        nonce = Integer(length=8, default=0)  # nonce second to increase work needed for PoW
-        height = Integer(length=4, default=0)
-        timestamp = Integer(length=5, default=int(time.time()))
-        target = Integer(length=32, default=Header.DEFAULT_TARGET)
-        sigma_diff = Integer(length=32, default=Header.target_to_diff(Header.DEFAULT_TARGET))
-        state_mr = Integer(length=32, default=0)
-        transaction_mr = Integer(length=32, default=0)
-        uncles_mr = Integer(length=32, default=0)
-        previous_blocks = List(Integer(length=32), default=[0])
+    version = Integer.Definition(length=2, default=1)
+    nonce = Integer.Definition(length=8, default=0)  # nonce second to increase work needed for PoW
+    height = Integer.Definition(length=4, default=0)
+    timestamp = Integer.Definition(length=5, default=lambda: int(time.time()))
+    target = Integer.Definition(length=32, default=DEFAULT_TARGET)
+    sigma_diff = Integer.Definition(length=32, default=_TARGET1//DEFAULT_TARGET)
+    state_mr = Integer.Definition(length=32, default=0)
+    transaction_mr = Integer.Definition(length=32, default=0)
+    uncles_mr = Integer.Definition(length=32, default=0)
+    previous_blocks = List.Definition(Integer.Definition(length=32), default=[0])
 
     def init(self):
         self.parent_hash = self.previous_blocks[0]
@@ -246,7 +241,7 @@ class Header(Field):
 
     # todo: test
     def get_pre_candidate(self, chain, previous_block):
-        new_header = Header.make(
+        new_header = Header(
             height=self.height + 1,
             timestamp=time_as_int(),
             previous_blocks=chain.db.get_ancestors(previous_block.get_hash()),
@@ -299,11 +294,10 @@ class Header(Field):
             raise ValidationError(message)
 
 
-class Block(Field):
-    def fields():
-        header = Header()
-        uncles = List(Header(), default=[])
-        super_txs = List(SuperTx(), default=[])
+class Block(Encodium):
+    header = Header.Definition()
+    uncles = List.Definition(Header.Definition(), default=[])
+    super_txs = List.Definition(SuperTx.Definition(), default=[])
 
     def init(self):
         self.parent_hash = self.header.previous_blocks[0]
@@ -371,10 +365,10 @@ class Block(Field):
             uncle.assert_internal_consistency()
         for super_tx in self.super_txs:
             super_tx.assert_internal_consistency()
-        self.assert_true(self.header.transaction_mr == MerkleLeavesToRoot.make(
+        self.assert_true(self.header.transaction_mr == MerkleLeavesToRoot(
             leaves=[i.get_hash() for i in self.super_txs]).get_hash(), 'TxMR consistency')
         self.assert_true(
-            self.header.uncles_mr == MerkleLeavesToRoot.make(leaves=[i.get_hash() for i in self.uncles]).get_hash(),
+            self.header.uncles_mr == MerkleLeavesToRoot(leaves=[i.get_hash() for i in self.uncles]).get_hash(),
             'UnclesMR consistency')
 
     def assert_validity(self, chain):
@@ -405,7 +399,7 @@ class Block(Field):
 
     @classmethod
     def get_unmined_genesis(cls):
-        return Block.make(header=Header.make(), uncles=[], super_txs=[])
+        return Block(header=Header(), uncles=[], super_txs=[])
 
     def get_candidate(self, chain):
         # todo : fix so state_root matches expected - should now be fixed?
@@ -414,7 +408,7 @@ class Block(Field):
     def get_pre_candidate(self, chain):
         # fill in basic info here, state_root and tx_root will come later
         # todo : probably shouldn't reference _Block from chain and just use local object
-        return chain._Block.make(header=self.header.get_pre_candidate(chain, self), uncles=[], super_txs=[])
+        return chain._Block(header=self.header.get_pre_candidate(chain, self), uncles=[], super_txs=[])
 
     def increment_nonce(self):
         self.header.increment_nonce()
@@ -444,7 +438,7 @@ class Block(Field):
         if self.height != 0:
             debug('UPDATE_ROOTS')
             self.header.state_mr = self.state_maker.super_state.get_hash()
-            self.header.transaction_mr = MerkleLeavesToRoot.make(leaves=[i.get_hash() for i in self.super_txs]).get_hash()
+            self.header.transaction_mr = MerkleLeavesToRoot(leaves=[i.get_hash() for i in self.super_txs]).get_hash()
 
     def add_super_tx(self, super_tx):
         self.super_txs.append(super_tx)
@@ -485,7 +479,7 @@ class RCPHandler:
 
         @rpc.add_method
         def push_tx(super_tx_serialised):
-            super_tx = SuperTx.make(unhexlify(super_tx_serialised))
+            super_tx = SuperTx(unhexlify(super_tx_serialised))
             super_tx.assert_internal_consistency()
             self.state_maker.apply_super_tx_to_future(super_tx)
             chain.restart_miner()

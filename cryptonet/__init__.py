@@ -1,5 +1,4 @@
 from spore import Spore
-# from . import defaultStructures
 from cryptonet.seeknbuild import SeekNBuild
 from cryptonet.chain import Chain
 from cryptonet.utilities import global_hash
@@ -59,7 +58,7 @@ class Cryptonet(object):
             genesis_block = self._Block.get_unmined_genesis()
             self.miner.mine(genesis_block)
         else:
-            genesis_block = self._Block().make(self.genesis_binary)
+            genesis_block = self._Block(self.genesis_binary)
         self.chain.set_genesis(genesis_block)
         return block_object
 
@@ -74,11 +73,11 @@ class Cryptonet(object):
         @self.p2p.on_connect
         def on_connect_handler(node):
             debug('on_connect_handler')
-            my_intro = Intro.make(top_block=self.chain.head.get_hash())
+            my_intro = Intro(top_block=self.chain.head.get_hash())
             node.send('intro', my_intro)
 
 
-        @self.p2p.on_message('intro', Intro.make)
+        @self.p2p.on_message('intro', Intro)
         def intro_handler(node, their_intro):
             debug('intro_handler')
             if config['network_debug'] or True:
@@ -90,13 +89,13 @@ class Cryptonet(object):
                 self.seek_n_build.seek_hash_now(their_intro.top_block)
 
 
-        @self.p2p.on_message('blocks', BytesList.make)
+        @self.p2p.on_message('blocks', BytesList)
         def blocks_handler(node, block_list):
             if config['network_debug'] or True:
                 debug('MSG blocks : %064x' % block_list.get_hash())
             for serialized_block in block_list:
                 try:
-                    potential_block = self._Block.make(serialized_block)
+                    potential_block = self._Block(serialized_block)
                     potential_block.assert_internal_consistency()
                     debug('blocks_handler: accepting block of height %d' % potential_block.height)
                 except ValidationError as e:
@@ -108,11 +107,11 @@ class Cryptonet(object):
                 self.seek_n_build.seek_many_with_priority(potential_block.related_blocks())
 
 
-        @self.p2p.on_message('request_blocks', HashList.make)
+        @self.p2p.on_message('request_blocks', HashList)
         def request_blocks_handler(node, requests):
             if config['network_debug'] or True:
                 debug('MSG request_blocks : %064x' % requests.get_hash())
-            blocks_to_send = BytesList.make()
+            blocks_to_send = BytesList()
             for bh in requests:
                 if self.chain.has_block_hash(bh):
                     blocks_to_send.append(self.chain.get_block(bh).serialize())

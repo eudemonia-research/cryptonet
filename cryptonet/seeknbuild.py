@@ -1,9 +1,8 @@
 import time
 import queue
-#import threading
+import threading
 
 from cryptonet.datastructs import *
-from cryptonet.errors import ValidationError
 from cryptonet.debug import debug, verbose_debug
 
 
@@ -106,7 +105,7 @@ class SeekNBuild:
             time.sleep(0.1)
         while not self._shutdown:
             # we will eventually serialize this so we make it a Field
-            requesting = IntList.make()
+            requesting = IntList()
 
             try:
                 with self.present_lock:
@@ -242,7 +241,7 @@ class SeekNBuild:
                     self.done.add(block_hash)
                 self.chain.add_block(block)
                 debug('builder to send : %064x' % block.get_hash())
-                to_send = BlocksMessage.make(contents=[block.serialize()])
+                to_send = BlocksMessage(contents=[block.serialize()])
                 debug('builder sending...')
                 verbose_debug('builder to send full : %s' % to_send.serialize())
                 self.broadcast_block(to_send)

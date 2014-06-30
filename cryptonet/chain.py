@@ -1,7 +1,6 @@
 import cryptonet
 from cryptonet.debug import debug
 from cryptonet.errors import ChainError
-from cryptonet.utilities import global_hash
 import cryptonet.standard
 
 

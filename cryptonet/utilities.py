@@ -1,13 +1,7 @@
 import hashlib
-import sys
 import sha3
 import time
 import pprint as pprint_module
-from binascii import hexlify, unhexlify
-
-import cryptonet
-from cryptonet.debug import debug
-from cryptonet.errors import ChainError, ValidationError
 
 #==============================================================================
 # GENERAL CRYPTONET FUNCTIONS
