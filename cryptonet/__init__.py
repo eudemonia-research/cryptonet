@@ -28,10 +28,10 @@ class Cryptonet(object):
         self.miner = Miner(self.chain, self.seek_n_build)
 
         self.mine_genesis = False
-        if chain_vars.genesis_binary == None:
+        if chain_vars.genesis == None:
             self.mine_genesis = True
         else:
-            self.genesis_binary = chain_vars.genesis_binary
+            self.genesis = chain_vars.genesis
 
         self.intros = {}
 
@@ -58,7 +58,7 @@ class Cryptonet(object):
             genesis_block = self._Block.get_unmined_genesis()
             self.miner.mine(genesis_block)
         else:
-            genesis_block = self._Block(self.genesis_binary)
+            genesis_block = self.genesis
         self.chain.set_genesis(genesis_block)
         return block_object
 

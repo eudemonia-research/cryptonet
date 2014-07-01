@@ -73,10 +73,10 @@ MerkleTree = MerkleLeavesToRoot
 #============================
 
 class ChainVars:
-    def __init__(self, seeds=[], address=(b'127.0.0.1', 12345), genesis_binary=None, mine=False, alert_pubkey_x=None):
+    def __init__(self, seeds=[], address=(b'127.0.0.1', 12345), genesis=None, mine=False, alert_pubkey_x=None):
         self.seeds = seeds
         self.address = address
-        self.genesis_binary = genesis_binary
+        self.genesis = genesis
         self.mine = mine
         # TODO : decide what default should be - devs pubkey or 0 pubkey (which means a network will be forced
         # to change it otherwise it'll get DOSed.

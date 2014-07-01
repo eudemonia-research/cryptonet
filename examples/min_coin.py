@@ -15,10 +15,26 @@ import cryptonet.standard
 
 GENESIS_HEX = '013a010101012501000453a6e5ca2001000000000000000000000000000000000000000000000000000000000000000201000100010001000301010001010101'
 
+GENESIS = cryptonet.standard.Block(
+    header=cryptonet.standard.Header(
+        version=1,
+        nonce=37,
+        height=0,
+        timestamp=1403446730,
+        target=2 ** 248,
+        sigma_diff=256,
+        state_mr=0,
+        transaction_mr=0,
+        uncles_mr=0,
+        previous_blocks=[0]
+    )
+)
+
 parser = argparse.ArgumentParser()
 parser.add_argument('-mine', action='store_true', default=False, help='mine blocks, include flag to engage')
-parser.add_argument('-add_nodes', nargs='*', default=[], type=str, help='node to connect to non-exclusively. Format xx.xx.xx.xx:yyyy')
-parser.add_argument('-genesis', nargs=1, default=[GENESIS_HEX], type=str, help='bytes of genesis block if needed')
+parser.add_argument('-add_nodes', nargs='*', default=[], type=str,
+                    help='node to connect to non-exclusively. Format xx.xx.xx.xx:yyyy')
+parser.add_argument('-genesis', nargs=1, default=[GENESIS], type=str, help='bytes of genesis block if needed')
 parser.add_argument('-network_debug', action='store_true', default=False)
 parser.add_argument('-debug', action='store_true', default=False)
 parser.add_argument('-port', nargs=1, default=[32555], type=int, help='port for node to bind to')
@@ -28,11 +44,12 @@ args = parser.parse_args()
 if args.debug:
     enable_debug()
 
-seeds = [(h,int(p)) for h,p in [i.split(':') for i in args.add_nodes]]
+seeds = [(h, int(p)) for h, p in [i.split(':') for i in args.add_nodes]]
 
 print(args)
 
-chain_vars = ChainVars(mine=args.mine, seeds=seeds, address=('0.0.0.0',args.port[0]), genesis_binary=unhexlify(args.genesis[0]))
+chain_vars = ChainVars(mine=args.mine, seeds=seeds, address=('0.0.0.0', args.port[0]),
+                       genesis=GENESIS)
 min_coin = Cryptonet(chain_vars)
 
 min_coin.block(cryptonet.standard.Block)
