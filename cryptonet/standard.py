@@ -91,7 +91,8 @@ class Tx(Encodium):
     donation = Integer.Definition(length=4, default=0)
     data = List.Definition(Bytes.Definition(), default=[])
 
-    def init(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         #self.sender = self.recover_pubkey()
         pass
 
@@ -115,7 +116,8 @@ class SuperTx(Encodium):
     txs = List.Definition(Tx.Definition())
     signature = Signature.Definition(default=Signature(pubkey_x=0, pubkey_y=0, r=0, s=0))
 
-    def init(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._gen_txs_bytes()
         self._set_tx_sender()
 
@@ -155,22 +157,24 @@ class Header(Encodium):
     DEFAULT_TARGET = 2 ** 248
     _TARGET1 = 2 ** 256  # fuck it (see history)
     RETARGET_PERIOD = 16  # Measured in blocks
-    BLOCKS_PER_DAY = 28800 # lots of blocks; 144 = 10m; 28800 = 5s; set so low for testing
+    BLOCKS_PER_DAY = 28800  # lots of blocks; 144 = 10m; 28800 = 5s; set so low for testing
 
     version = Integer.Definition(length=2, default=1)
     nonce = Integer.Definition(length=8, default=0)  # nonce second to increase work needed for PoW
     height = Integer.Definition(length=4, default=0)
     timestamp = Integer.Definition(length=5, default=lambda: int(time.time()))
     target = Integer.Definition(length=32, default=DEFAULT_TARGET)
-    sigma_diff = Integer.Definition(length=32, default=_TARGET1//DEFAULT_TARGET)
+    sigma_diff = Integer.Definition(length=32, default=_TARGET1 // DEFAULT_TARGET)
     state_mr = Integer.Definition(length=32, default=0)
     transaction_mr = Integer.Definition(length=32, default=0)
     uncles_mr = Integer.Definition(length=32, default=0)
     previous_blocks = List.Definition(Integer.Definition(length=32), default=[0])
 
-    def init(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.parent_hash = self.previous_blocks[0]
-        self.previous_blocks_with_height = [(self.height - 2**i, self.previous_blocks[i]) for i in range(len(self.previous_blocks))]
+        self.previous_blocks_with_height = [(self.height - 2 ** i, self.previous_blocks[i]) for i in
+                                            range(len(self.previous_blocks))]
 
     def to_bytes(self):
         return b''.join([
@@ -299,7 +303,8 @@ class Block(Encodium):
     uncles = List.Definition(Header.Definition(), default=[])
     super_txs = List.Definition(SuperTx.Definition(), default=[])
 
-    def init(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.parent_hash = self.header.previous_blocks[0]
         self.height = self.header.height
         self.priority = self.height
@@ -385,8 +390,8 @@ class Block(Encodium):
             self.assert_true(self.height == 0, 'Genesis req.: height must be 0')
             self.assert_true(self.parent_hash == 0, 'Genesis req.: parent_hash must be zeroed')
             self.assert_true(self.header.state_mr == 0, 'Genesis req.: state_mr zeroed')
-        # TODO The below will fail if the current block isn't at the head.
-        # TODO Policy should be to only .assert_validity() on the head.
+            # TODO The below will fail if the current block isn't at the head.
+            # TODO Policy should be to only .assert_validity() on the head.
 
     def better_than(self, other):
         if other == None:

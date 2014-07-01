@@ -18,17 +18,19 @@ class MerkleLeavesToRoot(Encodium):
         assert len(self.leaves) > 0
 
     def update(self):
+
         if len(self.leaves) == 0:
             self.root = 0
-        try:
-            t = self.leaves[:]
-            while len(t) > 1:
-                if len(t) % 2 != 0: t.append(int.from_bytes(b'\x00' * 32, 'big'))
-                t = [self.my_hash(t[i].to_bytes(32, 'big') + t[i + 1].to_bytes(32, 'big')) for i in range(0, len(t), 2)]
-            self.root = t[0]
-        except:
-            debug('MerkleTree update, leaves :', self.leaves)
-            raise
+        else:
+            try:
+                t = self.leaves[:]
+                while len(t) > 1:
+                    if len(t) % 2 != 0: t.append(int.from_bytes(b'\x00' * 32, 'big'))
+                    t = [self.my_hash(t[i].to_bytes(32, 'big') + t[i + 1].to_bytes(32, 'big')) for i in range(0, len(t), 2)]
+                self.root = t[0]
+            except:
+                debug('MerkleTree update, leaves :', self.leaves)
+                raise
 
     def get_hash(self):
         return self.root
@@ -43,7 +45,8 @@ class MerkleBranchToRoot(Encodium):
     hash_branch = List.Definition(Integer.Definition(length=32))
     lr_branch = List.Definition(Integer.Definition(length=1))
 
-    def init(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         assert len(self.hash_branch) == len(self.lr_branch)
         self.update()
 
@@ -124,8 +127,6 @@ class ListFieldPrimative(Encodium):
 
 
 class IntList(ListFieldPrimative):
-    ''' DOES NOT WORK - ENCODIUM DOESN'T SUPPORT INHERITANCE YET
-    '''
     contents = List.Definition(Integer.Definition(), default=[])
 
     def extend(self, item):
@@ -325,8 +326,9 @@ class BitcoinTransactionMerkleTree(Field):
     def fields():
         transactions = List(BitcoinTransaction(), default=[])
         merkleroot = Integer(length=32, optional=True, default=0)
-        
-    def init(self):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         tempMT = MerkleLeavesToRoot.make(leaves=self.transactions)
         self.merkleroot = tempMT.get_hash()
     
