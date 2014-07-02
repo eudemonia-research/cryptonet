@@ -8,6 +8,8 @@ setup(name='Cryptonet',
       author='Max Kaye',
       author_email='max@eudemonia.io',
       packages=['cryptonet'],
-      install_requires=['spore', 'encodium', 'pynacl', 'pysha3', 'pycoin', 'requests', 'werkzeug', 'json-rpc'],
+      # NOTE(kitten): temporarily removing pysha3 because it is fucking with readthedocs (no compliation allowed on there).
+      #install_requires=['spore', 'encodium', 'pynacl', 'pysha3', 'pycoin', 'requests', 'werkzeug', 'json-rpc'],
+      install_requires=['spore', 'encodium', 'pynacl', 'pycoin', 'requests', 'werkzeug', 'json-rpc'],
      )
 
