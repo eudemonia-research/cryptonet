@@ -7,6 +7,7 @@ from cryptonet.errors import ValidationError
 from cryptonet.datastructs import *
 from cryptonet.miner import Miner
 from cryptonet.debug import debug
+import cryptonet.standard
 
 config = {'network_debug': True}
 
@@ -14,29 +15,37 @@ config = {'network_debug': True}
 # TODO: Alerts
 
 class Cryptonet(object):
-    def __init__(self, chain_vars):
-        self._Block = None  # from cryptonet.standard
-
-        self.p2p = Spore(seeds=chain_vars.seeds, address=chain_vars.address)
+    def __init__(self, seeds, address, block_class=cryptonet.standard.Block, mine=False, alert_pubkey_x=55066263022277343669578718895168534326250603453777594175500187360389116729240):
+        self.p2p = Spore(seeds=seeds, address=address)
         self.set_handlers()
         # debug('cryptonet init, peers: ', self.p2p.peers)
 
         self.db = Database()
-        self.chain = Chain(chain_vars, db=self.db)
+        self.chain = Chain(db=self.db)
         self.seek_n_build = SeekNBuild(self.p2p, self.chain)
-        self.mine = chain_vars.mine
+        self.mine = mine
         self.miner = Miner(self.chain, self.seek_n_build)
 
         self.mine_genesis = False
-        if chain_vars.genesis == None:
+        if not hasattr(block_class, 'GENESIS') or block_class.GENESIS is None:
             self.mine_genesis = True
         else:
-            self.genesis = chain_vars.genesis
+            self.genesis = block_class.GENESIS
 
         self.intros = {}
 
-        self.alert_pubkey_x = chain_vars.alert_pubkey_x
+        self.alert_pubkey_x = alert_pubkey_x
         self.alerts = {}
+
+        self._Block = block_class
+        self.chain._Block = block_class
+        if self.mine_genesis:
+            genesis_block = self._Block.get_unmined_genesis()
+            self.miner.mine(genesis_block)
+        else:
+            genesis_block = self.genesis
+
+        self.chain.set_genesis(genesis_block)
 
     def run(self):
         if self.mine: self.miner.run()
@@ -46,21 +55,6 @@ class Cryptonet(object):
 
     def shutdown(self):
         self.p2p.shutdown()
-
-    # =================
-    # Decorators
-    #=================
-
-    def block(self, block_object):
-        self._Block = block_object
-        self.chain._Block = block_object
-        if self.mine_genesis:
-            genesis_block = self._Block.get_unmined_genesis()
-            self.miner.mine(genesis_block)
-        else:
-            genesis_block = self.genesis
-        self.chain.set_genesis(genesis_block)
-        return block_object
 
 
     #==================

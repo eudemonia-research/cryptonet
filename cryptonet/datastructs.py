@@ -71,23 +71,6 @@ class MerkleBranchToRoot(Encodium):
 
 MerkleTree = MerkleLeavesToRoot
 
-#============================
-# ChainVars
-#============================
-
-class ChainVars:
-    def __init__(self, seeds=[], address=(b'127.0.0.1', 12345), genesis=None, mine=False, alert_pubkey_x=None):
-        self.seeds = seeds
-        self.address = address
-        self.genesis = genesis
-        self.mine = mine
-        # TODO : decide what default should be - devs pubkey or 0 pubkey (which means a network will be forced
-        # to change it otherwise it'll get DOSed.
-        if alert_pubkey_x == None:
-            self.alert_pubkey_x = 55066263022277343669578718895168534326250603453777594175500187360389116729240
-        else:
-            self.alert_pubkey_x = alert_pubkey_x
-
 
 #============================
 # Primitives
