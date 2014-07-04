@@ -268,10 +268,8 @@ class Header(Field):
         timedelta = self.timestamp - old_ancestor.header.timestamp
         expected_timedelta = 60 * 60 * 24 * Header.RETARGET_PERIOD // Header.BLOCKS_PER_DAY
 
-        if timedelta < expected_timedelta // 4:
-            timedelta = expected_timedelta // 4
-        elif timedelta > expected_timedelta * 4:
-            timedelta = expected_timedelta * 4
+        timedelta = max(timedelta, expected_timedelta // 4)
+        timedelta = min(timedelta, expected_timedelta * 4)
 
         new_target = previous_block.header.target * timedelta // expected_timedelta
         new_target = min(new_target, self._TARGET1 - 1)
