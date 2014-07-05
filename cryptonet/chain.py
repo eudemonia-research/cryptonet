@@ -1,12 +1,47 @@
+from queue import Queue, PriorityQueue
 import cryptonet
 from cryptonet.debug import debug
 from cryptonet.errors import ChainError
-from cryptonet.utilities import global_hash
 import cryptonet.standard
+
+
+class PriorityQueueWithInvalidChecks(PriorityQueue):
+
+    def __init__(self, max_size=0):
+        self.invalid_set = set()
+        PriorityQueue.__init__(self, max_size)
+
+    def get(self, block=True, timeout=None):
+        potential_get = PriorityQueue.get(self, block, timeout)
+        if potential_get in self.invalid_set:
+            return self.get(block, timeout)
+        return potential_get
+
+    def add_to_invalid_set(self, to_make_invalid):
+        self.invalid_set.add(to_make_invalid)
 
 
 class Chain(object):
     ''' A blockchain.
+
+    This is a general (not block specific) implementation of a blockchain. Other chains can be built, depending
+    on the properties needed.
+
+    Overview:
+
+    The chain has a head, which is considered to be the most up to date snapshot of the network.
+    Each block has a parent_hash variable which points to the (most dominant) parent. Dominant meaning largest priority.
+    The chain requires block.priority to be set to something orderable.
+    block.on_genesis(chain) is called when a block is set to the genesis block.
+    block.assert_internal_consistency() and block.assert_validity(chain) must be defined; they will be called and should
+     raise a ValidationError to fail.
+    block.get_hash() must return an int
+    block.better_than(other_block) should be defined and return True only in the case the block is *strictly* better
+     than other_block.
+    block.reorganisation(self, new_head, lca, head) is called upon a reorg which occurs every time the head is changed.
+
+    This structure can theoretically support more general structures than just a chain: blocktrees and blockgraphs are
+    possible too.
     '''
 
     def __init__(self, chain_vars, genesis_block=None, db=None, block_class=cryptonet.standard.Block):
@@ -24,7 +59,7 @@ class Chain(object):
         self.blocks = set()
         self.block_hashes = set()
         self.invalid_block_hashes = set()
-        self.block_hashes_with_priority = set()  # (sigma_diff, block_hash)
+        self.block_hashes_with_priority = PriorityQueueWithInvalidChecks()  # inverse_priority, block_hash
 
         self.genesis_block = None
         if genesis_block != None: self.set_genesis(genesis_block)
@@ -96,7 +131,7 @@ class Chain(object):
         if self.has_block(block):
             return
         if block.get_hash() in self.invalid_block_hashes or block.parent_hash in self.invalid_block_hashes:
-            debug('Chain: add_block: invalid block: #%d, %064x' % (block.height, block.get_hash()))
+            debug('Chain: add_block: invalid block: #%d, %064x' % (block.priority, block.get_hash()))
             self.invalid_block_hashes.add(block.get_hash())
             return
 
@@ -104,12 +139,12 @@ class Chain(object):
         self.db.set_ancestors(block)
         self.blocks.add(block)
         self.block_hashes.add(block.get_hash())
-        self.block_hashes_with_priority.add((block.priority, block.get_hash()))
+        self.block_hashes_with_priority.put((1 / (1 + block.priority), block.get_hash()))
 
         if block.better_than(self.head):
             self.set_head(block)
 
-        debug('added block %d, hash: %064x' % (block.height, block.get_hash()))
+        debug('added block %d, hash: %064x' % (block.priority, block.get_hash()))
 
         self.restart_miner()
 
@@ -164,26 +199,26 @@ class Chain(object):
         '''
         self.set_head(path_to_apply[-1])
 
-    def prune_to_height(self, height):
-        ''' Set head to self.head's ancestor at specified height.
-        '''
-        self.assert_true(height <= self.head.height, 'Cannot prune forward.')
-        self.assert_true(height >= 0, 'Cannot prune to a negative number.')
+    '''def _prune_to_height(self, height):
+        """ Set head to self.head's ancestor at specified height.
+        """
+        self._assert_true(height <= self.head.height, 'Cannot prune forward.')
+        self._assert_true(height >= 0, 'Cannot prune to a negative number.')
         current_block = self.head
         while current_block.height > height:
             current_block = self.get_block(current_block.parent_hash)
-        self.set_head(current_block)
+        self.set_head(current_block)'''
 
 
-    def construct_best_chain(self):
+    def _construct_best_chain(self):
         ''' Find best block not in invalid_block_hashes.
         Run a reorg from head to that block.
         '''
         block_hash = None
-        while self.head.get_hash() != block_hash:
-            priority, block_hash = max(self.block_hashes_with_priority)
-            debug('_construct_best_chain: priority, best_block: %d, %064x' % (priority, block_hash))
-            self.set_head(self.get_block(block_hash))
+        inverse_priority, block_hash = self.block_hashes_with_priority.get()
+        self.block_hashes_with_priority.put((inverse_priority, block_hash))
+        debug('_construct_best_chain: priority, best_block: %d, %064x' % (1 / inverse_priority - 1, block_hash))
+        self.set_head(self.get_block(block_hash))
 
     def _mark_invalid(self, invalid_block_hash):
         debug('Chain: Marking %064x as invalid' % invalid_block_hash)
@@ -192,7 +227,7 @@ class Chain(object):
             invalid_block = self.get_block(invalid_block_hash)
             self.block_hashes.remove(invalid_block_hash)
             self.blocks.remove(invalid_block)
-            self.block_hashes_with_priority.remove((invalid_block.priority, invalid_block_hash))
+            self.block_hashes_with_priority.add_to_invalid_set((invalid_block.priority, invalid_block_hash))
 
     def _recursively_mark_invalid(self, invalid_block_hash):
         children = self.get_children(invalid_block_hash)
@@ -207,7 +242,7 @@ class Chain(object):
         Now just calls _recursivley_mark_invalid()
         '''
         self._recursively_mark_invalid(invalid_block_hash)
-        #self._make_head_not_invalid()
+        # self._make_head_not_invalid()
         #self._construct_best_chain()
 
     def get_children(self, invalid_block_hash):
@@ -225,6 +260,6 @@ class Chain(object):
             self.set_head(self.get_block(self.head.parent_hash), no_reorg=True)
         old_head.reorganisation(self.head, self)"""
 
-    def assert_true(self, condition, message):
+    def _assert_true(self, condition, message):
         if not condition:
             raise ChainError(message)

@@ -13,13 +13,23 @@ config = {'network_debug': True}
 
 # TODO: Alerts
 
+class FakeSpore(object):
+    def run(self):
+        pass
+    def shutdown(self):
+        pass
+    def broadcast(self):
+        pass
+
 class Cryptonet(object):
-    def __init__(self, chain_vars):
+    def __init__(self, chain_vars, enable_p2p=True):
         self._Block = None  # from cryptonet.standard
 
-        self.p2p = Spore(seeds=chain_vars.seeds, address=chain_vars.address)
-        self.set_handlers()
-        # debug('cryptonet init, peers: ', self.p2p.peers)
+        if enable_p2p:
+            self.p2p = Spore(seeds=chain_vars.seeds, address=chain_vars.address)
+            self.set_handlers()
+        else:
+            self.p2p = FakeSpore()
 
         self.db = Database()
         self.chain = Chain(chain_vars, db=self.db)
