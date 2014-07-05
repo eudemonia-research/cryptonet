@@ -11,7 +11,6 @@ from cryptonet.debug import debug
 
 config = {'network_debug': True}
 
-# TODO: STATE
 # TODO: Alerts
 
 class Cryptonet(object):
