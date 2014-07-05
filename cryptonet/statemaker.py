@@ -313,7 +313,7 @@ class SuperState(object):
         names.sort()
         for n in names:
             leaves.extend([global_hash(n), self.state_dict[n].get_hash()])
-        merkle_root = MerkleLeavesToRoot.make(leaves=leaves)
+        merkle_root = MerkleLeavesToRoot(leaves=leaves)
         debug('SuperState: root: ', merkle_root.get_hash(), [self.state_dict[n].complete_kvs() for n in names])
         return merkle_root.get_hash()
 

@@ -1,18 +1,16 @@
 from cryptonet.utilities import global_hash
 from cryptonet.debug import debug
-from cryptonet.constants import SOFTWARE_VERSION
-from encodium import *
-import math
+from encodium import Encodium, Integer, List, Bytes, String
 
 #==============================================================================
 # HashTree
 #==============================================================================
 
-class MerkleLeavesToRoot(Field):
-    def fields():
-        leaves = List(Integer(length=32))
+class MerkleLeavesToRoot(Encodium):
+    leaves = List.Definition(Integer.Definition(length=32))
 
-    def init(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.update()
 
     def check_leaves(self):
@@ -20,16 +18,19 @@ class MerkleLeavesToRoot(Field):
         assert len(self.leaves) > 0
 
     def update(self):
+
         if len(self.leaves) == 0:
             self.root = 0
-        try:
-            t = self.leaves[:]
-            while len(t) > 1:
-                if len(t) % 2 != 0: t.append(int.from_bytes(b'\x00' * 32, 'big'))
-                t = [self.my_hash(t[i].to_bytes(32, 'big') + t[i + 1].to_bytes(32, 'big')) for i in range(0, len(t), 2)]
-            self.root = t[0]
-        except:
-            debug('MerkleTree update, leaves :', self.leaves)
+        else:
+            try:
+                t = self.leaves[:]
+                while len(t) > 1:
+                    if len(t) % 2 != 0: t.append(int.from_bytes(b'\x00' * 32, 'big'))
+                    t = [self.my_hash(t[i].to_bytes(32, 'big') + t[i + 1].to_bytes(32, 'big')) for i in range(0, len(t), 2)]
+                self.root = t[0]
+            except:
+                debug('MerkleTree update, leaves :', self.leaves)
+                raise
 
     def get_hash(self):
         return self.root
@@ -38,14 +39,14 @@ class MerkleLeavesToRoot(Field):
         return global_hash(msg)
 
 
-class MerkleBranchToRoot(Field):
+class MerkleBranchToRoot(Encodium):
 
-    def fields():
-        hash = Integer(length=32)
-        hash_branch = List(Integer(length=32))
-        lr_branch = List(Integer(length=1))
+    hash = Integer.Definition(length=32)
+    hash_branch = List.Definition(Integer.Definition(length=32))
+    lr_branch = List.Definition(Integer.Definition(length=1))
 
-    def init(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         assert len(self.hash_branch) == len(self.lr_branch)
         self.update()
 
@@ -70,41 +71,23 @@ class MerkleBranchToRoot(Field):
 
 MerkleTree = MerkleLeavesToRoot
 
-#============================
-# ChainVars
-#============================
-
-class ChainVars:
-    def __init__(self, seeds=[], address=(b'127.0.0.1', 12345), genesis_binary=None, mine=False, alert_pubkey_x=None):
-        self.seeds = seeds
-        self.address = address
-        self.genesis_binary = genesis_binary
-        self.mine = mine
-        # TODO : decide what default should be - devs pubkey or 0 pubkey (which means a network will be forced
-        # to change it otherwise it'll get DOSed.
-        if alert_pubkey_x == None:
-            self.alert_pubkey_x = 55066263022277343669578718895168534326250603453777594175500187360389116729240
-        else:
-            self.alert_pubkey_x = alert_pubkey_x
-
 
 #============================
 # Primitives
 #============================
 
 
-class BaseField(Field):
+class BaseField(Encodium):
     ''' DOES NOT WORK - ENCODIUM DOESN'T SUPPORT INHERITANCE YET
     '''
     def __init__(self, *args, **kwargs):
-        Field.__init__(self, *args, **kwargs)
-        self.default_options = Field.default_options
+        super().__init__(self, *args, **kwargs)
 
     def get_hash(self):
         return global_hash(self.serialize())
 
 
-class ListFieldPrimative(Field):
+class ListFieldPrimative(Encodium):
     ''' DOES NOT WORK - ENCODIUM DOESN'T SUPPORT INHERITANCE YET
     '''
     def extend(self, item):
@@ -127,10 +110,7 @@ class ListFieldPrimative(Field):
 
 
 class IntList(ListFieldPrimative):
-    ''' DOES NOT WORK - ENCODIUM DOESN'T SUPPORT INHERITANCE YET
-    '''
-    def fields():
-        contents = List(Integer(), default=[])
+    contents = List.Definition(Integer.Definition(), default=[])
 
     def extend(self, item):
         self.contents.append(item)
@@ -161,8 +141,7 @@ class IntList(ListFieldPrimative):
 
 
 class HashList(IntList):
-    def fields():
-        contents = List(Integer(length=32), default=[])
+    contents = List.Definition(Integer.Definition(length=32), default=[])
 
     def extend(self, item):
         self.contents.append(item)
@@ -187,8 +166,7 @@ class HashList(IntList):
 
 
 class BytesList(ListFieldPrimative):
-    def fields():
-        contents = List(Bytes(), default=[])
+    contents = List.Definition(Bytes.Definition(), default=[])
 
     def extend(self, item):
         self.contents.append(item)
@@ -217,15 +195,14 @@ class BytesList(ListFieldPrimative):
 #===============================================================================
 
 
-class Intro(Field):
-    def fields():
-        version = Integer(default=1, width=4)
-        services = Integer(default=1, width=4)
-        timestamp = Integer(default=1, width=5)
-        user_agent = String(default='cryptonet/0.0.1/', max_length=32)
-        top_block = Integer(length=32)
-        relay = Integer(default=0, length=1)
-        hash_list = List(Bytes(length=32), default=[])
+class Intro(Encodium):
+    version = Integer.Definition(default=1, width=4)
+    services = Integer.Definition(default=1, width=4)
+    timestamp = Integer.Definition(default=1, width=5)
+    user_agent = String.Definition(default='cryptonet/0.0.1/', max_length=32)
+    top_block = Integer.Definition(length=32)
+    relay = Integer.Definition(default=0, length=1)
+    hash_list = List.Definition(Bytes.Definition(length=32), default=[])
 
     def get_hash(self):
         return global_hash(self.serialize())
@@ -235,6 +212,8 @@ RequestBlocksMessage = HashList
 BlocksMessage = BytesList
 
 """
+
+###### TODO: everything in this comment still needs to be translated to the new Encodium. #####
 
 #===============================================================================
 # Stand-alone Blocks, headers, transactions
@@ -330,8 +309,9 @@ class BitcoinTransactionMerkleTree(Field):
     def fields():
         transactions = List(BitcoinTransaction(), default=[])
         merkleroot = Integer(length=32, optional=True, default=0)
-        
-    def init(self):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         tempMT = MerkleLeavesToRoot.make(leaves=self.transactions)
         self.merkleroot = tempMT.get_hash()
     

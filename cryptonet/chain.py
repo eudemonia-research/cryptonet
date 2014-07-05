@@ -44,9 +44,8 @@ class Chain(object):
     possible too.
     '''
 
-    def __init__(self, chain_vars, genesis_block=None, db=None, block_class=cryptonet.standard.Block):
+    def __init__(self, genesis_block=None, db=None, block_class=cryptonet.standard.Block):
         """
-        :param chain_vars: arbitrary ChainVars object
         :param genesis_block: serialized genesis block
         :param db: db if known (key-value store)
         :param cryptonet:
@@ -62,7 +61,8 @@ class Chain(object):
         self.block_hashes_with_priority = PriorityQueueWithInvalidChecks()  # inverse_priority, block_hash
 
         self.genesis_block = None
-        if genesis_block != None: self.set_genesis(genesis_block)
+        if genesis_block != None:
+            self.set_genesis(genesis_block)
 
         self.seek_n_build = None
 

@@ -1,6 +1,5 @@
-from encodium import *
+from encodium import Encodium, ValidationError
 
-import cryptonet
 from cryptonet.utilities import global_hash
 from cryptonet.datastructs import MerkleLeavesToRoot
 from cryptonet.debug import debug
@@ -176,11 +175,11 @@ class StateDelta(object):
             keys.sort()
             leaves = []
             for k in keys:
-                if isinstance(self[k], Field):
+                if isinstance(self[k], Encodium):
                     leaves.extend([global_hash(k), self[k].get_hash()])
                 else:
                     leaves.extend([global_hash(k), global_hash(self[k])])
-            merkle_tree = MerkleLeavesToRoot.make(leaves=leaves)
+            merkle_tree = MerkleLeavesToRoot(leaves=leaves)
             self.my_hash = merkle_tree.get_hash()
         return self.my_hash
 

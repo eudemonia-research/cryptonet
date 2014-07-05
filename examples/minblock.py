@@ -40,7 +40,7 @@ class MinBlock(encodium.Field):
         self.assert_true(self.parent_hash >= 0 and self.parent_hash < 2**256, 'Parent hash in valid range')
         self.assert_true(self.nonce >= 0 and self.nonce < 256, 'Nonce within valid range')
         # for test generation
-        #self.assert_true(self.get_hash() != 0x92c12a94806f7dc52b88b0f6cd6f177f67377339c388365984acf9317c002854, 'Blacklisted hash')
+        self.assert_true(self.get_hash() != 0x92c12a94806f7dc52b88b0f6cd6f177f67377339c388365984acf9317c002854, 'Blacklisted hash')
     
     def assert_validity(self, chain):
         self.assert_internal_consistency()

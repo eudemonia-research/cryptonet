@@ -1,5 +1,4 @@
 from spore import Spore
-# from . import defaultStructures
 from cryptonet.seeknbuild import SeekNBuild
 from cryptonet.chain import Chain
 from cryptonet.utilities import global_hash
@@ -8,9 +7,11 @@ from cryptonet.errors import ValidationError
 from cryptonet.datastructs import *
 from cryptonet.miner import Miner
 from cryptonet.debug import debug
+import cryptonet.standard
 
 config = {'network_debug': True}
 
+# TODO: STATE
 # TODO: Alerts
 
 class FakeSpore(object):
@@ -22,6 +23,12 @@ class FakeSpore(object):
         pass
 
 class Cryptonet(object):
+    def __init__(self, seeds, address, block_class=cryptonet.standard.Block, mine=False, alert_pubkey_x=55066263022277343669578718895168534326250603453777594175500187360389116729240):
+        self.p2p = Spore(seeds=seeds, address=address)
+        self.set_handlers()
+        # debug('cryptonet init, peers: ', self.p2p.peers)
+		
+		"""
     def __init__(self, chain_vars, enable_p2p=True):
         self._Block = None  # from cryptonet.standard
 
@@ -29,24 +36,34 @@ class Cryptonet(object):
             self.p2p = Spore(seeds=chain_vars.seeds, address=chain_vars.address)
             self.set_handlers()
         else:
-            self.p2p = FakeSpore()
+            self.p2p = FakeSpore()"""
 
         self.db = Database()
-        self.chain = Chain(chain_vars, db=self.db)
+        self.chain = Chain(db=self.db)
         self.seek_n_build = SeekNBuild(self.p2p, self.chain)
-        self.mine = chain_vars.mine
+        self.mine = mine
         self.miner = Miner(self.chain, self.seek_n_build)
 
         self.mine_genesis = False
-        if chain_vars.genesis_binary == None:
+        if not hasattr(block_class, 'GENESIS') or block_class.GENESIS is None:
             self.mine_genesis = True
         else:
-            self.genesis_binary = chain_vars.genesis_binary
+            self.genesis = block_class.GENESIS
 
         self.intros = {}
 
-        self.alert_pubkey_x = chain_vars.alert_pubkey_x
+        self.alert_pubkey_x = alert_pubkey_x
         self.alerts = {}
+
+        self._Block = block_class
+        self.chain._Block = block_class
+        if self.mine_genesis:
+            genesis_block = self._Block.get_unmined_genesis()
+            self.miner.mine(genesis_block)
+        else:
+            genesis_block = self.genesis
+
+        self.chain.set_genesis(genesis_block)
 
     def run(self):
         if self.mine: self.miner.run()
@@ -83,11 +100,11 @@ class Cryptonet(object):
         @self.p2p.on_connect
         def on_connect_handler(node):
             debug('on_connect_handler')
-            my_intro = Intro.make(top_block=self.chain.head.get_hash())
+            my_intro = Intro(top_block=self.chain.head.get_hash())
             node.send('intro', my_intro)
 
 
-        @self.p2p.on_message('intro', Intro.make)
+        @self.p2p.on_message('intro', Intro)
         def intro_handler(node, their_intro):
             debug('intro_handler')
             if config['network_debug'] or True:
@@ -99,13 +116,13 @@ class Cryptonet(object):
                 self.seek_n_build.seek_hash_now(their_intro.top_block)
 
 
-        @self.p2p.on_message('blocks', BytesList.make)
+        @self.p2p.on_message('blocks', BytesList)
         def blocks_handler(node, block_list):
             if config['network_debug'] or True:
                 debug('MSG blocks : %064x' % block_list.get_hash())
             for serialized_block in block_list:
                 try:
-                    potential_block = self._Block.make(serialized_block)
+                    potential_block = self._Block(serialized_block)
                     potential_block.assert_internal_consistency()
                     debug('blocks_handler: accepting block of height %d' % potential_block.height)
                 except ValidationError as e:
@@ -117,11 +134,11 @@ class Cryptonet(object):
                 self.seek_n_build.seek_many_with_priority(potential_block.related_blocks())
 
 
-        @self.p2p.on_message('request_blocks', HashList.make)
+        @self.p2p.on_message('request_blocks', HashList)
         def request_blocks_handler(node, requests):
             if config['network_debug'] or True:
                 debug('MSG request_blocks : %064x' % requests.get_hash())
-            blocks_to_send = BytesList.make()
+            blocks_to_send = BytesList()
             for bh in requests:
                 if self.chain.has_block_hash(bh):
                     blocks_to_send.append(self.chain.get_block(bh).serialize())

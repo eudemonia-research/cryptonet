@@ -1,5 +1,3 @@
-from cryptonet.debug import *
-
 
 class ValidationError(Exception):
     pass
