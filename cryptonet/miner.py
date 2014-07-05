@@ -54,7 +54,6 @@ class Miner:
                 provided_block = None
                 continue
             debug('Miner: Found Soln : %064x' % block.get_hash())
-            debug('Miner: header.state_mr', block.header.state_mr)
             if block.height == 0:  # print genesis
                 debug('Miner: ser\'d block: ', block.serialize())
                 break

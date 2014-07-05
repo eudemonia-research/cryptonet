@@ -7,7 +7,7 @@ from cryptonet.miner import Miner
 from cryptonet.datastructs import ChainVars
 from cryptonet.utilities import global_hash
 from cryptonet.errors import ValidationError
-from cryptonet.debug import debug
+from cryptonet.debug import debug, enable_debug
 
 chain_vars = ChainVars()
 
@@ -16,6 +16,7 @@ chain_vars.genesis_binary = b'\x01\x01\x00\x01\x00\x01\x00'
 chain_vars.mine = True
 chain_vars.address = ('',0)
 
+enable_debug()
 min_net = Cryptonet(chain_vars)
 
 @min_net.block
