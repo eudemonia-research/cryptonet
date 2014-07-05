@@ -27,6 +27,7 @@ class Miner:
         self._restart = True
 
     def mine(self, provided_block=None):
+        print(provided_block)
         while not self._shutdown:
             self._restart = False
             # TODO: remove this sleep
@@ -48,10 +49,11 @@ class Miner:
                         debug('Miner: invalid block generated: %s' % block.serialize())
                         continue
             if self._shutdown: break
+            provided_block = None
             if self._restart:
                 self._restart = False
                 time.sleep(0.01)
-                provided_block = None
+                print('miner -restarting')
                 continue
             debug('Miner: Found Soln : %064x' % block.get_hash())
             if block.height == 0:  # print genesis

@@ -3,32 +3,22 @@
 import encodium
 
 from cryptonet import Cryptonet
-from cryptonet.miner import Miner
-from cryptonet.datastructs import ChainVars
 from cryptonet.utilities import global_hash
 from cryptonet.errors import ValidationError
 from cryptonet.debug import debug, enable_debug
 
-chain_vars = ChainVars()
+seeds = []
+mine = True
+address = ('',0)
 
-chain_vars.seeds = []
-chain_vars.genesis_binary = b'\x01\x01\x00\x01\x00\x01\x00'
-chain_vars.mine = True
-chain_vars.address = ('',0)
-
-enable_debug()
-min_net = Cryptonet(chain_vars)
-
-@min_net.block
-class MinBlock(encodium.Field):
+class MinBlock(encodium.Encodium):
     ''' Minimum specification needed for functional Chain.
     See cryptonet.skeleton for unencumbered examples.
     '''
 
-    def fields():
-        parent_hash = encodium.Integer(length=32)
-        height = encodium.Integer(length=4, default=0)
-        nonce = encodium.Integer(length=1, default=0)
+    parent_hash = encodium.Integer.Definition(length=32)
+    height = encodium.Integer.Definition(length=4, default=0)
+    nonce = encodium.Integer.Definition(length=1, default=0)
 
     def init(self):
         self.priority = self.height
@@ -86,13 +76,13 @@ class MinBlock(encodium.Field):
 
     def on_genesis(self, chain):
         pass
-        
 
-def make_genesis():
-    genesis_block = MinBlock.make(parent_hash=0,height=0)
-    miner = Miner(min_net.chain, min_net.seek_n_build)
-    miner.mine(genesis_block)
+    @classmethod
+    def get_unmined_genesis(cls):
+        return MinBlock(parent_hash=0, height=0, nonce=0)
+
+enable_debug()
+min_net = Cryptonet(seeds=seeds, address=address, mine=True, block_class=MinBlock, enable_p2p=False)
 
 if __name__ == "__main__":
-    #make_genesis()
     min_net.run()

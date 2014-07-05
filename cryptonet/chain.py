@@ -105,7 +105,6 @@ class Chain(object):
             block.assert_validity(self)
             self.genesis_block = block
             self.add_block(block)  # must add_block first so state_maker can deal with the reorg and find the block
-            self.set_head(block)
             self.initialized = True
         else:
             raise ChainError('genesis block already known: %s' % self.genesis_block)

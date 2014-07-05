@@ -23,20 +23,12 @@ class FakeSpore(object):
         pass
 
 class Cryptonet(object):
-    def __init__(self, seeds, address, block_class=cryptonet.standard.Block, mine=False, alert_pubkey_x=55066263022277343669578718895168534326250603453777594175500187360389116729240):
-        self.p2p = Spore(seeds=seeds, address=address)
-        self.set_handlers()
-        # debug('cryptonet init, peers: ', self.p2p.peers)
-		
-		"""
-    def __init__(self, chain_vars, enable_p2p=True):
-        self._Block = None  # from cryptonet.standard
-
+    def __init__(self, seeds, address, block_class=cryptonet.standard.Block, mine=False, alert_pubkey_x=0, enable_p2p=True):
         if enable_p2p:
-            self.p2p = Spore(seeds=chain_vars.seeds, address=chain_vars.address)
+            self.p2p = Spore(seeds=seeds, address=address)
             self.set_handlers()
         else:
-            self.p2p = FakeSpore()"""
+            self.p2p = FakeSpore()
 
         self.db = Database()
         self.chain = Chain(db=self.db)
@@ -58,12 +50,10 @@ class Cryptonet(object):
         self._Block = block_class
         self.chain._Block = block_class
         if self.mine_genesis:
-            genesis_block = self._Block.get_unmined_genesis()
-            self.miner.mine(genesis_block)
-        else:
-            genesis_block = self.genesis
+            self.genesis = self._Block.get_unmined_genesis()
+            self.miner.mine(self.genesis)
 
-        self.chain.set_genesis(genesis_block)
+        self.chain.set_genesis(self.genesis)
 
     def run(self):
         if self.mine: self.miner.run()
