@@ -9,6 +9,7 @@ from cryptonet import Cryptonet
 from cryptonet.dapp import Dapp
 from cryptonet.utilities import global_hash, dsha256R, get_varint_and_remainder, create_index, pretty_string
 from cryptonet.datastructs import MerkleBranchToRoot
+from cryptonet.debug import debug
 
 from encodium import *
 
@@ -17,16 +18,15 @@ BTC_SPV = b'BTC_SPV'
 
 # marketcoin = Cryptonet()
 
-class BitcoinHeader(Field):
+class BitcoinHeader(Encodium):
     DIFF_ONE_TARGET = 0x00000000ffff0000000000000000000000000000000000000000000000000000
 
-    def fields():
-        version = Integer(length=4)
-        parent_hash = Integer(length=32)
-        merkle_root = Integer(length=32)
-        timestamp = Integer(length=4)
-        bits = Integer(length=4)
-        nonce = Integer(length=4)
+    version = Integer.Definition(length=4)
+    parent_hash = Integer.Definition(length=32)
+    merkle_root = Integer.Definition(length=32)
+    timestamp = Integer.Definition(length=4)
+    bits = Integer.Definition(length=4)
+    nonce = Integer.Definition(length=4)
 
     def init(self):
         self.target = BitcoinHeader.bits_to_target(self.bits)
@@ -55,6 +55,8 @@ class BitcoinHeader(Field):
         self.assert_internal_consistency()
         self.assert_true(dapp.state[self.parent_hash] != 0, 'Parent header must exist')
 
+    # TODO : check internal consistency on creation
+
     @staticmethod
     def assert_true(condition, message):
         if not condition:
@@ -62,7 +64,7 @@ class BitcoinHeader(Field):
 
     @staticmethod
     def make_from_bytes(header_bytes):
-        return BitcoinHeader.make(
+        return BitcoinHeader(
             version=int.from_bytes(header_bytes[:4], 'little'),
             parent_hash=int.from_bytes(header_bytes[4:4 + 32], 'little'),
             merkle_root=int.from_bytes(header_bytes[4 + 32:4 + 32 + 32], 'little'),
@@ -183,7 +185,6 @@ class BitcoinChainheaders(Chainheaders):
 
     HEADER_CLASS = BitcoinHeader
 
-
 # @marketcoin.dapp(BTC_SPV)
 class BitcoinSPV(Dapp):
     ''' SPV and MerkleTree verification.
@@ -208,17 +209,18 @@ class BitcoinSPV(Dapp):
         Inputs:
         block_hash
         tx_hash
-        [lr, merkle_branch]...'''
+        [lr, next_hash_in_merkle_branch, lr, next_hash, ...]'''
 
         self.assert_true(len(tx.data) >= 2, 'tx_data must carry 2 or more elements to prove a tx was in a block')
+        self.assert_true(len(tx.data) % 2 == 0, 'tx_data can only have an even number of elements')
         block_hash = tx.data[0]
         tx_hash = tx.data[1]
         self.assert_true(block_hash > 100000 and tx_hash > 100000, 'block_hash & tx_hash reasonable values')
-        self.assert_true(block_hash in self.super_state[BTC_CHAINHEADERS], 'block_hash exists')
+        self.assert_true(block_hash in self.super_state[BTC_CHAINHEADERS], 'block_hash exists in chainheaders')
 
         header_bytes = self.super_state[BTC_CHAINHEADERS][block_hash]
         header = BitcoinHeader.make_from_bytes(header_bytes)
-        header.assert_internal_consistency()  # this checks we're actually dealing with a header
+        header.assert_internal_consistency()  # this checks we're actually dealing with a header; todo : can remove later
         self.assert_true(header.get_hash() == block_hash, 'provided hash is correct')
 
         def pair_up(l):
@@ -228,7 +230,7 @@ class BitcoinSPV(Dapp):
             return ([t[0] for t in l], [t[1] for t in l])
 
         merkle_prep = unzip(pair_up(tx.data[2:]))
-        merkle_root = MerkleBranchToRoot.make(hash=tx_hash, lr_branch=merkle_prep[0],
+        merkle_root = MerkleBranchToRoot(hash=tx_hash, lr_branch=merkle_prep[0],
                                               hash_branch=merkle_prep[1]).get_hash()
         self.assert_true(merkle_root == header.merkle_root, 'merkle_roots must match')
 
@@ -253,28 +255,26 @@ class Market(Dapp):
     5. 
     '''
 
-    class NewOrder(Field):
+    class NewOrder(Encodium):
         ''' An order as submitted in a transaction.
         '''
 
         LOCAL = True
         FOREIGN = False
 
-        def fields():
-            # which currency is being used, local or foreign
-            local_or_foreign = Boolean()
-            # maximum spend in that currency
-            max_spend = Integer(length=8)
-            min_return = Integer(length=8)
-            # see Order.RATE_CONSTANT for scaling
-            offering_rate_scaled = Integer(length=16)
-            # required output - zero length for XMK buy
-            # must be an address so someone can't force to a non-standard output
-            # addresses are 20 bytes
-            pubkey_hash = Integer(length=20)
+        local_or_foreign = Boolean.Definition()
+        # in terms of local or foreign currency
+        max_spend = Integer.Definition(length=8)
+        min_return = Integer.Definition(length=8)
+        # see Order.RATE_CONSTANT for scaling amount
+        offering_rate_scaled = Integer.Definition(length=16)
+        # forms required output; zero length for XMK buy
+        # must be an address; we don't want to deal with non-standard since they may take hours to be confirmed
+        # addresses are 20 bytes long on Bitclones.
+        pubkey_hash = Integer.Definition(length=20)
 
 
-    class Order(Field):
+    class Order(Encodium):
         ''' An order as in the order book
         '''
 
@@ -282,17 +282,16 @@ class Market(Dapp):
         ASK = False
         RATE_CONSTANT = 256 ** 8
 
-        def fields():
-            bid_or_ask = Boolean()  # always bid FOR XMK (buy) or ask FOR XMK (sell)
-            amount = Integer(length=8)
-            rate = Integer(length=16)  # rate per 256**8 XMK? 19 orders of magnitude each way, probably enough
-            # link in order book
-            pay_to_pubkey_hash = Integer(length=20)
-            sender = Integer(length=32)
-            pledge = Integer(length=8)
-            exact_value_out = Integer(length=8, default=0)
-            next_worse_order = Integer(length=32)
-            next_better_order = Integer(length=32)
+        bid_or_ask = Boolean.Definition()  # always bid FOR XMK (buy) or ask FOR XMK (sell)
+        amount = Integer.Definition(length=8)
+        rate = Integer.Definition(length=16)  # rate per 256**8 XMK? 19 orders of magnitude each way, probably enough
+        pay_to_pubkey_hash = Integer.Definition(length=20)  # address on foreign chain
+        sender = Integer.Definition(length=32)  # XMK address
+        pledge = Integer.Definition(length=8)
+        exact_value_out = Integer.Definition(length=8)
+        next_worse_order = Integer.Definition(length=32)
+        next_better_order = Integer.Definition(length=32)
+
 
         def to_bytes(self):
             return b''.join([
@@ -311,11 +310,21 @@ class Market(Dapp):
         @classmethod
         def from_new_order(cls, new_order):
             # todo: this whole method
-            return cls.make()
+            return cls(
+                bid_or_ask=0,
+                amount=0,
+                rate=0,
+                pay_to_pubkey_hash=0,
+                sender=0,
+                pledge=0,
+                exact_value_out=0,
+                next_worse_order=0,
+                next_better_order=0
+            )
 
         @classmethod
         def make_change(cls, source_order, amount=0, pledge=0):
-            return cls.make(
+            return cls(
                 bid_or_ask=source_order.bid_or_ask, amount=amount, rate=source_order.rate,
                 next_worse_order=source_order.next_worse_order, next_better_order=source_order.next_better_order,
                 pay_to_pubkey_hash=source_order.pay_to_pubkey_hash, sender=source_order.sender, pledge=pledge
@@ -323,12 +332,13 @@ class Market(Dapp):
 
         @staticmethod
         def create_match_and_change(bid, ask):
-            # todo: figure out how to do rates - duh, just work in large numbers
+            # todo: figure out how to do rates - duh, just work in large numbers - make sure to test scaling works okay
+            # todo: figure out limits of accuracy to warn users
             trade_rate = (bid.rate + ask.rate) // 2
-            print('create_match_and_change', bid.rate, ask.rate, trade_rate, Market.Order.RATE_CONSTANT)
+            debug('create_match_and_change', bid.rate, ask.rate, trade_rate, Market.Order.RATE_CONSTANT)
             bid_xmk = bid.amount * Market.Order.RATE_CONSTANT // trade_rate
             ask_xmk = ask.amount
-            print('cmac, min bid, max ask: ', bid_xmk, ask_xmk)
+            debug('cmac, min bid, max ask: ', bid_xmk, ask_xmk)
             if ask_xmk == bid_xmk:
                 trade_volume = bid_xmk
                 change = None
@@ -359,18 +369,17 @@ class Market(Dapp):
             return xmk * rate // Market.Order.RATE_CONSTANT
 
 
-    class OrderMatch(Field):
+    class OrderMatch(Encodium):
         ''' An order-match as stored in the state
         '''
 
-        def fields():
-            pay_to_pubkey_hash = Integer(length=20)  # PKH of seller on ALT network
-            success_output = Integer(length=32)  # local pubkey_x corresponding to buyer of XMK
-            fail_output = Integer(length=32)  # local pubkey_x corresponding to seller of XMK (used if buyer reneges)
-            foreign_amount = Integer(length=8)
-            local_amount = Integer(length=8)
-            pledge_amount = Integer(length=8)
-            rate = Integer(length=16)
+        pay_to_pubkey_hash = Integer.Definition(length=20)  # PKH of seller on ALT network
+        success_output = Integer.Definition(length=32)  # local pubkey_x corresponding to buyer of XMK
+        fail_output = Integer.Definition(length=32)  # local pubkey_x corresponding to seller of XMK (used if buyer reneges)
+        foreign_amount = Integer.Definition(length=8)
+        local_amount = Integer.Definition(length=8)
+        pledge_amount = Integer.Definition(length=8)
+        rate = Integer.Definition(length=16)
 
         def to_bytes(self):
             return b''.join([
@@ -397,13 +406,12 @@ class Market(Dapp):
             })
 
 
-    class ProofOfPayment(Field):
+    class ProofOfPayment(Encodium):
         ''' Submitted to prove payment
         '''
 
-        def fields():
-            order_match_id = Integer(length=32)
-            tx_bytes = Bytes()
+        order_match_id = Integer.Definition(length=32)
+        tx_bytes = Bytes.Definition()
 
         def init(self):
             self.transaction = PycoinTx.parse(self.tx_bytes)
@@ -418,20 +426,18 @@ class Market(Dapp):
             return global_hash(self.to_bytes())
 
 
-    class CancelOrder(Field):
+    class CancelOrder(Encodium):
         ''' Message to cancel order
         '''
 
-        def fields():
-            order_id = Integer(length=32)
+        order_id = Integer(length=32)
 
 
-    class RedeemPledge(Field):
+    class RedeemPledge(Encodium):
         ''' Submitted by seller (or anyone) of XMK to redeem the pledge if buyer reneges.
         '''
 
-        def fields():
-            order_match_id = Integer(length=32)
+        order_match_id = Integer(length=32)
 
     _ACTIONS = create_index(['new', 'cancel', 'fulfill', 'redeem'])
 
@@ -465,7 +471,7 @@ class Market(Dapp):
         volume = 0
 
         trades = []
-        ordermatches = []
+        order_matches = []
 
         this_bid_hash = self.state[Market._STATE_INDEX['ob_best_bid']]
         this_ask_hash = self.state[Market._STATE_INDEX['ob_best_ask']]
@@ -477,8 +483,8 @@ class Market(Dapp):
         # as long as the bids are better than the asks matching continues
         while this_bid.rate >= this_ask.rate:
             match, change = Market.Order.create_match_and_change(this_bid, this_ask)
-            # update meta and ordermatches
-            ordermatches.append(match)
+            # update meta and order_matches
+            order_matches.append(match)
             volume += match.local_amount
             if match.rate > highest_trade:
                 highest_trade = match.rate
@@ -497,7 +503,7 @@ class Market(Dapp):
         self.state[this_bid.get_hash()] = this_bid
         self.state[this_ask.get_hash()] = this_ask
 
-        match_counter = len(ordermatches)
+        match_counter = len(order_matches)
 
         # I'm going to cheat, todo: make this something less not-python-dependent
         # the * 10000 is there to keep significant figures; we need this because we're storing ints
@@ -558,7 +564,7 @@ class Market(Dapp):
         def insert_into_state(oip, insert_before_this_hash):
             pass
 
-        order_in_potentia = Market.NewOrder.make(tx[1])
+        order_in_potentia = Market.NewOrder(tx[1])
         oip = order_in_potentia
         # insert order; link in relevant place, if first set in state
         # can we figure out a way of caching or getting an efficient method of searching
@@ -574,7 +580,7 @@ class Market(Dapp):
 
         def remove_order(self, order_to_remove):
             pre_order = self.state[order_to_remove.next_better]
-        cancellation = Market.CancelOrder.make(tx.data[1])
+        cancellation = Market.CancelOrder(tx.data[1])
         self.assert_true(self.state[cancellation.order_id] != 0, 'Order must exist')
         order_to_cancel = self.state[cancellation.order_id]
         self.assert_true(order_to_cancel.sender == tx.sender, 'Must be authorised to cancel order')

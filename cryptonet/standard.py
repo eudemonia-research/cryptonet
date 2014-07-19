@@ -114,7 +114,7 @@ class Tx(Encodium):
 
 class SuperTx(Encodium):
     txs = List.Definition(Tx.Definition())
-    signature = Signature.Definition(default=Signature(pubkey_x=0, pubkey_y=0, r=0, s=0))
+    signature = Signature.Definition()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

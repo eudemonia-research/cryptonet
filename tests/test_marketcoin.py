@@ -12,6 +12,7 @@ class TestTransactions(unittest.TestCase):
     def test_bitcoin_headers(self):
         genesis_header = BitcoinHeader.make_from_bytes(unhexlify(
             "0100000000000000000000000000000000000000000000000000000000000000000000003ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a29ab5f49ffff001d1dac2b7c"))
+        # TODO : once the check on creation is done we can remove the assert internal consistency
         genesis_header.assert_internal_consistency()
 
     def test_creation_match_and_change(self):
