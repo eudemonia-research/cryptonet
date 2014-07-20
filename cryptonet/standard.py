@@ -482,7 +482,8 @@ class RCPHandler:
 
         @rpc.add_method
         def push_tx(super_tx_serialised):
-            super_tx = SuperTx(unhexlify(super_tx_serialised))
+            print('serd stx', super_tx_serialised)
+            super_tx = SuperTx(super_tx_serialised)
             super_tx.assert_internal_consistency()
             self.state_maker.apply_super_tx_to_future(super_tx)
             chain.restart_miner()

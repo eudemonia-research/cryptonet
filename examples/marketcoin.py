@@ -338,7 +338,7 @@ class Market(Dapp):
             debug('create_match_and_change', bid.rate, ask.rate, trade_rate, Market.Order.RATE_CONSTANT)
             bid_xmk = bid.amount * Market.Order.RATE_CONSTANT // trade_rate
             ask_xmk = ask.amount
-            debug('cmac, min bid, max ask: ', bid_xmk, ask_xmk)
+            debug('create_match_and_change, min bid, max ask: ', bid_xmk, ask_xmk)
             if ask_xmk == bid_xmk:
                 trade_volume = bid_xmk
                 change = None
