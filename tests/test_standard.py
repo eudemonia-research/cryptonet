@@ -59,6 +59,8 @@ class TestTransactions(unittest.TestCase):
             mid_state = {
                 int.from_bytes(b'MAX', 'big'): 15
             }
+            for key in mid_state.keys():
+                self.assertEqual(mid_state[key], self.state_maker.super_state[b''].complete_kvs()[key])
             self.assertEqual(mid_state, self.state_maker.super_state[b''].complete_kvs())
             tx = Tx(dapp=b'',value=5,fee=0,data=[b'ANDY'])
             tx.sender = int.from_bytes(b'MAX', 'big')
@@ -67,7 +69,8 @@ class TestTransactions(unittest.TestCase):
                 int.from_bytes(b'MAX', 'big'): 10,
                 int.from_bytes(b'ANDY', 'big'): 5
             }
-            self.assertEqual(end_state, self.state_maker.super_state[b''].complete_kvs())
+            for key in end_state.keys():
+                self.assertEqual(end_state[key], self.state_maker.super_state[b''].complete_kvs()[key])
 
     def test_super_transactions(self):
         ''' This WILL fail once signatures start working. Will need to be re-written.
@@ -80,7 +83,8 @@ class TestTransactions(unittest.TestCase):
             mid_state = {
                 int.from_bytes(b'MAX', 'big'): 15
             }
-            self.assertEqual(mid_state, self.state_maker.super_state[b''].complete_kvs())
+            for key in mid_state.keys():
+                self.assertEqual(mid_state[key], self.state_maker.super_state[b''].complete_kvs()[key])
 
             tx = Tx(dapp=b'',value=5,fee=0,data=[b'ANDY'])
             super_tx = SuperTx(txs=[tx], sender=pubkey)
@@ -93,8 +97,8 @@ class TestTransactions(unittest.TestCase):
                 int.from_bytes(b'MAX', 'big'): 10,
                 int.from_bytes(b'ANDY', 'big'): 5
             }
-            self.assertEqual(end_state, self.state_maker.super_state[b''].complete_kvs())
-
+            for key in end_state.keys():
+                self.assertEqual(end_state[key], self.state_maker.super_state[b''].complete_kvs()[key])
             tx1 = Tx(dapp=b'', value=3, fee=0, data=[b'ANDY'])
             tx2 = Tx(dapp=b'', value=5, fee=0, data=[b'MAX'])
             super_tx = SuperTx(txs=[tx1, tx2], sender=pubkey)
@@ -107,7 +111,8 @@ class TestTransactions(unittest.TestCase):
                 int.from_bytes(b'MAX', 'big'): 12,
                 int.from_bytes(b'ANDY', 'big'): 3,
             }
-            self.assertEqual(real_end_state, self.state_maker.super_state[b''].complete_kvs())
+            for key in end_state.keys():
+                self.assertEqual(real_end_state[key], self.state_maker.super_state[b''].complete_kvs()[key])
 
 
     def tearDown(self):
