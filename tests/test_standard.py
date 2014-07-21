@@ -5,10 +5,9 @@ import sys
 from binascii import unhexlify
 
 from cryptonet import Cryptonet
-from cryptonet.datastructs import ChainVars
 from cryptonet.chain import Chain
 from cryptonet.statemaker import StateMaker
-from cryptonet.standard import Tx, SuperTx, Signature
+from cryptonet.standard import Tx, SuperTx, Point
 from cryptonet.dapp import TxPrism
 from cryptonet.errors import ValidationError
 
@@ -16,10 +15,15 @@ import encodium
 
 from pycoin import ecdsa
 
+pubkey = Point(x=55066263022277343669578718895168534326250603453777594175500187360389116729240,
+               y=32670510020758816978083085130507043184471273380659243275938904335757337482424)
+
+secret_exponent = 0x1
+
 class TestTransactions(unittest.TestCase):
 
     def setUp(self):
-        self.state_maker = StateMaker(Chain(ChainVars()))
+        self.state_maker = StateMaker(Chain())
         self.state_maker.register_dapp(TxPrism(b'', self.state_maker))
 
         class FakeBlock:
@@ -44,22 +48,6 @@ class TestTransactions(unittest.TestCase):
     def test_invalid_headers(self):
         pass
 
-    def test_standard_signature(self):
-        # borrowed from pycoin tests in large part
-        def do_test(secret_exponent, val_list):
-            signature = Signature.make(r=0, s=0, pubkey_x=0, pubkey_y=0)
-            for v in val_list:
-                signature.sign(secret_exponent, v)
-                signature.assert_valid_signature(v)
-                signature.s = signature.s+1
-                self.assertRaises(encodium.ValidationError, signature.assert_valid_signature, message=v)
-
-        val_list = [100,20000,30000000,4000000000,500000000000,60000000000000]
-
-        do_test(0x1111111111111111111111111111111111111111111111111111111111111111, val_list)
-        do_test(0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd, val_list)
-        do_test(0x47f7616ea6f9b923076625b4488115de1ef1187f760e65f89eb6f4f7ff04b012, val_list)
-
     def test_transactions_unsigned(self):
         ''' Create some unsigned transactions (temp) that will be applied to state.
         The state should alter itself accordingly.
@@ -72,7 +60,7 @@ class TestTransactions(unittest.TestCase):
                 int.from_bytes(b'MAX', 'big'): 15
             }
             self.assertEqual(mid_state, self.state_maker.super_state[b''].complete_kvs())
-            tx = Tx.make(dapp=b'',value=5,fee=0,data=[b'ANDY'])
+            tx = Tx(dapp=b'',value=5,fee=0,data=[b'ANDY'])
             tx.sender = int.from_bytes(b'MAX', 'big')
             self.state_maker._process_tx(tx)
             end_state = {
@@ -94,9 +82,9 @@ class TestTransactions(unittest.TestCase):
             }
             self.assertEqual(mid_state, self.state_maker.super_state[b''].complete_kvs())
 
-            tx = Tx.make(dapp=b'',value=5,fee=0,data=[b'ANDY'])
-            super_tx = SuperTx.make(txs=[tx],signature=Signature.make(r=0, s=0, pubkey_x=0, pubkey_y=0))
-            super_tx.sign(0x1111111111111111111111111111111111111111111111111111111111111111)
+            tx = Tx(dapp=b'',value=5,fee=0,data=[b'ANDY'])
+            super_tx = SuperTx(txs=[tx], sender=pubkey)
+            super_tx = super_tx.sign(secret_exponent)
             super_tx.assert_internal_consistency()
             tx.sender = int.from_bytes(b'MAX', 'big')
             self.state_maker.most_recent_block = self.fake_block
@@ -107,10 +95,10 @@ class TestTransactions(unittest.TestCase):
             }
             self.assertEqual(end_state, self.state_maker.super_state[b''].complete_kvs())
 
-            tx1 = Tx.make(dapp=b'', value=3, fee=0, data=[b'ANDY'])
-            tx2 = Tx.make(dapp=b'', value=5, fee=0, data=[b'MAX'])
-            super_tx = SuperTx.make(txs=[tx1, tx2], signature=Signature.make(r=0, s=0, pubkey_x=0, pubkey_y=0))
-            super_tx.sign(0x1111111111111111111111111111111111111111111111111111111111111111)
+            tx1 = Tx(dapp=b'', value=3, fee=0, data=[b'ANDY'])
+            tx2 = Tx(dapp=b'', value=5, fee=0, data=[b'MAX'])
+            super_tx = SuperTx(txs=[tx1, tx2], sender=pubkey)
+            super_tx = super_tx.sign(secret_exponent)
             tx1.sender = int.from_bytes(b'MAX', 'big')
             tx2.sender = int.from_bytes(b'ANDY', 'big')
             super_tx.assert_internal_consistency()

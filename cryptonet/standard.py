@@ -3,6 +3,10 @@ from binascii import unhexlify
 
 from encodium import Encodium, Bytes, List, Integer, ValidationError
 import pycoin.ecdsa
+import ecdsa
+import json
+import hashlib
+import random
 
 from cryptonet.utilities import global_hash, time_as_int
 from cryptonet.statemaker import StateMaker
@@ -112,46 +116,70 @@ class Tx(Encodium):
         pass  # if we've got this far the tx should be well formed
 
 
+class Point(Encodium):
+    x = Integer.Definition()
+    y = Integer.Definition()
+
+    def _ecdsa_point(self):
+        return ecdsa.ellipticcurve.Point(ecdsa.SECP256k1.curve, self.x, self.y)
+
+
 class SuperTx(Encodium):
+    sender = Point.Definition()
     txs = List.Definition(Tx.Definition())
     signature = Signature.Definition()
 
     def __init__(self, *args, **kwargs):
+        self.txs_bytes = b''.join([tx.to_bytes() for tx in kwargs['txs']])
         super().__init__(*args, **kwargs)
-        self._gen_txs_bytes()
         self._set_tx_sender()
-
-    def _gen_txs_bytes(self):
-        self.txs_bytes = b''.join([tx.to_bytes() for tx in self.txs])
 
     def _set_tx_sender(self):
         for tx in self.txs:
-            tx.sender = self.signature.pubkey_x
+            tx.sender = self.sender
 
     def to_bytes(self):
         return b''.join([
-            self.txs_bytes,
-            self.signature.to_bytes(),
+            self.txs_bytes
         ])
 
     def get_hash(self):
         return global_hash(self.to_bytes())
 
     def sign(self, secret_exponent):
-        # shouldn't need to self._gen_txs_bytes() here
-        self.signature.sign(secret_exponent, int.from_bytes(self.txs_bytes, 'big'))
-        self._set_tx_sender()
+        privkey = ecdsa.SigningKey.from_secret_exponent(secret_exponent, curve=ecdsa.SECP256k1)
+        signature = privkey.sign(self.txs_bytes)
+        return SignedSuperTx(sender=self.sender, txs=self.txs, signature=signature)
 
     def assert_internal_consistency(self):
-        '''Should ensure signature is valid, nonce is valid, and each tx is valid
-        '''
-        for tx in self.txs:
-            tx.assert_internal_consistency()
-        self.signature.assert_valid_signature(int.from_bytes(self.txs_bytes, 'big'))
-        old_txs_bytes = self.txs_bytes
-        self._gen_txs_bytes()
-        assert old_txs_bytes == self.txs_bytes
+        print("Should never get called, this is what check() is for")
+        self.check([])
 
+
+class SignedSuperTx(SuperTx):
+
+    signature = Bytes.Definition()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def check(self, changed_attributes):
+        super().check(changed_attributes)
+        ecdsa_sender = self.sender._ecdsa_point()
+        try:
+            pubkey = ecdsa.VerifyingKey.from_public_point(ecdsa_sender, curve=ecdsa.SECP256k1)
+            pubkey.verify(self.signature, self.txs_bytes)
+        except ecdsa.keys.BadSignatureError:
+            raise ValidationError("Invalid Signature")
+
+    def sign(secret_exponent):
+        raise NotImplementedError
+
+    def to_bytes(self):
+        return b''.join([
+            self.txs_bytes,
+            self.signature
+        ])
 
 class Header(Encodium):
     DEFAULT_TARGET = 2 ** 248
@@ -200,7 +228,7 @@ class Header(Encodium):
         * timestamp not silly
         * previous_blocks not silly
         * PoW valid
-        
+
         'not silly' means the data 'looks' right (length, etc) but the information
         is not validated.
         '''
