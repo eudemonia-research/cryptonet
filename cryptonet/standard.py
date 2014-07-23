@@ -123,11 +123,14 @@ class Point(Encodium):
     def _ecdsa_point(self):
         return ecdsa.ellipticcurve.Point(ecdsa.SECP256k1.curve, self.x, self.y)
 
+    @staticmethod
+    def _from_ecdsa_point(point):
+        return Point(x=point.x(), y=point.y())
+
 
 class SuperTx(Encodium):
     sender = Point.Definition()
     txs = List.Definition(Tx.Definition())
-    signature = Signature.Definition()
 
     def __init__(self, *args, **kwargs):
         self.txs_bytes = b''.join([tx.to_bytes() for tx in kwargs['txs']])
@@ -173,7 +176,7 @@ class SignedSuperTx(SuperTx):
             raise ValidationError("Invalid Signature")
 
     def sign(secret_exponent):
-        raise NotImplementedError
+        raise Exception("This transaction is already signed.")
 
     def to_bytes(self):
         return b''.join([
@@ -509,13 +512,16 @@ class RCPHandler:
             return self.super_state[b''].complete_kvs()
 
         @rpc.add_method
-        def push_tx(super_tx_serialised):
-            print('serd stx', super_tx_serialised)
-            super_tx = SuperTx(super_tx_serialised)
-            super_tx.assert_internal_consistency()
-            self.state_maker.apply_super_tx_to_future(super_tx)
-            chain.restart_miner()
-            p2p.broadcast(b'super_tx', super_tx)
+        def push_tx(signed_super_tx):
+            try:
+                super_tx = SignedSuperTx.from_obj(signed_super_tx)
+                super_tx.assert_internal_consistency()
+                self.state_maker.apply_super_tx_to_future(super_tx)
+                chain.restart_miner()
+                p2p.broadcast(b'super_tx', super_tx)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
             return {"success": True, 'relayed': True}
 
         rpc.run()

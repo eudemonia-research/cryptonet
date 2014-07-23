@@ -314,9 +314,9 @@ class TxPrism(Dapp):
         self.assert_true(tx.donation >= 0, 'tx.donation must be greater than or equal to 0')
         debug('TxPrism.on_transaction', tx.sender)
 
-        self.assert_true(self.state[tx.sender] >= tx.value + tx.fee + tx.donation, 'sender must have enough funds')
+        self.assert_true(self.state[tx.sender.x] >= tx.value + tx.fee + tx.donation, 'sender must have enough funds')
 
-        self.state[tx.sender] -= tx.value + tx.fee + tx.donation
+        self.state[tx.sender.x] -= tx.value + tx.fee + tx.donation
         self.state[TxPrism.KNOWN_PUBKEY_X] += tx.fee
         self.state[TxPrism.EUDEMONIA_PUBKEY_X] += tx.donation
 
